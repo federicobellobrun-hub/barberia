@@ -185,7 +185,7 @@ export default function ReservarPage() {
       });
       if (chocaTurno) continue;
 
-      if (i === 0 && slotStart.getTime() < Date.now() + 30 * 60000) continue;
+      if (slotStart.getTime() < Date.now() + 30 * 60000) continue;
 
       slots.push(hhmm);
     }
