@@ -13,18 +13,28 @@ type Servicio = {
 export default function ReservarPage() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("servicios")
-        .select("id, nombre, duracion_minutos, precio")
-        .eq("activo", true)
-        .order("orden");
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("servicios")
+          .select("id, nombre, duracion_minutos, precio")
+          .eq("activo", true)
+          .order("orden");
 
-      setServicios(data || []);
-      setLoading(false);
+        if (error) {
+          setError(error.message);
+        } else {
+          setServicios(data || []);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Error al cargar");
+      } finally {
+        setLoading(false);
+      }
     };
 
     load();
@@ -38,7 +48,13 @@ export default function ReservarPage() {
 
         {loading && <p className="text-zinc-500">Cargando servicios...</p>}
 
-        {!loading && servicios.length === 0 && (
+        {error && (
+          <p className="text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+            {error}
+          </p>
+        )}
+
+        {!loading && !error && servicios.length === 0 && (
           <p className="text-zinc-500">Todavía no hay servicios cargados.</p>
         )}
 
