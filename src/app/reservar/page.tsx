@@ -1,0 +1,66 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase";
+
+type Servicio = {
+  id: string;
+  nombre: string;
+  duracion_minutos: number;
+  precio: number;
+};
+
+export default function ReservarPage() {
+  const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("servicios")
+        .select("id, nombre, duracion_minutos, precio")
+        .eq("activo", true)
+        .order("orden");
+
+      setServicios(data || []);
+      setLoading(false);
+    };
+
+    load();
+  }, []);
+
+  return (
+    <main className="min-h-screen px-6 py-10">
+      <div className="max-w-md mx-auto">
+        <h1 className="text-3xl font-bold text-amber-500">Nuestros servicios</h1>
+        <p className="text-zinc-400 mt-2 mb-8">Elegí un servicio para reservar</p>
+
+        {loading && <p className="text-zinc-500">Cargando servicios...</p>}
+
+        {!loading && servicios.length === 0 && (
+          <p className="text-zinc-500">Todavía no hay servicios cargados.</p>
+        )}
+
+        <div className="space-y-4">
+          {servicios.map((s) => (
+            <div
+              key={s.id}
+              className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex items-center justify-between"
+            >
+              <div>
+                <p className="font-semibold">{s.nombre}</p>
+                <p className="text-sm text-zinc-400">
+                  {s.duracion_minutos} min · ${s.precio}
+                </p>
+              </div>
+              <button className="bg-amber-500 text-black text-sm font-semibold px-4 py-2 rounded-lg">
+                Reservar
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </main>
+  );
+}
