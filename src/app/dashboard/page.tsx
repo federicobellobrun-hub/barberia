@@ -4,14 +4,22 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
+type Persona = { nombre: string; telefono: string };
+type Servicio = { nombre: string; precio: number };
+
 type Turno = {
   id: string;
   fecha_hora: string;
   duracion_minutos: number;
   estado: string;
-  clientes: { nombre: string; telefono: string } | null;
-  servicios: { nombre: string; precio: number } | null;
+  clientes: Persona | Persona[] | null;
+  servicios: Servicio | Servicio[] | null;
 };
+
+function one<T>(value: T | T[] | null): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] || null : value;
+}
 
 function ymd(date: Date) {
   return date.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
@@ -34,7 +42,10 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadUser = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (!user) {
         router.push("/login");
         return;
@@ -56,20 +67,23 @@ export default function DashboardPage() {
     const loadTurnos = async () => {
       setLoading(true);
       setError(null);
+
       const supabase = createClient();
       const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
 
       const { data, error } = await supabase
         .from("turnos")
-        .select("id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio)")
+        .select(
+          "id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio)"
+        )
         .gte("fecha_hora", desde)
         .lte("fecha_hora", hasta)
         .neq("estado", "cancelado")
         .order("fecha_hora");
 
       if (error) setError(error.message);
-      setTurnos((data as Turno[]) || []);
+      setTurnos((data as unknown as Turno[]) || []);
       setLoading(false);
     };
 
@@ -79,10 +93,12 @@ export default function DashboardPage() {
   const cambiarEstado = async (id: string, estado: string) => {
     const supabase = createClient();
     const { error } = await supabase.from("turnos").update({ estado }).eq("id", id);
+
     if (error) {
       setError(error.message);
       return;
     }
+
     setTurnos((prev) => prev.map((t) => (t.id === id ? { ...t, estado } : t)));
   };
 
@@ -120,10 +136,7 @@ export default function DashboardPage() {
           </button>
           <div className="text-center">
             <p className="font-semibold capitalize">{labelFecha}</p>
-            <button
-              onClick={() => setFecha(ymd(new Date()))}
-              className="text-xs text-amber-500"
-            >
+            <button onClick={() => setFecha(ymd(new Date()))} className="text-xs text-amber-500">
               Hoy
             </button>
           </div>
@@ -149,6 +162,8 @@ export default function DashboardPage() {
 
         <div className="space-y-3">
           {turnos.map((t) => {
+            const cliente = one(t.clientes);
+            const servicio = one(t.servicios);
             const hora = new Date(t.fecha_hora).toLocaleTimeString("es-UY", {
               hour: "2-digit",
               minute: "2-digit",
@@ -160,11 +175,11 @@ export default function DashboardPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-amber-500 font-semibold">{hora}</p>
-                    <p className="text-lg font-medium">{t.clientes?.nombre || "Cliente"}</p>
+                    <p className="text-lg font-medium">{cliente?.nombre || "Cliente"}</p>
                     <p className="text-sm text-zinc-400">
-                      {t.servicios?.nombre} · {t.duracion_minutos} min
+                      {servicio?.nombre} · {t.duracion_minutos} min
                     </p>
-                    <p className="text-sm text-zinc-500">{t.clientes?.telefono}</p>
+                    <p className="text-sm text-zinc-500">{cliente?.telefono}</p>
                   </div>
                   <span className="text-xs uppercase tracking-wide text-zinc-400">
                     {t.estado}
