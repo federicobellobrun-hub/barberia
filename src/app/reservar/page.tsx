@@ -69,8 +69,8 @@ export default function ReservarPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [servicio, setServicio] = useState<Servicio | null>(null);
-  const [fecha, setFecha] = useState<string>("");
-  const [hora, setHora] = useState<string>("");
+  const [fecha, setFecha] = useState("");
+  const [hora, setHora] = useState("");
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -94,9 +94,7 @@ export default function ReservarPage() {
             .from("horario_semanal")
             .select("dia_semana, hora_inicio, hora_fin")
             .eq("activo", true),
-          supabase
-            .from("bloqueos")
-            .select("fecha_inicio, fecha_fin, todo_el_dia"),
+          supabase.from("bloqueos").select("fecha_inicio, fecha_fin, todo_el_dia"),
           supabase
             .from("turnos")
             .select("fecha_hora, duracion_minutos")
@@ -125,19 +123,20 @@ export default function ReservarPage() {
   }, []);
 
   const proximosDias = useMemo(() => {
-    const days: { value: string; label: string; date: Date }[] = [];
+    const days: { value: string; label: string }[] = [];
     const now = new Date();
-    for (let i = 0; i < 14; i++) {
+    for (let n = 0; n < 14; n++) {
       const d = new Date(now);
-      d.setDate(now.getDate() + i);
-      const value = ymdMontevideo(d);
-      const label = d.toLocaleDateString("es-UY", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        timeZone: "America/Montevideo",
+      d.setDate(now.getDate() + n);
+      days.push({
+        value: ymdMontevideo(d),
+        label: d.toLocaleDateString("es-UY", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          timeZone: "America/Montevideo",
+        }),
       });
-      days.push({ value, label, date: d });
     }
     return days;
   }, []);
@@ -147,7 +146,7 @@ export default function ReservarPage() {
 
     const date = new Date(`${fecha}T12:00:00-03:00`);
     const dow = weekdayMontevideo(date);
-    const horario = horarios.find((h) => h.dia_semana === dow);
+    const horario = horarios.find((h) => Number(h.dia_semana) === dow);
     if (!horario) return [];
 
     const dayStart = new Date(`${fecha}T00:00:00-03:00`);
@@ -241,12 +240,6 @@ export default function ReservarPage() {
           <p className="text-zinc-400 text-sm">
             Te esperamos. Más adelante te va a llegar el aviso por WhatsApp.
           </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-amber-500 text-black font-semibold px-5 py-3 rounded-lg"
-          >
-            Reservar otro
-          </button>
         </div>
       </main>
     );
