@@ -175,9 +175,14 @@ export default function DashboardPage() {
     <main className="min-h-screen">
       <header className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold text-amber-500">Agenda</h1>
-        <button onClick={handleLogout} className="text-sm text-zinc-400 hover:text-white">
-          Salir
-        </button>
+        <div className="flex items-center gap-4">
+  <a href="/dashboard/bloqueos" className="text-sm text-zinc-400 hover:text-white">
+    Bloqueos
+  </a>
+  <button onClick={handleLogout} className="text-sm text-zinc-400 hover:text-white">
+    Salir
+  </button>
+</div>
       </header>
 
       <section className="max-w-3xl mx-auto px-6 py-8 space-y-6">
