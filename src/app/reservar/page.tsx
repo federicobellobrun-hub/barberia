@@ -213,7 +213,20 @@ export default function ReservarPage() {
       });
 
       if (error) throw new Error(error.message);
-      setOk(true);
+
+await fetch("/api/whatsapp/confirmacion", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    telefono,
+    nombre: nombre.trim(),
+    servicio: servicio.nombre,
+    fecha,
+    hora,
+  }),
+});
+
+setOk(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo reservar");
     } finally {
