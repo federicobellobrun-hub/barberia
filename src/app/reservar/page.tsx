@@ -214,17 +214,24 @@ export default function ReservarPage() {
 
       if (error) throw new Error(error.message);
 
-await fetch("/api/whatsapp/confirmacion", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    telefono,
-    nombre: nombre.trim(),
-    servicio: servicio.nombre,
-    fecha,
-    hora,
-  }),
-});
+    const wa = await fetch("/api/whatsapp/confirmacion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        telefono,
+        nombre: nombre.trim(),
+        servicio: servicio.nombre,
+        fecha,
+        hora,
+      }),
+    });
+
+    const waData = await wa.json();
+    if (!wa.ok) {
+      throw new Error(waData.error || "No se pudo enviar WhatsApp");
+    }
+
+    setOk(true);
 
 setOk(true);
     } catch (err) {
