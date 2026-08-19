@@ -34,6 +34,35 @@ function addDays(value: string, days: number) {
   return ymd(d);
 }
 
+function horaUy(fechaHora: string) {
+  return new Date(fechaHora).toLocaleTimeString("es-UY", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Montevideo",
+  });
+}
+
+function fechaUy(fechaHora: string) {
+  return new Date(fechaHora).toLocaleDateString("es-UY", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "America/Montevideo",
+  });
+}
+
+function waNumber(telefono: string) {
+  const solo = telefono.replace(/\D/g, "");
+  if (solo.startsWith("598")) return solo;
+  if (solo.startsWith("0")) return `598${solo.slice(1)}`;
+  return `598${solo}`;
+}
+
+function abrirWhatsapp(telefono: string, texto: string) {
+  const url = `https://wa.me/${waNumber(telefono)}?text=${encodeURIComponent(texto)}`;
+  window.open(url, "_blank");
+}
+
 export default function DashboardPage() {
   const [nombre, setNombre] = useState("Barbero");
   const [fecha, setFecha] = useState(ymd(new Date()));
@@ -41,6 +70,9 @@ export default function DashboardPage() {
   const [totalMes, setTotalMes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [nuevaFecha, setNuevaFecha] = useState("");
+  const [nuevaHora, setNuevaHora] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -49,21 +81,17 @@ export default function DashboardPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (!user) {
         router.push("/login");
         return;
       }
-
       const { data } = await supabase
         .from("usuarios")
         .select("nombre")
         .eq("auth_user_id", user.id)
         .single();
-
       if (data?.nombre) setNombre(data.nombre);
     };
-
     loadUser();
   }, [router]);
 
@@ -71,16 +99,13 @@ export default function DashboardPage() {
     const load = async () => {
       setLoading(true);
       setError(null);
-
       const supabase = createClient();
       const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
       const mes = fecha.slice(0, 7);
       const inicioMes = new Date(`${mes}-01T00:00:00-03:00`).toISOString();
-      const inicioMesSiguiente = new Date(
-        `${mes}-01T00:00:00-03:00`
-      );
-      inicioMesSiguiente.setMonth(inicioMesSiguiente.getMonth() + 1);
+      const siguiente = new Date(`${mes}-01T00:00:00-03:00`);
+      siguiente.setMonth(siguiente.getMonth() + 1);
 
       const [turnosRes, pagosMesRes] = await Promise.all([
         supabase
@@ -96,29 +121,24 @@ export default function DashboardPage() {
           .from("pagos")
           .select("monto")
           .gte("pagado_at", inicioMes)
-          .lt("pagado_at", inicioMesSiguiente.toISOString()),
+          .lt("pagado_at", siguiente.toISOString()),
       ]);
 
       if (turnosRes.error) setError(turnosRes.error.message);
-      if (pagosMesRes.error) setError(pagosMesRes.error.message);
-
       setTurnos((turnosRes.data as any) || []);
-      const sumaMes = (pagosMesRes.data || []).reduce(
-        (acc: number, p: { monto: number }) => acc + Number(p.monto || 0),
-        0
+      setTotalMes(
+        (pagosMesRes.data || []).reduce(
+          (acc: number, p: { monto: number }) => acc + Number(p.monto || 0),
+          0
+        )
       );
-      setTotalMes(sumaMes);
       setLoading(false);
     };
-
     load();
   }, [fecha]);
 
   const totalDia = useMemo(() => {
-    return turnos.reduce((acc, t) => {
-      const pago = one(t.pagos);
-      return acc + Number(pago?.monto || 0);
-    }, 0);
+    return turnos.reduce((acc, t) => acc + Number(one(t.pagos)?.monto || 0), 0);
   }, [turnos]);
 
   const cambiarEstado = async (id: string, estado: string) => {
@@ -133,9 +153,7 @@ export default function DashboardPage() {
 
   const registrarPago = async (turno: Turno, metodo: "efectivo" | "transferencia") => {
     const supabase = createClient();
-    const servicio = one(turno.servicios);
-    const monto = Number(servicio?.precio || 0);
-
+    const monto = Number(one(turno.servicios)?.precio || 0);
     const { data, error } = await supabase
       .from("pagos")
       .insert({
@@ -146,17 +164,41 @@ export default function DashboardPage() {
       })
       .select("id, monto, metodo")
       .single();
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await supabase.from("turnos").update({ estado: "realizado" }).eq("id", turno.id);
+    setTurnos((prev) =>
+      prev.map((t) => (t.id === turno.id ? { ...t, pagos: data, estado: "realizado" } : t))
+    );
+    setTotalMes((n) => n + monto);
+  };
 
+  const moverTurno = async (turno: Turno) => {
+    if (!nuevaFecha || !nuevaHora) return;
+    const supabase = createClient();
+    const fechaHora = new Date(`${nuevaFecha}T${nuevaHora}:00-03:00`).toISOString();
+    const { error } = await supabase
+      .from("turnos")
+      .update({ fecha_hora: fechaHora, estado: "confirmado" })
+      .eq("id", turno.id);
     if (error) {
       setError(error.message);
       return;
     }
 
-    setTurnos((prev) =>
-      prev.map((t) => (t.id === turno.id ? { ...t, pagos: data, estado: "realizado" } : t))
-    );
-    await supabase.from("turnos").update({ estado: "realizado" }).eq("id", turno.id);
-    setTotalMes((n) => n + monto);
+    const cliente = one(turno.clientes);
+    const servicio = one(turno.servicios);
+    if (cliente?.telefono) {
+      abrirWhatsapp(
+        cliente.telefono,
+        `Hola ${cliente.nombre}, te reagendamos el turno.\n\nServicio: ${servicio?.nombre}\nNuevo día: ${nuevaFecha}\nNueva hora: ${nuevaHora}\n\nSi no podés, avisanos.`
+      );
+    }
+
+    setEditId(null);
+    setFecha(nuevaFecha);
   };
 
   const handleLogout = async () => {
@@ -176,13 +218,13 @@ export default function DashboardPage() {
       <header className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold text-amber-500">Agenda</h1>
         <div className="flex items-center gap-4">
-  <a href="/dashboard/bloqueos" className="text-sm text-zinc-400 hover:text-white">
-    Bloqueos
-  </a>
-  <button onClick={handleLogout} className="text-sm text-zinc-400 hover:text-white">
-    Salir
-  </button>
-</div>
+          <a href="/dashboard/bloqueos" className="text-sm text-zinc-400 hover:text-white">
+            Bloqueos
+          </a>
+          <button onClick={handleLogout} className="text-sm text-zinc-400 hover:text-white">
+            Salir
+          </button>
+        </div>
       </header>
 
       <section className="max-w-3xl mx-auto px-6 py-8 space-y-6">
@@ -199,10 +241,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center justify-between gap-3">
-          <button
-            onClick={() => setFecha(addDays(fecha, -1))}
-            className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800"
-          >
+          <button onClick={() => setFecha(addDays(fecha, -1))} className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800">
             ←
           </button>
           <div className="text-center">
@@ -211,10 +250,7 @@ export default function DashboardPage() {
               Hoy
             </button>
           </div>
-          <button
-            onClick={() => setFecha(addDays(fecha, 1))}
-            className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800"
-          >
+          <button onClick={() => setFecha(addDays(fecha, 1))} className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800">
             →
           </button>
         </div>
@@ -224,77 +260,116 @@ export default function DashboardPage() {
             {error}
           </p>
         )}
-
         {loading && <p className="text-zinc-500">Cargando turnos...</p>}
-
-        {!loading && turnos.length === 0 && (
-          <p className="text-zinc-500">No hay turnos para este día.</p>
-        )}
+        {!loading && turnos.length === 0 && <p className="text-zinc-500">No hay turnos para este día.</p>}
 
         <div className="space-y-3">
           {turnos.map((t) => {
             const cliente = one(t.clientes);
             const servicio = one(t.servicios);
             const pago = one(t.pagos);
-            const hora = new Date(t.fecha_hora).toLocaleTimeString("es-UY", {
-              hour: "2-digit",
-              minute: "2-digit",
-              timeZone: "America/Montevideo",
-            });
 
             return (
-              <div key={t.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+              <div key={t.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-amber-500 font-semibold">{hora}</p>
+                    <p className="text-amber-500 font-semibold">{horaUy(t.fecha_hora)}</p>
                     <p className="text-lg font-medium">{cliente?.nombre || "Cliente"}</p>
                     <p className="text-sm text-zinc-400">
                       {servicio?.nombre} · {t.duracion_minutos} min · ${servicio?.precio || 0}
                     </p>
                     <p className="text-sm text-zinc-500">{cliente?.telefono}</p>
                   </div>
-                  <span className="text-xs uppercase tracking-wide text-zinc-400">
-                    {t.estado}
-                  </span>
+                  <span className="text-xs uppercase text-zinc-400">{t.estado}</span>
                 </div>
 
-                <div className="mt-4">
-                  {pago ? (
-                    <p className="text-sm text-green-400">
-                      Pagado · {pago.metodo} · ${pago.monto}
-                    </p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => registrarPago(t, "efectivo")}
-                        className="text-xs px-3 py-2 rounded-lg bg-amber-500 text-black font-semibold"
-                      >
-                        Pagó efectivo
-                      </button>
-                      <button
-                        onClick={() => registrarPago(t, "transferencia")}
-                        className="text-xs px-3 py-2 rounded-lg bg-zinc-800"
-                      >
-                        Pagó transferencia
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {cliente?.telefono && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        cambiarEstado(t.id, "confirmado");
+                        abrirWhatsapp(
+                          cliente.telefono,
+                          `Hola ${cliente.nombre}, te confirmamos el turno.\n\nServicio: ${servicio?.nombre}\nDía: ${fechaUy(t.fecha_hora)}\nHora: ${horaUy(t.fecha_hora)}\n\nTe esperamos.`
+                        );
+                      }}
+                      className="text-xs px-3 py-2 rounded-lg bg-amber-500 text-black font-semibold"
+                    >
+                      Confirmar y avisar
+                    </button>
+                    <button
+                      onClick={() =>
+                        abrirWhatsapp(
+                          cliente.telefono,
+                          `Hola ${cliente.nombre}, te recordamos tu turno de mañana.\n\nServicio: ${servicio?.nombre}\nDía: ${fechaUy(t.fecha_hora)}\nHora: ${horaUy(t.fecha_hora)}\n\nSi no podés venir, avisanos.`
+                        )
+                      }
+                      className="text-xs px-3 py-2 rounded-lg bg-zinc-800"
+                    >
+                      Recordatorio
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditId(t.id);
+                        setNuevaFecha(ymd(new Date(t.fecha_hora)));
+                        setNuevaHora(horaUy(t.fecha_hora));
+                      }}
+                      className="text-xs px-3 py-2 rounded-lg bg-zinc-800"
+                    >
+                      Mover horario
+                    </button>
+                    <button
+                      onClick={() => {
+                        cambiarEstado(t.id, "cancelado");
+                        abrirWhatsapp(
+                          cliente.telefono,
+                          `Hola ${cliente.nombre}, tu turno del ${fechaUy(t.fecha_hora)} a las ${horaUy(t.fecha_hora)} fue cancelado.\n\nSi querés, podés reservar otro horario.`
+                        );
+                      }}
+                      className="text-xs px-3 py-2 rounded-lg bg-red-500/10 text-red-400"
+                    >
+                      Cancelar y avisar
+                    </button>
+                  </div>
+                )}
 
-                <div className="flex flex-wrap gap-2 mt-4">
-                  <button onClick={() => cambiarEstado(t.id, "confirmado")} className="text-xs px-3 py-2 rounded-lg bg-zinc-800">
-                    Confirmado
-                  </button>
-                  <button onClick={() => cambiarEstado(t.id, "realizado")} className="text-xs px-3 py-2 rounded-lg bg-zinc-800">
-                    Realizado
-                  </button>
-                  <button onClick={() => cambiarEstado(t.id, "no_asistio")} className="text-xs px-3 py-2 rounded-lg bg-zinc-800">
-                    No asistió
-                  </button>
-                  <button onClick={() => cambiarEstado(t.id, "cancelado")} className="text-xs px-3 py-2 rounded-lg bg-red-500/10 text-red-400">
-                    Cancelar
-                  </button>
-                </div>
+                {editId === t.id && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      value={nuevaFecha}
+                      onChange={(e) => setNuevaFecha(e.target.value)}
+                      className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
+                    />
+                    <input
+                      type="time"
+                      value={nuevaHora}
+                      onChange={(e) => setNuevaHora(e.target.value)}
+                      className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
+                    />
+                    <button
+                      onClick={() => moverTurno(t)}
+                      className="col-span-2 bg-amber-500 text-black font-semibold py-2 rounded-lg"
+                    >
+                      Guardar y avisar
+                    </button>
+                  </div>
+                )}
+
+                {pago ? (
+                  <p className="text-sm text-green-400">
+                    Pagado · {pago.metodo} · ${pago.monto}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => registrarPago(t, "efectivo")} className="text-xs px-3 py-2 rounded-lg bg-zinc-800">
+                      Pagó efectivo
+                    </button>
+                    <button onClick={() => registrarPago(t, "transferencia")} className="text-xs px-3 py-2 rounded-lg bg-zinc-800">
+                      Pagó transferencia
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
