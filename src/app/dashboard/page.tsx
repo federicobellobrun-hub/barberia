@@ -83,7 +83,7 @@ export default function DashboardPage() {
         .order("fecha_hora");
 
       if (error) setError(error.message);
-      setTurnos((data as unknown as Turno[]) || []);
+      setTurnos((data as any) || []);
       setLoading(false);
     };
 
