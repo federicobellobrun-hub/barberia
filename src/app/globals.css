@@ -2,7 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg: #0b0b0c;
+  --card: #121214;
+  --line: #222226;
+  --gold: #c4a574;
+  --text: #f4f1ea;
+  --muted: #9a958c;
+}
+
+html,
 body {
-  background: #09090b;
-  color: #fafafa;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: "Times New Roman", Times, serif;
+  letter-spacing: -0.03em;
 }
