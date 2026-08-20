@@ -74,7 +74,54 @@ export default function DashboardPage() {
   const [nuevaFecha, setNuevaFecha] = useState("");
   const [nuevaHora, setNuevaHora] = useState("");
   const router = useRouter();
+  useEffect(() => {
+    const supabase = createClient();
 
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    }
+
+    const channel = supabase
+      .channel("nuevas-reservas")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "turnos" },
+        async (payload: any) => {
+          const turno = payload.new;
+          let texto = "Entró un turno nuevo";
+
+          if (turno?.cliente_id) {
+            const { data } = await supabase
+              .from("clientes")
+              .select("nombre, telefono")
+              .eq("id", turno.cliente_id)
+              .single();
+            if (data?.nombre) {
+              const hora = new Date(turno.fecha_hora).toLocaleTimeString("es-UY", {
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: "America/Montevideo",
+              });
+              texto = `${data.nombre} reservó a las ${hora}`;
+            }
+          }
+
+          if (typeof window !== "undefined" && Notification.permission === "granted") {
+            new Notification("Nueva reserva", { body: texto });
+          }
+
+          alert(texto);
+          window.location.reload();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
   useEffect(() => {
     const loadUser = async () => {
       const supabase = createClient();
