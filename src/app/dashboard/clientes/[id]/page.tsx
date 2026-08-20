@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type Cliente = {
   id: string;
@@ -12,7 +13,6 @@ type Cliente = {
   telefono: string;
   notas: string | null;
 };
-
 type Turno = {
   id: string;
   fecha_hora: string;
@@ -20,13 +20,7 @@ type Turno = {
   duracion_minutos: number;
   servicios: { nombre: string; precio: number } | { nombre: string; precio: number }[] | null;
 };
-
-type Foto = {
-  id: string;
-  url: string;
-  descripcion: string | null;
-  turno_id: string;
-};
+type Foto = { id: string; url: string; descripcion: string | null; turno_id: string };
 
 function one<T>(value: T | T[] | null): T | null {
   if (!value) return null;
@@ -53,7 +47,6 @@ export default function FichaClientePage() {
       .eq("id", id)
       .single();
     if (e1) return setError(e1.message);
-
     setCliente(c);
     setNotas(c.notas || "");
 
@@ -84,9 +77,7 @@ export default function FichaClientePage() {
   useEffect(() => {
     const init = async () => {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push("/login");
         return;
@@ -108,15 +99,11 @@ export default function FichaClientePage() {
 
   const subirFoto = async (file: File) => {
     if (!cliente) return;
-    if (!turnoFoto) {
-      setError("Elegí a qué visita pertenece la foto");
-      return;
-    }
+    if (!turnoFoto) return setError("Elegí a qué visita pertenece la foto");
     const supabase = createClient();
     const path = `${cliente.barberia_id}/${cliente.id}/${Date.now()}-${file.name}`;
     const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
     if (upErr) return setError(upErr.message);
-
     const { data } = supabase.storage.from("fotos").getPublicUrl(path);
     const { error: insErr } = await supabase.from("fotos").insert({
       barberia_id: cliente.barberia_id,
@@ -131,104 +118,57 @@ export default function FichaClientePage() {
     }
   };
 
-  const anterior = () => setActual((n) => (n === 0 ? fotos.length - 1 : n - 1));
-  const siguiente = () => setActual((n) => (n === fotos.length - 1 ? 0 : n + 1));
-
   if (!cliente) {
-    return (
-      <main className="min-h-screen bg-zinc-950 text-zinc-400 flex items-center justify-center">
-        Cargando ficha...
-      </main>
-    );
+    return <main className="min-h-screen flex items-center justify-center" style={{ color: "var(--muted)" }}>Cargando ficha...</main>;
   }
 
   const foto = fotos[actual];
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#1a1408_0%,#09090b_45%)]">
-      <header className="border-b border-zinc-800/80 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.25em] text-amber-500/80">Ficha cliente</p>
-            <h1 className="text-xl font-semibold">{cliente.nombre}</h1>
+    <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <div className="max-w-md mx-auto px-5 pt-4">
+        <header className="flex items-center justify-between mb-6">
+          <Link href="/dashboard/clientes">‹</Link>
+          <div className="text-center">
+            <p className="text-[11px] tracking-[0.28em] uppercase">Diano</p>
+            <p className="text-[10px] tracking-[0.22em] uppercase" style={{ color: "var(--muted)" }}>Barbershop</p>
           </div>
-          <Link href="/dashboard/clientes" className="text-sm text-zinc-400 hover:text-white">
-            Volver
-          </Link>
-        </div>
-      </header>
+          <ThemeToggle />
+        </header>
 
-      <section className="max-w-4xl mx-auto px-6 py-8 space-y-8">
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6">
-          <p className="text-2xl font-semibold">{cliente.nombre}</p>
-          <p className="text-zinc-400 mt-1">{cliente.telefono}</p>
-          <p className="text-sm text-zinc-500 mt-3">{turnos.length} visitas · {fotos.length} fotos</p>
-        </div>
+        <h1 className="text-[34px] font-semibold tracking-tight">{cliente.nombre}</h1>
+        <p className="mb-6" style={{ color: "var(--muted)" }}>{cliente.telefono}</p>
 
-        {error && <p className="text-red-400">{error}</p>}
-        {ok && <p className="text-emerald-400">{ok}</p>}
+        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+        {ok && <p className="text-sm mb-3" style={{ color: "var(--muted)" }}>{ok}</p>}
 
-        <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 space-y-4">
-          <h2 className="font-semibold">Galería del corte</h2>
-
+        <section className="rounded-2xl p-4 mb-5" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <h2 className="font-medium mb-3">Galería</h2>
           {fotos.length === 0 ? (
-            <p className="text-zinc-500 text-sm">Todavía no hay fotos.</p>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>Todavía no hay fotos.</p>
           ) : (
-            <div className="relative">
-              <img
-                src={foto.url}
-                alt={foto.descripcion || "Corte"}
-                className="w-full h-[420px] object-cover rounded-3xl border border-zinc-800"
-              />
-
-              <button
-                onClick={anterior}
-                className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-black/60 border border-zinc-700"
-              >
-                ←
-              </button>
-              <button
-                onClick={siguiente}
-                className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-black/60 border border-zinc-700"
-              >
-                →
-              </button>
-
-              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+            <>
+              <div className="relative mb-3">
+                <img src={foto.url} alt="" className="w-full h-72 object-cover rounded-2xl" />
+                <button onClick={() => setActual(actual === 0 ? fotos.length - 1 : actual - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full" style={{ background: "#1d1d1f", color: "#fff" }}>‹</button>
+                <button onClick={() => setActual(actual === fotos.length - 1 ? 0 : actual + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full" style={{ background: "#1d1d1f", color: "#fff" }}>›</button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto">
                 {fotos.map((f, i) => (
-                  <button
-                    key={f.id}
-                    onClick={() => setActual(i)}
-                    className={`h-2.5 rounded-full transition ${
-                      i === actual ? "w-8 bg-amber-500" : "w-2.5 bg-zinc-500"
-                    }`}
-                  />
+                  <button key={f.id} onClick={() => setActual(i)}>
+                    <img src={f.url} alt="" className="h-14 w-14 object-cover rounded-xl" style={{ border: i === actual ? "2px solid #1d1d1f" : "1px solid var(--line)" }} />
+                  </button>
                 ))}
               </div>
-            </div>
+            </>
           )}
 
-          {fotos.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {fotos.map((f, i) => (
-                <button key={f.id} onClick={() => setActual(i)} className="shrink-0">
-                  <img
-                    src={f.url}
-                    alt=""
-                    className={`h-16 w-16 object-cover rounded-xl border ${
-                      i === actual ? "border-amber-500" : "border-zinc-800"
-                    }`}
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          <div className="mt-4 space-y-2">
             <select
               value={turnoFoto}
               onChange={(e) => setTurnoFoto(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2"
+              className="w-full rounded-xl px-3 py-3"
+              style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}
             >
               {turnos.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -243,42 +183,37 @@ export default function FichaClientePage() {
                 const file = e.target.files?.[0];
                 if (file) subirFoto(file);
               }}
-              className="text-sm text-zinc-400"
+              className="text-sm"
             />
           </div>
         </section>
 
-        <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 space-y-3">
-          <h2 className="font-semibold">Notas del corte</h2>
+        <section className="rounded-2xl p-4 mb-5" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <h2 className="font-medium mb-3">Notas del corte</h2>
           <textarea
             value={notas}
             onChange={(e) => setNotas(e.target.value)}
-            rows={5}
-            placeholder="Fade alto, no muy corto arriba, barba cuadrada..."
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 outline-none focus:border-amber-500/50"
+            rows={4}
+            placeholder="Fade, barba, preferencias..."
+            className="w-full rounded-xl px-3 py-3 outline-none"
+            style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}
           />
-          <button
-            onClick={guardarNotas}
-            className="bg-amber-500 text-black font-semibold px-5 py-2 rounded-full"
-          >
+          <button onClick={guardarNotas} className="mt-3 w-full rounded-2xl py-3 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>
             Guardar notas
           </button>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="font-semibold">Qué se hizo</h2>
-          {turnos.map((t) => (
-            <div key={t.id} className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-5">
-              <p className="text-amber-400 font-medium">{one(t.servicios)?.nombre || "Servicio"}</p>
-              <p className="text-sm text-zinc-400 mt-1">
-                {new Date(t.fecha_hora).toLocaleString("es-UY")} · {t.duracion_minutos} min · $
-                {one(t.servicios)?.precio || 0}
-              </p>
-              <p className="text-xs uppercase tracking-wider text-zinc-500 mt-2">{t.estado}</p>
-            </div>
-          ))}
-        </section>
-      </section>
+        <h2 className="font-medium mb-3">Qué se hizo</h2>
+        {turnos.map((t) => (
+          <div key={t.id} className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            <p className="font-medium">{one(t.servicios)?.nombre || "Servicio"}</p>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              {new Date(t.fecha_hora).toLocaleString("es-UY")} · ${one(t.servicios)?.precio || 0}
+            </p>
+            <p className="text-xs uppercase mt-1" style={{ color: "var(--muted)" }}>{t.estado}</p>
+          </div>
+        ))}
+      </div>
     </main>
   );
 }
