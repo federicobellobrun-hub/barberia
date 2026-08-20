@@ -21,9 +21,9 @@ export default function CatalogoPage() {
   const [pPrecio, setPPrecio] = useState("");
   const [pDesc, setPDesc] = useState("");
   const router = useRouter();
-  const supabase = createClient();
 
   const load = async (id: string) => {
+    const supabase = createClient();
     const [s, p] = await Promise.all([
       supabase.from("servicios").select("id, nombre, duracion_minutos, precio, activo").eq("barberia_id", id).order("orden"),
       supabase.from("productos").select("id, nombre, precio, descripcion, activo").eq("barberia_id", id).order("nombre"),
@@ -36,6 +36,7 @@ export default function CatalogoPage() {
 
   useEffect(() => {
     const init = async () => {
+      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
       const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).single();
@@ -49,6 +50,7 @@ export default function CatalogoPage() {
   const addServicio = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!barberiaId) return;
+    const supabase = createClient();
     const { error } = await supabase.from("servicios").insert({
       barberia_id: barberiaId,
       nombre: sNombre,
@@ -58,13 +60,16 @@ export default function CatalogoPage() {
       orden: servicios.length + 1,
     });
     if (error) return setError(error.message);
-    setSNombre(""); setSDuracion("30"); setSPrecio("");
+    setSNombre("");
+    setSDuracion("30");
+    setSPrecio("");
     await load(barberiaId);
   };
 
   const addProducto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!barberiaId) return;
+    const supabase = createClient();
     const { error } = await supabase.from("productos").insert({
       barberia_id: barberiaId,
       nombre: pNombre,
@@ -73,11 +78,14 @@ export default function CatalogoPage() {
       activo: true,
     });
     if (error) return setError(error.message);
-    setPNombre(""); setPPrecio(""); setPDesc("");
+    setPNombre("");
+    setPPrecio("");
+    setPDesc("");
     await load(barberiaId);
   };
 
   const updateServicio = async (s: Servicio) => {
+    const supabase = createClient();
     const { error } = await supabase.from("servicios").update({
       nombre: s.nombre,
       duracion_minutos: s.duracion_minutos,
@@ -88,6 +96,7 @@ export default function CatalogoPage() {
   };
 
   const updateProducto = async (p: Producto) => {
+    const supabase = createClient();
     const { error } = await supabase.from("productos").update({
       nombre: p.nombre,
       precio: p.precio,
@@ -99,6 +108,7 @@ export default function CatalogoPage() {
 
   const delServicio = async (id: string) => {
     if (!barberiaId) return;
+    const supabase = createClient();
     const { error } = await supabase.from("servicios").delete().eq("id", id);
     if (error) setError(error.message);
     else await load(barberiaId);
@@ -106,6 +116,7 @@ export default function CatalogoPage() {
 
   const delProducto = async (id: string) => {
     if (!barberiaId) return;
+    const supabase = createClient();
     const { error } = await supabase.from("productos").delete().eq("id", id);
     if (error) setError(error.message);
     else await load(barberiaId);
@@ -145,8 +156,8 @@ export default function CatalogoPage() {
               <input type="number" value={s.precio} onChange={(e) => setServicios((prev) => prev.map((x) => x.id === s.id ? { ...x, precio: Number(e.target.value) } : x))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             </div>
             <div className="flex gap-2">
-              <button onClick={() => updateServicio(s)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1d1d1f", color: "#fff" }}>Guardar</button>
-              <button onClick={() => delServicio(s.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
+              <button type="button" onClick={() => updateServicio(s)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1d1d1f", color: "#fff" }}>Guardar</button>
+              <button type="button" onClick={() => delServicio(s.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
             </div>
           </div>
         ))}
@@ -164,8 +175,8 @@ export default function CatalogoPage() {
             <input value={p.nombre} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, nombre: e.target.value } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input type="number" value={p.precio} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, precio: Number(e.target.value) } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <div className="flex gap-2">
-              <button onClick={() => updateProducto(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1d1d1f", color: "#fff" }}>Guardar</button>
-              <button onClick={() => delProducto(p.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
+              <button type="button" onClick={() => updateProducto(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1d1d1f", color: "#fff" }}>Guardar</button>
+              <button type="button" onClick={() => delProducto(p.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
             </div>
           </div>
         ))}
