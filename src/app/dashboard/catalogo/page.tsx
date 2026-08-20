@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase";
 import ThemeToggle from "@/components/ThemeToggle";
 
 type Servicio = { id: string; nombre: string; duracion_minutos: number; precio: number; activo: boolean };
-type Producto = { id: string; nombre: string; precio: number; descripcion: string | null; activo: boolean };
+type Producto = { id: string; nombre: string; precio: number; descripcion: string | null; activo: boolean; stock: number };
 
 export default function CatalogoPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
@@ -20,13 +20,14 @@ export default function CatalogoPage() {
   const [pNombre, setPNombre] = useState("");
   const [pPrecio, setPPrecio] = useState("");
   const [pDesc, setPDesc] = useState("");
+  const [pStock, setPStock] = useState("0");
   const router = useRouter();
 
   const load = async (id: string) => {
     const supabase = createClient();
     const [s, p] = await Promise.all([
       supabase.from("servicios").select("id, nombre, duracion_minutos, precio, activo").eq("barberia_id", id).order("orden"),
-      supabase.from("productos").select("id, nombre, precio, descripcion, activo").eq("barberia_id", id).order("nombre"),
+      supabase.from("productos").select("id, nombre, precio, descripcion, activo, stock").eq("barberia_id", id).order("nombre"),
     ]);
     if (s.error) setError(s.error.message);
     if (p.error) setError(p.error.message);
@@ -75,12 +76,14 @@ export default function CatalogoPage() {
       nombre: pNombre,
       precio: Number(pPrecio),
       descripcion: pDesc || null,
+      stock: Number(pStock),
       activo: true,
     });
     if (error) return setError(error.message);
     setPNombre("");
     setPPrecio("");
     setPDesc("");
+    setPStock("0");
     await load(barberiaId);
   };
 
@@ -101,6 +104,7 @@ export default function CatalogoPage() {
       nombre: p.nombre,
       precio: p.precio,
       descripcion: p.descripcion,
+      stock: p.stock,
       activo: p.activo,
     }).eq("id", p.id);
     if (error) setError(error.message);
@@ -167,6 +171,7 @@ export default function CatalogoPage() {
           <input required value={pNombre} onChange={(e) => setPNombre(e.target.value)} placeholder="Ej: Cera capilar" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <input required value={pPrecio} onChange={(e) => setPPrecio(e.target.value)} placeholder="Precio" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <input value={pDesc} onChange={(e) => setPDesc(e.target.value)} placeholder="Descripción" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input value={pStock} onChange={(e) => setPStock(e.target.value)} placeholder="Stock" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>Agregar producto</button>
         </form>
 
@@ -174,6 +179,7 @@ export default function CatalogoPage() {
           <div key={p.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             <input value={p.nombre} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, nombre: e.target.value } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input type="number" value={p.precio} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, precio: Number(e.target.value) } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+            <input type="number" value={p.stock ?? 0} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, stock: Number(e.target.value) } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <div className="flex gap-2">
               <button type="button" onClick={() => updateProducto(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1d1d1f", color: "#fff" }}>Guardar</button>
               <button type="button" onClick={() => delProducto(p.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
