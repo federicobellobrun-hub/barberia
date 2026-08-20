@@ -115,9 +115,7 @@ export default function ReservarPage() {
     const days = new Date(year, month + 1, 0).getDate();
     const cells: (string | null)[] = [];
     for (let i = 0; i < start; i++) cells.push(null);
-    for (let d = 1; d <= days; d++) {
-      cells.push(ymdMontevideo(new Date(year, month, d)));
-    }
+    for (let d = 1; d <= days; d++) cells.push(ymdMontevideo(new Date(year, month, d)));
     return cells;
   }, [mes]);
 
@@ -201,7 +199,7 @@ export default function ReservarPage() {
         <header className="flex items-center justify-between mb-6">
           <Link href="/" className="text-xl leading-none">☰</Link>
           <div className="text-center">
-            <p className="text-[11px] tracking-[0.28em] uppercase">Gentlemen's</p>
+            <p className="text-[11px] tracking-[0.28em] uppercase">Diano</p>
             <p className="text-[10px] tracking-[0.22em] uppercase" style={{ color: "var(--muted)" }}>Barbershop</p>
           </div>
           <ThemeToggle />
@@ -218,9 +216,7 @@ export default function ReservarPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium">Elegí un servicio</h2>
-        </div>
+        <h2 className="font-medium mb-3">Elegí un servicio</h2>
         <div className="grid grid-cols-3 gap-2 mb-7">
           {servicios.map((s) => {
             const activo = servicio?.id === s.id;
