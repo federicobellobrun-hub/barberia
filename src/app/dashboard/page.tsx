@@ -303,11 +303,11 @@ export default function DashboardPage() {
           <Link href="/dashboard/bloqueos" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             Bloqueos
           </Link>
-          <Link href="/dashboard/recordatorios" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            Mañana
-          </Link>
           <Link href="/dashboard/catalogo" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             Catálogo
+          </Link>
+          <Link href="/dashboard/mas" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            Más
           </Link>
         </div>
 
@@ -352,7 +352,7 @@ export default function DashboardPage() {
           <span className="font-medium">Agenda</span>
           <Link href="/dashboard/clientes" style={{ color: "var(--muted)" }}>Clientes</Link>
           <Link href="/dashboard/catalogo" style={{ color: "var(--muted)" }}>Catálogo</Link>
-          <Link href="/dashboard/bloqueos" style={{ color: "var(--muted)" }}>Bloqueos</Link>
+          <Link href="/dashboard/mas" style={{ color: "var(--muted)" }}>Más</Link>
         </div>
       </nav>
     </main>
