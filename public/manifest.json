@@ -1,1 +1,9 @@
-
+{
+  "name": "Diano Barbershop",
+  "short_name": "Diano",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f5f7",
+  "theme_color": "#1d1d1f",
+  "lang": "es"
+}
