@@ -70,58 +70,12 @@ export default function DashboardPage() {
   const [totalMes, setTotalMes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [nuevaFecha, setNuevaFecha] = useState("");
   const [nuevaHora, setNuevaHora] = useState("");
   const router = useRouter();
-  useEffect(() => {
-    const supabase = createClient();
 
-    if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission === "default") {
-        Notification.requestPermission();
-      }
-    }
-
-    const channel = supabase
-      .channel("nuevas-reservas")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "turnos" },
-        async (payload: any) => {
-          const turno = payload.new;
-          let texto = "Entró un turno nuevo";
-
-          if (turno?.cliente_id) {
-            const { data } = await supabase
-              .from("clientes")
-              .select("nombre, telefono")
-              .eq("id", turno.cliente_id)
-              .single();
-            if (data?.nombre) {
-              const hora = new Date(turno.fecha_hora).toLocaleTimeString("es-UY", {
-                hour: "2-digit",
-                minute: "2-digit",
-                timeZone: "America/Montevideo",
-              });
-              texto = `${data.nombre} reservó a las ${hora}`;
-            }
-          }
-
-          if (typeof window !== "undefined" && Notification.permission === "granted") {
-            new Notification("Nueva reserva", { body: texto });
-          }
-
-          alert(texto);
-          window.location.reload();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
   useEffect(() => {
     const loadUser = async () => {
       const supabase = createClient();
@@ -184,6 +138,55 @@ export default function DashboardPage() {
     load();
   }, [fecha]);
 
+  useEffect(() => {
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel("nuevas-reservas")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "turnos" },
+        async (payload: any) => {
+          const turno = payload.new;
+          let texto = "Entró un turno nuevo";
+
+          if (turno?.cliente_id) {
+            const { data } = await supabase
+              .from("clientes")
+              .select("nombre")
+              .eq("id", turno.cliente_id)
+              .single();
+            if (data?.nombre) {
+              const hora = new Date(turno.fecha_hora).toLocaleTimeString("es-UY", {
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: "America/Montevideo",
+              });
+              texto = `${data.nombre} reservó a las ${hora}`;
+            }
+          }
+
+          setAviso(texto);
+
+          if (typeof window !== "undefined" && "Notification" in window) {
+            if (Notification.permission === "granted") {
+              new Notification("Nueva reserva", { body: texto });
+            }
+          }
+
+          const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+          audio.play().catch(() => {});
+
+          setTimeout(() => window.location.reload(), 1500);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const totalDia = useMemo(() => {
     return turnos.reduce((acc, t) => acc + Number(one(t.pagos)?.monto || 0), 0);
   }, [turnos]);
@@ -200,228 +203,4 @@ export default function DashboardPage() {
 
   const registrarPago = async (turno: Turno, metodo: "efectivo" | "transferencia") => {
     const supabase = createClient();
-    const monto = Number(one(turno.servicios)?.precio || 0);
-    const { data, error } = await supabase
-      .from("pagos")
-      .insert({
-        barberia_id: turno.barberia_id,
-        turno_id: turno.id,
-        monto,
-        metodo,
-      })
-      .select("id, monto, metodo")
-      .single();
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    await supabase.from("turnos").update({ estado: "realizado" }).eq("id", turno.id);
-    setTurnos((prev) =>
-      prev.map((t) => (t.id === turno.id ? { ...t, pagos: data, estado: "realizado" } : t))
-    );
-    setTotalMes((n) => n + monto);
-  };
-
-  const moverTurno = async (turno: Turno) => {
-    if (!nuevaFecha || !nuevaHora) return;
-    const supabase = createClient();
-    const fechaHora = new Date(`${nuevaFecha}T${nuevaHora}:00-03:00`).toISOString();
-    const { error } = await supabase
-      .from("turnos")
-      .update({ fecha_hora: fechaHora, estado: "confirmado" })
-      .eq("id", turno.id);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-
-    const cliente = one(turno.clientes);
-    const servicio = one(turno.servicios);
-    if (cliente?.telefono) {
-      abrirWhatsapp(
-        cliente.telefono,
-        `Hola ${cliente.nombre}, te reagendamos el turno.\n\nServicio: ${servicio?.nombre}\nNuevo día: ${nuevaFecha}\nNueva hora: ${nuevaHora}\n\nSi no podés, avisanos.`
-      );
-    }
-
-    setEditId(null);
-    setFecha(nuevaFecha);
-  };
-
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
-
-  const labelFecha = new Date(`${fecha}T12:00:00-03:00`).toLocaleDateString("es-UY", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-
-  return (
-    <main className="min-h-screen">
-      <header className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-amber-500">Agenda</h1>
-        <div className="flex items-center gap-4">
-          <a href="/dashboard/bloqueos" className="text-sm text-zinc-400 hover:text-white">
-            Bloqueos
-          </a>
-          <button onClick={handleLogout} className="text-sm text-zinc-400 hover:text-white">
-            Salir
-          </button>
-        </div>
-      </header>
-
-      <section className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-            <p className="text-xs text-zinc-400">Ingresos del día</p>
-            <p className="text-2xl font-bold text-amber-500 mt-1">${totalDia}</p>
-          </div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-            <p className="text-xs text-zinc-400">Ingresos del mes</p>
-            <p className="text-2xl font-bold text-amber-500 mt-1">${totalMes}</p>
-            <p className="text-xs text-zinc-500">{nombre}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <button onClick={() => setFecha(addDays(fecha, -1))} className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800">
-            ←
-          </button>
-          <div className="text-center">
-            <p className="font-semibold capitalize">{labelFecha}</p>
-            <button onClick={() => setFecha(ymd(new Date()))} className="text-xs text-amber-500">
-              Hoy
-            </button>
-          </div>
-          <button onClick={() => setFecha(addDays(fecha, 1))} className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800">
-            →
-          </button>
-        </div>
-
-        {error && (
-          <p className="text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-            {error}
-          </p>
-        )}
-        {loading && <p className="text-zinc-500">Cargando turnos...</p>}
-        {!loading && turnos.length === 0 && <p className="text-zinc-500">No hay turnos para este día.</p>}
-
-        <div className="space-y-3">
-          {turnos.map((t) => {
-            const cliente = one(t.clientes);
-            const servicio = one(t.servicios);
-            const pago = one(t.pagos);
-
-            return (
-              <div key={t.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-amber-500 font-semibold">{horaUy(t.fecha_hora)}</p>
-                    <p className="text-lg font-medium">{cliente?.nombre || "Cliente"}</p>
-                    <p className="text-sm text-zinc-400">
-                      {servicio?.nombre} · {t.duracion_minutos} min · ${servicio?.precio || 0}
-                    </p>
-                    <p className="text-sm text-zinc-500">{cliente?.telefono}</p>
-                  </div>
-                  <span className="text-xs uppercase text-zinc-400">{t.estado}</span>
-                </div>
-
-                {cliente?.telefono && (
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => {
-                        cambiarEstado(t.id, "confirmado");
-                        abrirWhatsapp(
-                          cliente.telefono,
-                          `Hola ${cliente.nombre}, te confirmamos el turno.\n\nServicio: ${servicio?.nombre}\nDía: ${fechaUy(t.fecha_hora)}\nHora: ${horaUy(t.fecha_hora)}\n\nTe esperamos.`
-                        );
-                      }}
-                      className="text-xs px-3 py-2 rounded-lg bg-amber-500 text-black font-semibold"
-                    >
-                      Confirmar y avisar
-                    </button>
-                    <button
-                      onClick={() =>
-                        abrirWhatsapp(
-                          cliente.telefono,
-                          `Hola ${cliente.nombre}, te recordamos tu turno de mañana.\n\nServicio: ${servicio?.nombre}\nDía: ${fechaUy(t.fecha_hora)}\nHora: ${horaUy(t.fecha_hora)}\n\nSi no podés venir, avisanos.`
-                        )
-                      }
-                      className="text-xs px-3 py-2 rounded-lg bg-zinc-800"
-                    >
-                      Recordatorio
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditId(t.id);
-                        setNuevaFecha(ymd(new Date(t.fecha_hora)));
-                        setNuevaHora(horaUy(t.fecha_hora));
-                      }}
-                      className="text-xs px-3 py-2 rounded-lg bg-zinc-800"
-                    >
-                      Mover horario
-                    </button>
-                    <button
-                      onClick={() => {
-                        cambiarEstado(t.id, "cancelado");
-                        abrirWhatsapp(
-                          cliente.telefono,
-                          `Hola ${cliente.nombre}, tu turno del ${fechaUy(t.fecha_hora)} a las ${horaUy(t.fecha_hora)} fue cancelado.\n\nSi querés, podés reservar otro horario.`
-                        );
-                      }}
-                      className="text-xs px-3 py-2 rounded-lg bg-red-500/10 text-red-400"
-                    >
-                      Cancelar y avisar
-                    </button>
-                  </div>
-                )}
-
-                {editId === t.id && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="date"
-                      value={nuevaFecha}
-                      onChange={(e) => setNuevaFecha(e.target.value)}
-                      className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-                    />
-                    <input
-                      type="time"
-                      value={nuevaHora}
-                      onChange={(e) => setNuevaHora(e.target.value)}
-                      className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-                    />
-                    <button
-                      onClick={() => moverTurno(t)}
-                      className="col-span-2 bg-amber-500 text-black font-semibold py-2 rounded-lg"
-                    >
-                      Guardar y avisar
-                    </button>
-                  </div>
-                )}
-
-                {pago ? (
-                  <p className="text-sm text-green-400">
-                    Pagado · {pago.metodo} · ${pago.monto}
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={() => registrarPago(t, "efectivo")} className="text-xs px-3 py-2 rounded-lg bg-zinc-800">
-                      Pagó efectivo
-                    </button>
-                    <button onClick={() => registrarPago(t, "transferencia")} className="text-xs px-3 py-2 rounded-lg bg-zinc-800">
-                      Pagó transferencia
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </section>
-    </main>
-  );
-}
+    const monto = Number(one(turno.servicios)?.precio ||
