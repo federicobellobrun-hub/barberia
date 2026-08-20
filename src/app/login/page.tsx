@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -27,23 +28,29 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6">
-      <form onSubmit={handleLogin} className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <p className="text-[11px] uppercase tracking-[0.35em] text-[#c4a574]">Acceso</p>
-          <h1 className="font-display text-4xl mt-3">Panel</h1>
+    <main className="min-h-screen px-8 py-10">
+      <div className="max-w-md mx-auto">
+        <div className="flex justify-end mb-16">
+          <ThemeToggle />
         </div>
 
-        {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+        <h1 className="text-5xl font-semibold tracking-tight mb-10">Panel</h1>
 
-        <div className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-6">
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
-            className="w-full bg-transparent border-b border-[#222226] px-0 py-3 outline-none focus:border-[#c4a574]"
+            className="w-full rounded-2xl px-5 py-4 outline-none"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              color: "var(--text)",
+            }}
           />
           <input
             type="password"
@@ -51,17 +58,23 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Contraseña"
-            className="w-full bg-transparent border-b border-[#222226] px-0 py-3 outline-none focus:border-[#c4a574]"
+            className="w-full rounded-2xl px-5 py-4 outline-none"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              color: "var(--text)",
+            }}
           />
-        </div>
 
-        <button
-          disabled={loading}
-          className="w-full bg-[#c4a574] text-black py-3.5 text-sm tracking-wide disabled:opacity-50"
-        >
-          {loading ? "Ingresando..." : "Entrar"}
-        </button>
-      </form>
+          <button
+            disabled={loading}
+            className="w-full rounded-2xl py-4 font-medium disabled:opacity-50"
+            style={{ background: "var(--accent)", color: "#fff" }}
+          >
+            {loading ? "Ingresando..." : "Entrar"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
