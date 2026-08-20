@@ -296,6 +296,18 @@ export default function DashboardPage() {
         <p className="text-sm" style={{ color: "var(--muted)" }}>Hola, {nombre}</p>
         <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-5">Agenda</h1>
 
+        <div className="grid grid-cols-3 gap-2 mb-6">
+          <Link href="/dashboard/clientes" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            Clientes
+          </Link>
+          <Link href="/dashboard/bloqueos" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            Bloqueos
+          </Link>
+          <Link href="/dashboard/recordatorios" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            Mañana
+          </Link>
+        </div>
+
         <div className="grid grid-cols-2 gap-2 mb-6">
           {[
             ["Pendientes", pendientes.length],
@@ -303,7 +315,7 @@ export default function DashboardPage() {
             ["Día", `$${totalDia}`],
             ["Mes", `$${totalMes}`],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            <div key={String(label)} className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
               <p className="text-xs" style={{ color: "var(--muted)" }}>{label}</p>
               <p className="text-2xl font-semibold mt-1">{value}</p>
             </div>
