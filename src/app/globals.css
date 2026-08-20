@@ -3,12 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0b0b0c;
-  --card: #121214;
-  --line: #222226;
-  --gold: #c4a574;
-  --text: #f4f1ea;
-  --muted: #9a958c;
+  --bg: #f5f5f7;
+  --card: #ffffff;
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --line: #d2d2d7;
+  --accent: #0071e3;
+}
+
+.dark {
+  --bg: #000000;
+  --card: #1c1c1e;
+  --text: #f5f5f7;
+  --muted: #a1a1a6;
+  --line: #38383a;
+  --accent: #0a84ff;
 }
 
 html,
@@ -18,10 +27,5 @@ body {
 }
 
 body {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-}
-
-.font-display {
-  font-family: "Times New Roman", Times, serif;
-  letter-spacing: -0.03em;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
 }
