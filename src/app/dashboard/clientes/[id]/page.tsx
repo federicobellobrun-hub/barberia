@@ -41,6 +41,7 @@ export default function FichaClientePage() {
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [notas, setNotas] = useState("");
   const [turnoFoto, setTurnoFoto] = useState("");
+  const [actual, setActual] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState("");
 
@@ -64,7 +65,7 @@ export default function FichaClientePage() {
 
     const lista = (t as any) || [];
     setTurnos(lista);
-    if (lista[0] && !turnoFoto) setTurnoFoto(lista[0].id);
+    if (lista[0]) setTurnoFoto((prev) => prev || lista[0].id);
 
     const ids = lista.map((x: Turno) => x.id);
     if (ids.length) {
@@ -74,6 +75,7 @@ export default function FichaClientePage() {
         .in("turno_id", ids)
         .order("created_at", { ascending: false });
       setFotos(f || []);
+      setActual(0);
     } else {
       setFotos([]);
     }
@@ -129,6 +131,9 @@ export default function FichaClientePage() {
     }
   };
 
+  const anterior = () => setActual((n) => (n === 0 ? fotos.length - 1 : n - 1));
+  const siguiente = () => setActual((n) => (n === fotos.length - 1 ? 0 : n + 1));
+
   if (!cliente) {
     return (
       <main className="min-h-screen bg-zinc-950 text-zinc-400 flex items-center justify-center">
@@ -136,6 +141,8 @@ export default function FichaClientePage() {
       </main>
     );
   }
+
+  const foto = fotos[actual];
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#1a1408_0%,#09090b_45%)]">
@@ -155,32 +162,69 @@ export default function FichaClientePage() {
         <div className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6">
           <p className="text-2xl font-semibold">{cliente.nombre}</p>
           <p className="text-zinc-400 mt-1">{cliente.telefono}</p>
-          <p className="text-sm text-zinc-500 mt-3">{turnos.length} visitas registradas</p>
+          <p className="text-sm text-zinc-500 mt-3">{turnos.length} visitas · {fotos.length} fotos</p>
         </div>
 
         {error && <p className="text-red-400">{error}</p>}
         {ok && <p className="text-emerald-400">{ok}</p>}
 
-        <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 space-y-3">
-          <h2 className="font-semibold">Notas del corte</h2>
-          <textarea
-            value={notas}
-            onChange={(e) => setNotas(e.target.value)}
-            rows={5}
-            placeholder="Fade alto, no muy corto arriba, barba cuadrada, alérgico a..."
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 outline-none focus:border-amber-500/50"
-          />
-          <button
-            onClick={guardarNotas}
-            className="bg-amber-500 text-black font-semibold px-5 py-2 rounded-full"
-          >
-            Guardar notas
-          </button>
-        </section>
-
         <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 space-y-4">
-          <h2 className="font-semibold">Fotos del corte</h2>
-          <div className="flex flex-col sm:flex-row gap-3">
+          <h2 className="font-semibold">Galería del corte</h2>
+
+          {fotos.length === 0 ? (
+            <p className="text-zinc-500 text-sm">Todavía no hay fotos.</p>
+          ) : (
+            <div className="relative">
+              <img
+                src={foto.url}
+                alt={foto.descripcion || "Corte"}
+                className="w-full h-[420px] object-cover rounded-3xl border border-zinc-800"
+              />
+
+              <button
+                onClick={anterior}
+                className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-black/60 border border-zinc-700"
+              >
+                ←
+              </button>
+              <button
+                onClick={siguiente}
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-black/60 border border-zinc-700"
+              >
+                →
+              </button>
+
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                {fotos.map((f, i) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setActual(i)}
+                    className={`h-2.5 rounded-full transition ${
+                      i === actual ? "w-8 bg-amber-500" : "w-2.5 bg-zinc-500"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {fotos.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {fotos.map((f, i) => (
+                <button key={f.id} onClick={() => setActual(i)} className="shrink-0">
+                  <img
+                    src={f.url}
+                    alt=""
+                    className={`h-16 w-16 object-cover rounded-xl border ${
+                      i === actual ? "border-amber-500" : "border-zinc-800"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <select
               value={turnoFoto}
               onChange={(e) => setTurnoFoto(e.target.value)}
@@ -202,24 +246,27 @@ export default function FichaClientePage() {
               className="text-sm text-zinc-400"
             />
           </div>
+        </section>
 
-          {fotos.length === 0 && <p className="text-zinc-500 text-sm">Todavía no hay fotos.</p>}
-
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {fotos.map((f) => (
-              <img
-                key={f.id}
-                src={f.url}
-                alt={f.descripcion || "Corte"}
-                className="w-full h-44 object-cover rounded-2xl border border-zinc-800"
-              />
-            ))}
-          </div>
+        <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 space-y-3">
+          <h2 className="font-semibold">Notas del corte</h2>
+          <textarea
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+            rows={5}
+            placeholder="Fade alto, no muy corto arriba, barba cuadrada..."
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 outline-none focus:border-amber-500/50"
+          />
+          <button
+            onClick={guardarNotas}
+            className="bg-amber-500 text-black font-semibold px-5 py-2 rounded-full"
+          >
+            Guardar notas
+          </button>
         </section>
 
         <section className="space-y-3">
           <h2 className="font-semibold">Qué se hizo</h2>
-          {turnos.length === 0 && <p className="text-zinc-500">Sin visitas todavía.</p>}
           {turnos.map((t) => (
             <div key={t.id} className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-5">
               <p className="text-amber-400 font-medium">{one(t.servicios)?.nombre || "Servicio"}</p>
