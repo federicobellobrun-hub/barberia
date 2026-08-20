@@ -296,7 +296,7 @@ export default function DashboardPage() {
         <p className="text-sm" style={{ color: "var(--muted)" }}>Hola, {nombre}</p>
         <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-5">Agenda</h1>
 
-        <div className="grid grid-cols-3 gap-2 mb-6">
+        <div className="grid grid-cols-2 gap-2 mb-6">
           <Link href="/dashboard/clientes" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             Clientes
           </Link>
@@ -305,6 +305,9 @@ export default function DashboardPage() {
           </Link>
           <Link href="/dashboard/recordatorios" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             Mañana
+          </Link>
+          <Link href="/dashboard/catalogo" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            Catálogo
           </Link>
         </div>
 
@@ -348,8 +351,8 @@ export default function DashboardPage() {
         <div className="max-w-md mx-auto grid grid-cols-4 text-center text-xs py-3">
           <span className="font-medium">Agenda</span>
           <Link href="/dashboard/clientes" style={{ color: "var(--muted)" }}>Clientes</Link>
+          <Link href="/dashboard/catalogo" style={{ color: "var(--muted)" }}>Catálogo</Link>
           <Link href="/dashboard/bloqueos" style={{ color: "var(--muted)" }}>Bloqueos</Link>
-          <Link href="/reservar" style={{ color: "var(--muted)" }}>Reservar</Link>
         </div>
       </nav>
     </main>
