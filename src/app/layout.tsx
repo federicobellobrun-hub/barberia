@@ -3,8 +3,14 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Barbería",
-  description: "Reservas y agenda",
+  title: "Diano Barbershop",
+  description: "Reservas, agenda y productos",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "Diano",
+    statusBarStyle: "default",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
