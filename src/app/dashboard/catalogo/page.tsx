@@ -7,7 +7,15 @@ import { createClient } from "@/lib/supabase";
 import ThemeToggle from "@/components/ThemeToggle";
 
 type Servicio = { id: string; nombre: string; duracion_minutos: number; precio: number; activo: boolean };
-type Producto = { id: string; nombre: string; precio: number; descripcion: string | null; activo: boolean; stock: number };
+type Producto = {
+  id: string;
+  nombre: string;
+  precio: number;
+  descripcion: string | null;
+  activo: boolean;
+  stock: number;
+  imagen_url: string | null;
+};
 
 export default function CatalogoPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
@@ -27,7 +35,7 @@ export default function CatalogoPage() {
     const supabase = createClient();
     const [s, p] = await Promise.all([
       supabase.from("servicios").select("id, nombre, duracion_minutos, precio, activo").eq("barberia_id", id).order("orden"),
-      supabase.from("productos").select("id, nombre, precio, descripcion, activo, stock").eq("barberia_id", id).order("nombre"),
+      supabase.from("productos").select("id, nombre, precio, descripcion, activo, stock, imagen_url").eq("barberia_id", id).order("nombre"),
     ]);
     if (s.error) setError(s.error.message);
     if (p.error) setError(p.error.message);
@@ -110,6 +118,18 @@ export default function CatalogoPage() {
     if (error) setError(error.message);
   };
 
+  const subirFotoProducto = async (productoId: string, file: File) => {
+    if (!barberiaId) return;
+    const supabase = createClient();
+    const path = `${barberiaId}/productos/${productoId}-${Date.now()}-${file.name}`;
+    const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
+    if (upErr) return setError(upErr.message);
+    const { data } = supabase.storage.from("fotos").getPublicUrl(path);
+    const { error } = await supabase.from("productos").update({ imagen_url: data.publicUrl }).eq("id", productoId);
+    if (error) setError(error.message);
+    else await load(barberiaId);
+  };
+
   const delServicio = async (id: string) => {
     if (!barberiaId) return;
     const supabase = createClient();
@@ -131,15 +151,11 @@ export default function CatalogoPage() {
       <div className="max-w-md mx-auto px-5 pt-4">
         <header className="flex items-center justify-between mb-6">
           <Link href="/dashboard">‹</Link>
-          <div className="text-center">
-            <p className="text-[11px] tracking-[0.28em] uppercase">Diano</p>
-            <p className="text-[10px] tracking-[0.22em] uppercase" style={{ color: "var(--muted)" }}>Barbershop</p>
-          </div>
           <ThemeToggle />
         </header>
 
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Catálogo</h1>
-        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Servicios de reserva y productos</p>
+        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Servicios, productos y fotos</p>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
         <h2 className="font-medium mb-3">Servicios</h2>
@@ -177,9 +193,14 @@ export default function CatalogoPage() {
 
         {productos.map((p) => (
           <div key={p.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            {p.imagen_url && <img src={p.imagen_url} alt="" className="h-32 w-full object-cover rounded-xl" />}
             <input value={p.nombre} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, nombre: e.target.value } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input type="number" value={p.precio} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, precio: Number(e.target.value) } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input type="number" value={p.stock ?? 0} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, stock: Number(e.target.value) } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+            <input type="file" accept="image/*" onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) subirFotoProducto(p.id, file);
+            }} />
             <div className="flex gap-2">
               <button type="button" onClick={() => updateProducto(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1d1d1f", color: "#fff" }}>Guardar</button>
               <button type="button" onClick={() => delProducto(p.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
