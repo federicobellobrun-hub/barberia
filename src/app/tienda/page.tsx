@@ -12,8 +12,8 @@ type Producto = {
   nombre: string;
   precio: number;
   descripcion: string | null;
+  stock: number;
 };
-
 type Item = Producto & { cantidad: number };
 
 export default function TiendaPage() {
@@ -24,34 +24,37 @@ export default function TiendaPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const load = async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("productos")
+      .select("id, nombre, precio, descripcion, stock")
+      .eq("activo", true)
+      .order("nombre");
+    if (error) setError(error.message);
+    setProductos(data || []);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const load = async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("productos")
-        .select("id, nombre, precio, descripcion")
-        .eq("activo", true)
-        .order("nombre");
-      if (error) setError(error.message);
-      setProductos(data || []);
-      setLoading(false);
-    };
     load();
   }, []);
 
   const agregar = (p: Producto) => {
+    if (p.stock <= 0) return;
     setCarrito((prev) => {
       const existe = prev.find((x) => x.id === p.id);
-      if (existe) return prev.map((x) => x.id === p.id ? { ...x, cantidad: x.cantidad + 1 } : x);
+      if (existe) {
+        if (existe.cantidad >= p.stock) return prev;
+        return prev.map((x) => x.id === p.id ? { ...x, cantidad: x.cantidad + 1 } : x);
+      }
       return [...prev, { ...p, cantidad: 1 }];
     });
   };
 
   const quitar = (id: string) => {
     setCarrito((prev) =>
-      prev
-        .map((x) => x.id === id ? { ...x, cantidad: x.cantidad - 1 } : x)
-        .filter((x) => x.cantidad > 0)
+      prev.map((x) => x.id === id ? { ...x, cantidad: x.cantidad - 1 } : x).filter((x) => x.cantidad > 0)
     );
   };
 
@@ -60,14 +63,20 @@ export default function TiendaPage() {
     [carrito]
   );
 
-  const comprar = (e: React.FormEvent) => {
+  const comprar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (carrito.length === 0) return setError("Agregá al menos un producto");
+    const supabase = createClient();
+    await supabase.rpc("descontar_stock", {
+      p_items: carrito.map((i) => ({ id: i.id, cantidad: i.cantidad })),
+    });
     const lineas = carrito
       .map((i) => `• ${i.nombre} x${i.cantidad} — $${Number(i.precio) * i.cantidad}`)
       .join("\n");
     const texto = `Hola, quiero hacer este pedido en Diano Barbershop:\n\n${lineas}\n\nTotal: $${total}\nNombre: ${nombre}\nWhatsApp: ${telefono}`;
     window.open(`https://wa.me/${WHATSAPP_PEDIDOS}?text=${encodeURIComponent(texto)}`, "_blank");
+    setCarrito([]);
+    await load();
   };
 
   return (
@@ -82,9 +91,8 @@ export default function TiendaPage() {
           <ThemeToggle />
         </header>
 
-        <h1 className="text-[34px] font-semibold tracking-tight leading-9">Productos</h1>
+        <h1 className="text-[34px] font-semibold tracking-tight">Productos</h1>
         <p className="mt-2 mb-6" style={{ color: "var(--muted)" }}>Armá el pedido y envialo por WhatsApp</p>
-
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         {loading && <p style={{ color: "var(--muted)" }}>Cargando...</p>}
 
@@ -93,21 +101,18 @@ export default function TiendaPage() {
             <div>
               <p className="font-medium">{p.nombre}</p>
               {p.descripcion && <p className="text-sm" style={{ color: "var(--muted)" }}>{p.descripcion}</p>}
-              <p className="text-sm mt-1">${p.precio}</p>
+              <p className="text-sm mt-1">${p.precio} · Stock {p.stock}</p>
             </div>
             <button
+              disabled={p.stock <= 0}
               onClick={() => agregar(p)}
-              className="shrink-0 rounded-full px-4 py-2 text-sm font-medium"
+              className="shrink-0 rounded-full px-4 py-2 text-sm font-medium disabled:opacity-40"
               style={{ background: "#1d1d1f", color: "#fff" }}
             >
-              Agregar
+              {p.stock <= 0 ? "Sin stock" : "Agregar"}
             </button>
           </div>
         ))}
-
-        {productos.length === 0 && !loading && (
-          <p style={{ color: "var(--muted)" }}>Todavía no hay productos cargados.</p>
-        )}
 
         {carrito.length > 0 && (
           <section className="mt-8">
@@ -127,24 +132,9 @@ export default function TiendaPage() {
                 <span>${total}</span>
               </div>
             </div>
-
             <form onSubmit={comprar} className="space-y-3">
-              <input
-                required
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                placeholder="Nombre"
-                className="w-full rounded-2xl px-4 py-3 outline-none"
-                style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }}
-              />
-              <input
-                required
-                value={telefono}
-                onChange={(e) => setTelefono(e.target.value)}
-                placeholder="Tu WhatsApp"
-                className="w-full rounded-2xl px-4 py-3 outline-none"
-                style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }}
-              />
+              <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full rounded-2xl px-4 py-3 outline-none" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
+              <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="Tu WhatsApp" className="w-full rounded-2xl px-4 py-3 outline-none" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
               <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>
                 Comprar por WhatsApp
               </button>
@@ -152,14 +142,6 @@ export default function TiendaPage() {
           </section>
         )}
       </div>
-
-      <nav className="fixed bottom-0 left-0 right-0 border-t" style={{ background: "var(--card)", borderColor: "var(--line)" }}>
-        <div className="max-w-md mx-auto grid grid-cols-3 text-center text-xs py-3">
-          <Link href="/" style={{ color: "var(--muted)" }}>Inicio</Link>
-          <Link href="/reservar" style={{ color: "var(--muted)" }}>Reservar</Link>
-          <span className="font-medium">Tienda</span>
-        </div>
-      </nav>
     </main>
   );
 }
