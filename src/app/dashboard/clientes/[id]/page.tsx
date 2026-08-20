@@ -31,6 +31,8 @@ export default function FichaClientePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [cliente, setCliente] = useState<Cliente | null>(null);
+  const [nombre, setNombre] = useState("");
+  const [telefono, setTelefono] = useState("");
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [notas, setNotas] = useState("");
@@ -48,6 +50,8 @@ export default function FichaClientePage() {
       .single();
     if (e1) return setError(e1.message);
     setCliente(c);
+    setNombre(c.nombre);
+    setTelefono(c.telefono);
     setNotas(c.notas || "");
 
     const { data: t } = await supabase
@@ -62,11 +66,7 @@ export default function FichaClientePage() {
 
     const ids = lista.map((x: Turno) => x.id);
     if (ids.length) {
-      const { data: f } = await supabase
-        .from("fotos")
-        .select("id, url, descripcion, turno_id")
-        .in("turno_id", ids)
-        .order("created_at", { ascending: false });
+      const { data: f } = await supabase.from("fotos").select("id, url, descripcion, turno_id").in("turno_id", ids);
       setFotos(f || []);
       setActual(0);
     } else {
@@ -78,23 +78,31 @@ export default function FichaClientePage() {
     const init = async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login");
-        return;
-      }
+      if (!user) return router.push("/login");
       await load();
     };
     init();
   }, [id]);
 
-  const guardarNotas = async () => {
+  const guardarCliente = async () => {
     const supabase = createClient();
-    const { error } = await supabase.from("clientes").update({ notas }).eq("id", id);
+    const { error } = await supabase.from("clientes").update({ nombre, telefono, notas }).eq("id", id);
     if (error) setError(error.message);
-    else {
-      setOk("Notas guardadas");
-      setError(null);
+    else setOk("Cliente actualizado");
+  };
+
+  const borrarCliente = async () => {
+    if (!confirm("Esto borra el cliente, sus turnos y fotos. ¿Seguro?")) return;
+    const supabase = createClient();
+    const ids = turnos.map((t) => t.id);
+    if (ids.length) {
+      await supabase.from("pagos").delete().in("turno_id", ids);
+      await supabase.from("fotos").delete().in("turno_id", ids);
+      await supabase.from("turnos").delete().eq("cliente_id", id);
     }
+    const { error } = await supabase.from("clientes").delete().eq("id", id);
+    if (error) setError(error.message);
+    else router.push("/dashboard/clientes");
   };
 
   const subirFoto = async (file: File) => {
@@ -129,18 +137,24 @@ export default function FichaClientePage() {
       <div className="max-w-md mx-auto px-5 pt-4">
         <header className="flex items-center justify-between mb-6">
           <Link href="/dashboard/clientes">‹</Link>
-          <div className="text-center">
-            <p className="text-[11px] tracking-[0.28em] uppercase">Diano</p>
-            <p className="text-[10px] tracking-[0.22em] uppercase" style={{ color: "var(--muted)" }}>Barbershop</p>
-          </div>
           <ThemeToggle />
         </header>
 
-        <h1 className="text-[34px] font-semibold tracking-tight">{cliente.nombre}</h1>
-        <p className="mb-6" style={{ color: "var(--muted)" }}>{cliente.telefono}</p>
-
+        <h1 className="text-[34px] font-semibold tracking-tight mb-5">Ficha</h1>
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-        {ok && <p className="text-sm mb-3" style={{ color: "var(--muted)" }}>{ok}</p>}
+        {ok && <p className="text-sm mb-3">{ok}</p>}
+
+        <section className="rounded-2xl p-4 mb-5 space-y-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={4} placeholder="Notas del corte" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <button onClick={guardarCliente} className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>
+            Guardar cambios
+          </button>
+          <button onClick={borrarCliente} className="w-full rounded-2xl py-3 text-red-500">
+            Borrar cliente
+          </button>
+        </section>
 
         <section className="rounded-2xl p-4 mb-5" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
           <h2 className="font-medium mb-3">Galería</h2>
@@ -153,54 +167,19 @@ export default function FichaClientePage() {
                 <button onClick={() => setActual(actual === 0 ? fotos.length - 1 : actual - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full" style={{ background: "#1d1d1f", color: "#fff" }}>‹</button>
                 <button onClick={() => setActual(actual === fotos.length - 1 ? 0 : actual + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full" style={{ background: "#1d1d1f", color: "#fff" }}>›</button>
               </div>
-              <div className="flex gap-2 overflow-x-auto">
-                {fotos.map((f, i) => (
-                  <button key={f.id} onClick={() => setActual(i)}>
-                    <img src={f.url} alt="" className="h-14 w-14 object-cover rounded-xl" style={{ border: i === actual ? "2px solid #1d1d1f" : "1px solid var(--line)" }} />
-                  </button>
-                ))}
-              </div>
             </>
           )}
-
-          <div className="mt-4 space-y-2">
-            <select
-              value={turnoFoto}
-              onChange={(e) => setTurnoFoto(e.target.value)}
-              className="w-full rounded-xl px-3 py-3"
-              style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}
-            >
-              {turnos.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {new Date(t.fecha_hora).toLocaleDateString("es-UY")} · {one(t.servicios)?.nombre}
-                </option>
-              ))}
-            </select>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) subirFoto(file);
-              }}
-              className="text-sm"
-            />
-          </div>
-        </section>
-
-        <section className="rounded-2xl p-4 mb-5" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <h2 className="font-medium mb-3">Notas del corte</h2>
-          <textarea
-            value={notas}
-            onChange={(e) => setNotas(e.target.value)}
-            rows={4}
-            placeholder="Fade, barba, preferencias..."
-            className="w-full rounded-xl px-3 py-3 outline-none"
-            style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}
-          />
-          <button onClick={guardarNotas} className="mt-3 w-full rounded-2xl py-3 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>
-            Guardar notas
-          </button>
+          <select value={turnoFoto} onChange={(e) => setTurnoFoto(e.target.value)} className="w-full rounded-xl px-3 py-3 mt-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}>
+            {turnos.map((t) => (
+              <option key={t.id} value={t.id}>
+                {new Date(t.fecha_hora).toLocaleDateString("es-UY")} · {one(t.servicios)?.nombre}
+              </option>
+            ))}
+          </select>
+          <input type="file" accept="image/*" className="mt-3 text-sm" onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) subirFoto(file);
+          }} />
         </section>
 
         <h2 className="font-medium mb-3">Qué se hizo</h2>
@@ -210,7 +189,6 @@ export default function FichaClientePage() {
             <p className="text-sm" style={{ color: "var(--muted)" }}>
               {new Date(t.fecha_hora).toLocaleString("es-UY")} · ${one(t.servicios)?.precio || 0}
             </p>
-            <p className="text-xs uppercase mt-1" style={{ color: "var(--muted)" }}>{t.estado}</p>
           </div>
         ))}
       </div>
