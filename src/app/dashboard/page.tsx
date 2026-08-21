@@ -241,6 +241,13 @@ export default function DashboardPage() {
                   Mover
                 </button>
                 <button
+                  onClick={() => cambiarEstado(t.id, "no_asistio")}
+                  className="text-xs px-4 py-2 rounded-full"
+                  style={{ background: "var(--bg)", border: "1px solid var(--line)" }}
+                >
+                  No vino
+                </button>
+                <button
                   onClick={() => {
                     cambiarEstado(t.id, "cancelado");
                     abrirWhatsapp(
@@ -297,18 +304,10 @@ export default function DashboardPage() {
         <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-5">Agenda</h1>
 
         <div className="grid grid-cols-2 gap-2 mb-6">
-          <Link href="/dashboard/clientes" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            Clientes
-          </Link>
-          <Link href="/dashboard/bloqueos" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            Bloqueos
-          </Link>
-          <Link href="/dashboard/catalogo" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            Catálogo
-          </Link>
-          <Link href="/dashboard/mas" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            Más
-          </Link>
+          <Link href="/dashboard/clientes" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Clientes</Link>
+          <Link href="/dashboard/bloqueos" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Bloqueos</Link>
+          <Link href="/dashboard/catalogo" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Catálogo</Link>
+          <Link href="/dashboard/mas" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Más</Link>
         </div>
 
         <div className="grid grid-cols-2 gap-2 mb-6">
