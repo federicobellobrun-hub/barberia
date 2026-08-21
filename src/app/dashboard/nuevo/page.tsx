@@ -15,6 +15,7 @@ export default function NuevoTurnoPage() {
   const [hora, setHora] = useState("");
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
+  const [repetir, setRepetir] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const router = useRouter();
@@ -36,16 +37,24 @@ export default function NuevoTurnoPage() {
     const servicio = servicios.find((s) => s.id === servicioId);
     if (!servicio) return;
     const supabase = createClient();
-    const { error } = await supabase.rpc("crear_reserva", {
-      p_barberia_id: servicio.barberia_id,
-      p_servicio_id: servicio.id,
-      p_nombre: nombre.trim(),
-      p_telefono: telefono.trim(),
-      p_fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
-      p_duracion_minutos: servicio.duracion_minutos,
-    });
-    if (error) setError(error.message);
-    else setOk(true);
+    const veces = repetir ? 4 : 1;
+    for (let i = 0; i < veces; i++) {
+      const d = new Date(`${fecha}T${hora}:00-03:00`);
+      d.setDate(d.getDate() + 7 * i);
+      const { error } = await supabase.rpc("crear_reserva", {
+        p_barberia_id: servicio.barberia_id,
+        p_servicio_id: servicio.id,
+        p_nombre: nombre.trim(),
+        p_telefono: telefono.trim(),
+        p_fecha_hora: d.toISOString(),
+        p_duracion_minutos: servicio.duracion_minutos,
+      });
+      if (error) {
+        setError(error.message);
+        return;
+      }
+    }
+    setOk(true);
   };
 
   return (
@@ -68,6 +77,10 @@ export default function NuevoTurnoPage() {
             <input type="time" required value={hora} onChange={(e) => setHora(e.target.value)} className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} />
+              Repetir las próximas 4 semanas
+            </label>
             <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>Guardar turno</button>
           </form>
         )}
