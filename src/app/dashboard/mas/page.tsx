@@ -7,6 +7,7 @@ const items = [
   ["Nuevo turno", "/dashboard/nuevo"],
   ["Horarios", "/dashboard/horarios"],
   ["Caja del día", "/dashboard/caja"],
+  ["Galería inicio", "/dashboard/galeria"],
   ["Configuración", "/dashboard/config"],
   ["Catálogo", "/dashboard/catalogo"],
   ["Clientes", "/dashboard/clientes"],
@@ -19,10 +20,6 @@ export default function MasPage() {
       <div className="max-w-md mx-auto px-5 pt-4">
         <header className="flex items-center justify-between mb-6">
           <Link href="/dashboard">‹</Link>
-          <div className="text-center">
-            <p className="text-[11px] tracking-[0.28em] uppercase">Diano</p>
-            <p className="text-[10px] tracking-[0.22em] uppercase" style={{ color: "var(--muted)" }}>Barbershop</p>
-          </div>
           <ThemeToggle />
         </header>
         <h1 className="text-[34px] font-semibold tracking-tight mb-6">Más</h1>
