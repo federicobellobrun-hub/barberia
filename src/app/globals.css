@@ -3,21 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f5f5f7;
-  --card: #ffffff;
-  --text: #1d1d1f;
-  --muted: #6e6e73;
-  --line: #d2d2d7;
-  --accent: #0071e3;
+  --bg: #f3eee6;
+  --card: #fffcf7;
+  --text: #1c1712;
+  --muted: #7a7268;
+  --line: #d9d0c4;
+  --accent: #1c1712;
 }
 
 .dark {
-  --bg: #000000;
-  --card: #1c1c1e;
-  --text: #f5f5f7;
-  --muted: #a1a1a6;
-  --line: #38383a;
-  --accent: #0a84ff;
+  --bg: #14110e;
+  --card: #1e1a16;
+  --text: #f4efe6;
+  --muted: #a89f93;
+  --line: #3a342c;
+  --accent: #f4efe6;
 }
 
 html,
@@ -27,5 +27,9 @@ body {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, Inter, sans-serif;
+}
+
+.font-brand {
+  font-family: "Times New Roman", Georgia, serif;
 }
