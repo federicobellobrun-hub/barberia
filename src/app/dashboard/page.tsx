@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import ThemeToggle from "@/components/ThemeToggle";
+import BrandHeader from "@/components/BrandHeader";
+import BottomNav from "@/components/BottomNav";
 
 type Persona = { nombre: string; telefono: string };
 type Servicio = { nombre: string; precio: number };
@@ -210,7 +211,7 @@ export default function DashboardPage() {
                   );
                 }}
                 className="text-xs px-4 py-2 rounded-full font-medium"
-                style={{ background: "#1d1d1f", color: "#fff" }}
+                style={{ background: "#1c1712", color: "#f4efe6" }}
               >
                 Confirmar y avisar
               </button>
@@ -268,46 +269,60 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-2 mt-3">
             <input type="date" value={nuevaFecha} onChange={(e) => setNuevaFecha(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input type="time" value={nuevaHora} onChange={(e) => setNuevaHora(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            <button onClick={() => moverTurno(t)} className="col-span-2 rounded-xl py-2 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>
+            <button onClick={() => moverTurno(t)} className="col-span-2 rounded-xl py-2 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
               Guardar y avisar
             </button>
           </div>
         )}
 
-        {!recordatorio && (
-          pago ? (
-            <p className="text-sm mt-3" style={{ color: "var(--muted)" }}>Pagado · {pago.metodo} · ${pago.monto}</p>
+        {!recordatorio &&
+          (pago ? (
+            <p className="text-sm mt-3" style={{ color: "var(--muted)" }}>
+              Pagado · {pago.metodo} · ${pago.monto}
+            </p>
           ) : (
             <div className="flex gap-2 mt-3">
-              <button onClick={() => registrarPago(t, "efectivo")} className="text-xs px-4 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>Efectivo</button>
-              <button onClick={() => registrarPago(t, "transferencia")} className="text-xs px-4 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>Transferencia</button>
+              <button onClick={() => registrarPago(t, "efectivo")} className="text-xs px-4 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>
+                Efectivo
+              </button>
+              <button onClick={() => registrarPago(t, "transferencia")} className="text-xs px-4 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>
+                Transferencia
+              </button>
             </div>
-          )
-        )}
+          ))}
       </article>
     );
   };
 
   return (
-    <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="max-w-md mx-auto px-5 pt-4">
-        <header className="flex items-center justify-between mb-6">
-          <button onClick={handleLogout} className="text-sm" style={{ color: "var(--muted)" }}>Salir</button>
-          <div className="text-center">
-            <p className="text-[11px] tracking-[0.28em] uppercase">Diano</p>
-            <p className="text-[10px] tracking-[0.22em] uppercase" style={{ color: "var(--muted)" }}>Barbershop</p>
-          </div>
-          <ThemeToggle />
-        </header>
+    <main className="min-h-screen pb-28" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <div className="max-w-md mx-auto px-5 pt-5">
+        <BrandHeader
+          left={
+            <button onClick={handleLogout} className="text-sm" style={{ color: "var(--muted)" }}>
+              Salir
+            </button>
+          }
+        />
 
-        <p className="text-sm" style={{ color: "var(--muted)" }}>Hola, {nombre}</p>
+        <p className="text-sm" style={{ color: "var(--muted)" }}>
+          Hola, {nombre}
+        </p>
         <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-5">Agenda</h1>
 
         <div className="grid grid-cols-2 gap-2 mb-6">
-          <Link href="/dashboard/clientes" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Clientes</Link>
-          <Link href="/dashboard/bloqueos" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Bloqueos</Link>
-          <Link href="/dashboard/catalogo" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Catálogo</Link>
-          <Link href="/dashboard/mas" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Más</Link>
+          <Link href="/dashboard/clientes" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            Clientes
+          </Link>
+          <Link href="/dashboard/bloqueos" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            Bloqueos
+          </Link>
+          <Link href="/dashboard/catalogo" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            Catálogo
+          </Link>
+          <Link href="/dashboard/mas" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            Más
+          </Link>
         </div>
 
         <div className="grid grid-cols-2 gap-2 mb-6">
@@ -318,7 +333,9 @@ export default function DashboardPage() {
             ["Mes", `$${totalMes}`],
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-              <p className="text-xs" style={{ color: "var(--muted)" }}>{label}</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                {label}
+              </p>
               <p className="text-2xl font-semibold mt-1">{value}</p>
             </div>
           ))}
@@ -327,33 +344,43 @@ export default function DashboardPage() {
         {maniana.length > 0 && (
           <section className="mb-8">
             <h2 className="font-medium mb-3">Recordatorios de mañana</h2>
-            {maniana.map((t) => <Card key={t.id} t={t} recordatorio />)}
+            {maniana.map((t) => (
+              <Card key={t.id} t={t} recordatorio />
+            ))}
           </section>
         )}
 
         <div className="flex items-center justify-between mb-4">
-          <button onClick={() => setFecha(addDays(fecha, -1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>‹</button>
+          <button onClick={() => setFecha(addDays(fecha, -1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>
+            ‹
+          </button>
           <div className="text-center">
             <p className="font-medium capitalize">{labelFecha}</p>
-            <button onClick={() => setFecha(ymd(new Date()))} className="text-xs" style={{ color: "var(--muted)" }}>Hoy</button>
+            <button onClick={() => setFecha(ymd(new Date()))} className="text-xs" style={{ color: "var(--muted)" }}>
+              Hoy
+            </button>
           </div>
-          <button onClick={() => setFecha(addDays(fecha, 1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>›</button>
+          <button onClick={() => setFecha(addDays(fecha, 1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>
+            ›
+          </button>
         </div>
 
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
         {loading && <p style={{ color: "var(--muted)" }}>Cargando...</p>}
         {!loading && turnos.length === 0 && <p style={{ color: "var(--muted)" }}>No hay turnos este día.</p>}
-        {turnos.map((t) => <Card key={t.id} t={t} />)}
+        {turnos.map((t) => (
+          <Card key={t.id} t={t} />
+        ))}
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 border-t" style={{ background: "var(--card)", borderColor: "var(--line)" }}>
-        <div className="max-w-md mx-auto grid grid-cols-4 text-center text-xs py-3">
-          <span className="font-medium">Agenda</span>
-          <Link href="/dashboard/clientes" style={{ color: "var(--muted)" }}>Clientes</Link>
-          <Link href="/dashboard/catalogo" style={{ color: "var(--muted)" }}>Catálogo</Link>
-          <Link href="/dashboard/mas" style={{ color: "var(--muted)" }}>Más</Link>
-        </div>
-      </nav>
+      <BottomNav
+        items={[
+          { href: "/dashboard", label: "Agenda", active: true },
+          { href: "/dashboard/clientes", label: "Clientes" },
+          { href: "/dashboard/catalogo", label: "Catálogo" },
+          { href: "/dashboard/mas", label: "Más" },
+        ]}
+      />
     </main>
   );
 }
