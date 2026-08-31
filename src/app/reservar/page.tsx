@@ -177,14 +177,14 @@ export default function ReservarPage() {
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
         <h2 className="font-medium mb-3">Elegí un servicio</h2>
-        <div className="grid grid-cols-3 gap-2 mb-7">
+        <div className="grid grid-cols-3 gap-2 mb-7 items-stretch">
           {servicios.map((s) => {
             const activo = servicio?.id === s.id;
             return (
               <button
                 key={s.id}
                 onClick={() => { setServicio(s); setHora(""); }}
-                className="rounded-2xl text-left overflow-hidden"
+                className="rounded-2xl text-left overflow-hidden flex flex-col h-full"
                 style={{
                   background: activo ? "#f3eee6" : "var(--card)",
                   border: activo ? "1.5px solid #cfc3b0" : "1px solid var(--line)",
@@ -192,12 +192,12 @@ export default function ReservarPage() {
                 }}
               >
                 {s.imagen_url ? (
-                  <img src={s.imagen_url} alt="" className="h-24 w-full object-cover" />
+                  <img src={s.imagen_url} alt="" className="h-24 w-full object-cover shrink-0" />
                 ) : (
-                  <div className="h-24 flex items-center justify-center text-xl" style={{ background: "var(--bg)" }}>✂</div>
+                  <div className="h-24 w-full shrink-0 flex items-center justify-center text-xl" style={{ background: "var(--bg)" }}>✂</div>
                 )}
-                <div className="p-3">
-                  <p className="text-sm font-medium leading-4">{s.nombre}</p>
+                <div className="p-3 flex-1">
+                  <p className="text-sm font-medium leading-4 line-clamp-3">{s.nombre}</p>
                   <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>${s.precio}</p>
                 </div>
               </button>
