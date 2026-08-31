@@ -177,7 +177,7 @@ export default function ReservarPage() {
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
         <h2 className="font-medium mb-3">Elegí un servicio</h2>
-        <div className="grid grid-cols-3 gap-2 mb-7 items-stretch">
+        <div className="grid grid-cols-3 gap-2 items-stretch">
           {servicios.map((s) => {
             const activo = servicio?.id === s.id;
             return (
@@ -197,13 +197,23 @@ export default function ReservarPage() {
                   <div className="h-24 w-full shrink-0 flex items-center justify-center text-xl" style={{ background: "var(--bg)" }}>✂</div>
                 )}
                 <div className="p-3 flex-1">
-                  <p className="text-sm font-medium leading-4 line-clamp-3">{s.nombre}</p>
+                  <p className="text-sm font-medium leading-4 line-clamp-2">{s.nombre}</p>
                   <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>${s.precio}</p>
                 </div>
               </button>
             );
           })}
         </div>
+
+        {servicio && (
+          <div className="rounded-2xl p-4 mt-3 mb-7" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted)" }}>Servicio elegido</p>
+            <p className="font-medium">{servicio.nombre}</p>
+            <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
+              {servicio.duracion_minutos} min · ${servicio.precio}
+            </p>
+          </div>
+        )}
 
         <h2 className="font-medium mb-3">Elegí día y hora</h2>
         <div className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
