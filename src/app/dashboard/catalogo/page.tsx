@@ -4,9 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import ThemeToggle from "@/components/ThemeToggle";
+import BrandHeader from "@/components/BrandHeader";
 
-type Servicio = { id: string; nombre: string; duracion_minutos: number; precio: number; activo: boolean };
+type Servicio = {
+  id: string;
+  nombre: string;
+  duracion_minutos: number;
+  precio: number;
+  activo: boolean;
+  imagen_url: string | null;
+};
 type Producto = {
   id: string;
   nombre: string;
@@ -34,7 +41,7 @@ export default function CatalogoPage() {
   const load = async (id: string) => {
     const supabase = createClient();
     const [s, p] = await Promise.all([
-      supabase.from("servicios").select("id, nombre, duracion_minutos, precio, activo").eq("barberia_id", id).order("orden"),
+      supabase.from("servicios").select("id, nombre, duracion_minutos, precio, activo, imagen_url").eq("barberia_id", id).order("orden"),
       supabase.from("productos").select("id, nombre, precio, descripcion, activo, stock, imagen_url").eq("barberia_id", id).order("nombre"),
     ]);
     if (s.error) setError(s.error.message);
@@ -118,6 +125,18 @@ export default function CatalogoPage() {
     if (error) setError(error.message);
   };
 
+  const subirFotoServicio = async (servicioId: string, file: File) => {
+    if (!barberiaId) return;
+    const supabase = createClient();
+    const path = `${barberiaId}/servicios/${servicioId}-${Date.now()}-${file.name}`;
+    const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
+    if (upErr) return setError(upErr.message);
+    const { data } = supabase.storage.from("fotos").getPublicUrl(path);
+    const { error } = await supabase.from("servicios").update({ imagen_url: data.publicUrl }).eq("id", servicioId);
+    if (error) setError(error.message);
+    else await load(barberiaId);
+  };
+
   const subirFotoProducto = async (productoId: string, file: File) => {
     if (!barberiaId) return;
     const supabase = createClient();
@@ -148,11 +167,8 @@ export default function CatalogoPage() {
 
   return (
     <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="max-w-md mx-auto px-5 pt-4">
-        <header className="flex items-center justify-between mb-6">
-          <Link href="/dashboard">‹</Link>
-          <ThemeToggle />
-        </header>
+      <div className="max-w-md mx-auto px-5 pt-5">
+        <BrandHeader left={<Link href="/dashboard">‹</Link>} />
 
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Catálogo</h1>
         <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Servicios, productos y fotos</p>
@@ -165,18 +181,23 @@ export default function CatalogoPage() {
             <input required value={sDuracion} onChange={(e) => setSDuracion(e.target.value)} placeholder="Minutos" className="rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input required value={sPrecio} onChange={(e) => setSPrecio(e.target.value)} placeholder="Precio" className="rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           </div>
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>Agregar servicio</button>
+          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Agregar servicio</button>
         </form>
 
         {servicios.map((s) => (
           <div key={s.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            {s.imagen_url && <img src={s.imagen_url} alt="" className="h-28 w-full object-cover rounded-xl" />}
+            <input type="file" accept="image/*" onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) subirFotoServicio(s.id, file);
+            }} />
             <input value={s.nombre} onChange={(e) => setServicios((prev) => prev.map((x) => x.id === s.id ? { ...x, nombre: e.target.value } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <div className="grid grid-cols-2 gap-2">
               <input type="number" value={s.duracion_minutos} onChange={(e) => setServicios((prev) => prev.map((x) => x.id === s.id ? { ...x, duracion_minutos: Number(e.target.value) } : x))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
               <input type="number" value={s.precio} onChange={(e) => setServicios((prev) => prev.map((x) => x.id === s.id ? { ...x, precio: Number(e.target.value) } : x))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => updateServicio(s)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1d1d1f", color: "#fff" }}>Guardar</button>
+              <button type="button" onClick={() => updateServicio(s)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
               <button type="button" onClick={() => delServicio(s.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
             </div>
           </div>
@@ -188,7 +209,7 @@ export default function CatalogoPage() {
           <input required value={pPrecio} onChange={(e) => setPPrecio(e.target.value)} placeholder="Precio" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <input value={pDesc} onChange={(e) => setPDesc(e.target.value)} placeholder="Descripción" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <input value={pStock} onChange={(e) => setPStock(e.target.value)} placeholder="Stock" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>Agregar producto</button>
+          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Agregar producto</button>
         </form>
 
         {productos.map((p) => (
@@ -202,7 +223,7 @@ export default function CatalogoPage() {
               if (file) subirFotoProducto(p.id, file);
             }} />
             <div className="flex gap-2">
-              <button type="button" onClick={() => updateProducto(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1d1d1f", color: "#fff" }}>Guardar</button>
+              <button type="button" onClick={() => updateProducto(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
               <button type="button" onClick={() => delProducto(p.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
             </div>
           </div>
