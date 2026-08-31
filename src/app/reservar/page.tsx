@@ -3,9 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
-import ThemeToggle from "@/components/ThemeToggle";
+import BrandHeader from "@/components/BrandHeader";
 
-type Servicio = { id: string; barberia_id: string; nombre: string; duracion_minutos: number; precio: number };
+type Servicio = {
+  id: string;
+  barberia_id: string;
+  nombre: string;
+  duracion_minutos: number;
+  precio: number;
+  imagen_url: string | null;
+};
 type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string };
 type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean };
 type Turno = { fecha_hora: string; duracion_minutos: number };
@@ -24,14 +31,6 @@ function toMinutes(hhmm: string) {
 function fromMinutes(mins: number) {
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
-function IconScissors() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-      <circle cx="6" cy="6" r="2.5" /><circle cx="6" cy="18" r="2.5" /><path d="M8.2 7.6 20 18M8.2 16.4 20 6" />
-    </svg>
-  );
-}
-function iconoDe() { return <IconScissors />; }
 
 export default function ReservarPage() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -58,7 +57,7 @@ export default function ReservarPage() {
         const hasta = new Date();
         hasta.setDate(hasta.getDate() + 40);
         const [servRes, horRes, bloqRes, turRes] = await Promise.all([
-          supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos, precio").eq("activo", true).order("orden"),
+          supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos, precio, imagen_url").eq("activo", true).order("orden"),
           supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin").eq("activo", true),
           supabase.from("bloqueos").select("fecha_inicio, fecha_fin, todo_el_dia"),
           supabase.from("turnos").select("fecha_hora, duracion_minutos").in("estado", ["pendiente", "confirmado", "realizado"]).gte("fecha_hora", desde.toISOString()).lte("fecha_hora", hasta.toISOString()),
@@ -171,15 +170,8 @@ export default function ReservarPage() {
 
   return (
     <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="max-w-md mx-auto px-5 pt-4">
-        <header className="flex items-center justify-between mb-6">
-          <Link href="/">☰</Link>
-          <div className="text-center">
-            <p className="text-[11px] tracking-[0.28em] uppercase">Diano</p>
-            <p className="text-[10px] tracking-[0.22em] uppercase" style={{ color: "var(--muted)" }}>Barbershop</p>
-          </div>
-          <ThemeToggle />
-        </header>
+      <div className="max-w-md mx-auto px-5 pt-5">
+        <BrandHeader />
         <h1 className="text-[34px] font-semibold tracking-tight leading-9">Reservá tu turno</h1>
         <p className="mt-2 mb-5" style={{ color: "var(--muted)" }}>Elegí servicio, día y hora</p>
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
@@ -189,10 +181,25 @@ export default function ReservarPage() {
           {servicios.map((s) => {
             const activo = servicio?.id === s.id;
             return (
-              <button key={s.id} onClick={() => { setServicio(s); setHora(""); }} className="rounded-2xl p-3 text-left min-h-[132px]" style={{ background: activo ? "#f3eee6" : "var(--card)", border: activo ? "1.5px solid #cfc3b0" : "1px solid var(--line)", color: "var(--text)" }}>
-                <div className="mb-6">{iconoDe()}</div>
-                <p className="text-sm font-medium">{s.nombre}</p>
-                <p className="text-xs mt-1">${s.precio}</p>
+              <button
+                key={s.id}
+                onClick={() => { setServicio(s); setHora(""); }}
+                className="rounded-2xl text-left overflow-hidden"
+                style={{
+                  background: activo ? "#f3eee6" : "var(--card)",
+                  border: activo ? "1.5px solid #cfc3b0" : "1px solid var(--line)",
+                  color: "var(--text)",
+                }}
+              >
+                {s.imagen_url ? (
+                  <img src={s.imagen_url} alt="" className="h-24 w-full object-cover" />
+                ) : (
+                  <div className="h-24 flex items-center justify-center text-xl" style={{ background: "var(--bg)" }}>✂</div>
+                )}
+                <div className="p-3">
+                  <p className="text-sm font-medium leading-4">{s.nombre}</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>${s.precio}</p>
+                </div>
               </button>
             );
           })}
@@ -206,7 +213,7 @@ export default function ReservarPage() {
             <button onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
           </div>
           <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: "var(--muted)" }}>
-            {["D","L","M","M","J","V","S"].map((d, i) => <span key={i}>{d}</span>)}
+            {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => <span key={i}>{d}</span>)}
           </div>
           <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
             {celdasMes.map((value, i) => {
@@ -214,7 +221,16 @@ export default function ReservarPage() {
               const activo = fecha === value;
               const pasado = value < hoy;
               return (
-                <button key={value} disabled={pasado} onClick={() => { setFecha(value); setHora(""); setEsperaOk(false); }} className="h-8 w-8 mx-auto rounded-full" style={{ background: activo ? "#1d1d1f" : "transparent", color: activo ? "#fff" : pasado ? "var(--line)" : "var(--text)" }}>
+                <button
+                  key={value}
+                  disabled={pasado}
+                  onClick={() => { setFecha(value); setHora(""); setEsperaOk(false); }}
+                  className="h-8 w-8 mx-auto rounded-full"
+                  style={{
+                    background: activo ? "#1c1712" : "transparent",
+                    color: activo ? "#fff" : pasado ? "var(--line)" : "var(--text)",
+                  }}
+                >
                   {Number(value.slice(8))}
                 </button>
               );
@@ -226,7 +242,16 @@ export default function ReservarPage() {
           <div className="mb-6">
             <div className="flex gap-2 overflow-x-auto pb-2">
               {horariosDelDia.map((h) => (
-                <button key={h} onClick={() => setHora(h)} className="shrink-0 px-3 py-2 rounded-lg text-sm font-medium" style={{ background: hora === h ? "#1d1d1f" : "var(--card)", color: hora === h ? "#fff" : "var(--text)", border: hora === h ? "none" : "1px solid var(--line)" }}>
+                <button
+                  key={h}
+                  onClick={() => setHora(h)}
+                  className="shrink-0 px-3 py-2 rounded-lg text-sm font-medium"
+                  style={{
+                    background: hora === h ? "#1c1712" : "var(--card)",
+                    color: hora === h ? "#fff" : "var(--text)",
+                    border: hora === h ? "none" : "1px solid var(--line)",
+                  }}
+                >
                   {h}
                 </button>
               ))}
@@ -240,7 +265,7 @@ export default function ReservarPage() {
                   <form onSubmit={anotarEspera} className="space-y-2">
                     <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
                     <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-                    <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>Anotarme en lista de espera</button>
+                    <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Anotarme en lista de espera</button>
                   </form>
                 )}
               </div>
@@ -252,7 +277,7 @@ export default function ReservarPage() {
           <form onSubmit={guardar} className="space-y-3 mb-4">
             <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            <button disabled={enviando} className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>
+            <button disabled={enviando} className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
               {enviando ? "Reservando..." : "Confirmar reserva  →"}
             </button>
           </form>
