@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 
@@ -14,7 +15,7 @@ type Servicio = {
   imagen_url: string | null;
 };
 type Barbero = { id: string; nombre: string; foto_url: string | null };
-type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string };
+type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; barbero_id?: string | null };
 type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean };
 type Turno = { fecha_hora: string; duracion_minutos: number; barbero_id: string | null };
 
@@ -34,9 +35,14 @@ function fromMinutes(mins: number) {
 }
 
 export default function ReservarPage() {
+  const search = useSearchParams();
+  const slug = search.get("b") || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
+
+  const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
-  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [horariosLocal, setHorariosLocal] = useState<Horario[]>([]);
+  const [horariosBarbero, setHorariosBarbero] = useState<Horario[]>([]);
   const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,23 +59,29 @@ export default function ReservarPage() {
   const [mes, setMes] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
   useEffect(() => {
+    localStorage.setItem("barberia_slug", slug);
     const load = async () => {
       try {
         const supabase = createClient();
+        const { data: shop, error: shopErr } = await supabase.from("barberias").select("id").eq("slug", slug).maybeSingle();
+        if (shopErr || !shop) throw new Error("No se encontró la barbería");
+        setBarberiaId(shop.id);
         const desde = new Date();
         const hasta = new Date();
         hasta.setDate(hasta.getDate() + 40);
-        const [servRes, barRes, horRes, bloqRes, turRes] = await Promise.all([
-          supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos, precio, imagen_url").eq("activo", true).order("orden"),
-          supabase.from("barberos").select("id, nombre, foto_url").eq("activo", true).order("nombre"),
-          supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin").eq("activo", true),
-          supabase.from("bloqueos").select("fecha_inicio, fecha_fin, todo_el_dia"),
-          supabase.from("turnos").select("fecha_hora, duracion_minutos, barbero_id").in("estado", ["pendiente", "confirmado", "realizado"]).gte("fecha_hora", desde.toISOString()).lte("fecha_hora", hasta.toISOString()),
+        const [servRes, barRes, horRes, horBarRes, bloqRes, turRes] = await Promise.all([
+          supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos, precio, imagen_url").eq("barberia_id", shop.id).eq("activo", true).order("orden"),
+          supabase.from("barberos").select("id, nombre, foto_url").eq("barberia_id", shop.id).eq("activo", true).order("nombre"),
+          supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin").eq("barberia_id", shop.id).eq("activo", true),
+          supabase.from("horario_barbero").select("dia_semana, hora_inicio, hora_fin, barbero_id").eq("barberia_id", shop.id).eq("activo", true),
+          supabase.from("bloqueos").select("fecha_inicio, fecha_fin, todo_el_dia").eq("barberia_id", shop.id),
+          supabase.from("turnos").select("fecha_hora, duracion_minutos, barbero_id").eq("barberia_id", shop.id).in("estado", ["pendiente", "confirmado", "realizado"]).gte("fecha_hora", desde.toISOString()).lte("fecha_hora", hasta.toISOString()),
         ]);
         if (servRes.error) throw new Error(servRes.error.message);
         setServicios(servRes.data || []);
         setBarberos(barRes.data || []);
-        setHorarios(horRes.data || []);
+        setHorariosLocal(horRes.data || []);
+        setHorariosBarbero(horBarRes.data || []);
         setBloqueos(bloqRes.data || []);
         setTurnos(turRes.data || []);
         if ((barRes.data || []).length === 1) setBarbero(barRes.data![0]);
@@ -80,7 +92,13 @@ export default function ReservarPage() {
       }
     };
     load();
-  }, []);
+  }, [slug]);
+
+  const horarios = useMemo(() => {
+    if (!barbero) return horariosLocal;
+    const propios = horariosBarbero.filter((h) => h.barbero_id === barbero.id);
+    return propios.length ? propios : horariosLocal;
+  }, [barbero, horariosLocal, horariosBarbero]);
 
   const celdasMes = useMemo(() => {
     const year = mes.getFullYear();
@@ -150,10 +168,10 @@ export default function ReservarPage() {
 
   const anotarEspera = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!servicio) return;
+    if (!servicio || !barberiaId) return;
     const supabase = createClient();
     const { error } = await supabase.from("lista_espera").insert({
-      barberia_id: servicio.barberia_id,
+      barberia_id: barberiaId,
       servicio_id: servicio.id,
       nombre,
       telefono,
@@ -172,7 +190,7 @@ export default function ReservarPage() {
       <main className="min-h-screen px-6 py-20 text-center">
         <h1 className="text-4xl font-semibold tracking-tight">Turno reservado</h1>
         <p className="mt-4">{servicio.nombre}{barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}</p>
-        <Link href="/" className="inline-block mt-8">Volver</Link>
+        <Link href={`/b/${slug}`} className="inline-block mt-8">Volver</Link>
       </main>
     );
   }
@@ -184,6 +202,10 @@ export default function ReservarPage() {
         <h1 className="text-[34px] font-semibold tracking-tight leading-9">Reservá tu turno</h1>
         <p className="mt-2 mb-5" style={{ color: "var(--muted)" }}>Elegí servicio, barbero, día y hora</p>
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
+
+        {servicios.length === 0 && (
+          <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Esta barbería todavía no cargó servicios.</p>
+        )}
 
         <h2 className="font-medium mb-3">Elegí un servicio</h2>
         <div className="grid grid-cols-3 gap-2 items-stretch">
@@ -227,15 +249,15 @@ export default function ReservarPage() {
             <h2 className="font-medium mb-3">Elegí barbero</h2>
             <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
               {barberos.map((b) => {
-                const activo = barbero?.id === b.id;
+                const activoSel = barbero?.id === b.id;
                 return (
                   <button
                     key={b.id}
                     onClick={() => { setBarbero(b); setHora(""); }}
                     className="shrink-0 rounded-2xl p-3 w-28 text-center"
                     style={{
-                      background: activo ? "#f3eee6" : "var(--card)",
-                      border: activo ? "1.5px solid #cfc3b0" : "1px solid var(--line)",
+                      background: activoSel ? "#f3eee6" : "var(--card)",
+                      border: activoSel ? "1.5px solid #cfc3b0" : "1px solid var(--line)",
                     }}
                   >
                     {b.foto_url ? (
@@ -266,7 +288,7 @@ export default function ReservarPage() {
           <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
             {celdasMes.map((value, i) => {
               if (!value) return <span key={i} />;
-              const activo = fecha === value;
+              const activoDia = fecha === value;
               const pasado = value < hoy;
               return (
                 <button
@@ -275,8 +297,8 @@ export default function ReservarPage() {
                   onClick={() => { setFecha(value); setHora(""); setEsperaOk(false); }}
                   className="h-8 w-8 mx-auto rounded-full"
                   style={{
-                    background: activo ? "#1c1712" : "transparent",
-                    color: activo ? "#fff" : pasado ? "var(--line)" : "var(--text)",
+                    background: activoDia ? "#1c1712" : "transparent",
+                    color: activoDia ? "#fff" : pasado ? "var(--line)" : "var(--text)",
                   }}
                 >
                   {Number(value.slice(8))}
