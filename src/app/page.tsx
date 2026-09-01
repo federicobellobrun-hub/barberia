@@ -82,5 +82,3 @@ export default function HomePage() {
     </main>
   );
 }
-
-const SLUG = "diano";
