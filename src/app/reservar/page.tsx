@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -34,7 +34,7 @@ function fromMinutes(mins: number) {
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
 
-export default function ReservarPage() {
+function ReservarPage() {
   const search = useSearchParams();
   const slug = search.get("b") || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
 
@@ -352,5 +352,13 @@ export default function ReservarPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function ReservarPageWrapper() {
+  return (
+    <Suspense fallback={<main className="min-h-screen flex items-center justify-center">Cargando...</main>}>
+      <ReservarPage />
+    </Suspense>
   );
 }
