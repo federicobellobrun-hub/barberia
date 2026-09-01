@@ -13,9 +13,10 @@ type Servicio = {
   precio: number;
   imagen_url: string | null;
 };
+type Barbero = { id: string; nombre: string; foto_url: string | null };
 type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string };
 type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean };
-type Turno = { fecha_hora: string; duracion_minutos: number };
+type Turno = { fecha_hora: string; duracion_minutos: number; barbero_id: string | null };
 
 function ymdMontevideo(date: Date) {
   return date.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
@@ -34,12 +35,14 @@ function fromMinutes(mins: number) {
 
 export default function ReservarPage() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [servicio, setServicio] = useState<Servicio | null>(null);
+  const [barbero, setBarbero] = useState<Barbero | null>(null);
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
   const [nombre, setNombre] = useState("");
@@ -56,17 +59,20 @@ export default function ReservarPage() {
         const desde = new Date();
         const hasta = new Date();
         hasta.setDate(hasta.getDate() + 40);
-        const [servRes, horRes, bloqRes, turRes] = await Promise.all([
+        const [servRes, barRes, horRes, bloqRes, turRes] = await Promise.all([
           supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos, precio, imagen_url").eq("activo", true).order("orden"),
+          supabase.from("barberos").select("id, nombre, foto_url").eq("activo", true).order("nombre"),
           supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin").eq("activo", true),
           supabase.from("bloqueos").select("fecha_inicio, fecha_fin, todo_el_dia"),
-          supabase.from("turnos").select("fecha_hora, duracion_minutos").in("estado", ["pendiente", "confirmado", "realizado"]).gte("fecha_hora", desde.toISOString()).lte("fecha_hora", hasta.toISOString()),
+          supabase.from("turnos").select("fecha_hora, duracion_minutos, barbero_id").in("estado", ["pendiente", "confirmado", "realizado"]).gte("fecha_hora", desde.toISOString()).lte("fecha_hora", hasta.toISOString()),
         ]);
         if (servRes.error) throw new Error(servRes.error.message);
         setServicios(servRes.data || []);
+        setBarberos(barRes.data || []);
         setHorarios(horRes.data || []);
         setBloqueos(bloqRes.data || []);
         setTurnos(turRes.data || []);
+        if ((barRes.data || []).length === 1) setBarbero(barRes.data![0]);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar");
       } finally {
@@ -105,6 +111,7 @@ export default function ReservarPage() {
       const slotEnd = new Date(slotStart.getTime() + dur * 60000);
       const chocaBloqueo = bloqueos.some((b) => !b.todo_el_dia && new Date(b.fecha_inicio) < slotEnd && new Date(b.fecha_fin) > slotStart);
       const chocaTurno = turnos.some((turno) => {
+        if (barbero && turno.barbero_id && turno.barbero_id !== barbero.id) return false;
         const ini = new Date(turno.fecha_hora);
         return ini < slotEnd && new Date(ini.getTime() + turno.duracion_minutos * 60000) > slotStart;
       });
@@ -113,11 +120,12 @@ export default function ReservarPage() {
       slots.push(hhmm);
     }
     return slots;
-  }, [servicio, fecha, horarios, bloqueos, turnos]);
+  }, [servicio, barbero, fecha, horarios, bloqueos, turnos]);
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!servicio || !fecha || !hora) return;
+    if (barberos.length > 0 && !barbero) return setError("Elegí un barbero");
     setEnviando(true);
     setError(null);
     try {
@@ -129,6 +137,7 @@ export default function ReservarPage() {
         p_telefono: telefono.trim(),
         p_fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
         p_duracion_minutos: servicio.duracion_minutos,
+        p_barbero_id: barbero?.id || null,
       });
       if (error) throw new Error(error.message);
       setOk(true);
@@ -162,7 +171,7 @@ export default function ReservarPage() {
     return (
       <main className="min-h-screen px-6 py-20 text-center">
         <h1 className="text-4xl font-semibold tracking-tight">Turno reservado</h1>
-        <p className="mt-4">{servicio.nombre} · {fecha} · {hora}</p>
+        <p className="mt-4">{servicio.nombre}{barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}</p>
         <Link href="/" className="inline-block mt-8">Volver</Link>
       </main>
     );
@@ -173,7 +182,7 @@ export default function ReservarPage() {
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
         <h1 className="text-[34px] font-semibold tracking-tight leading-9">Reservá tu turno</h1>
-        <p className="mt-2 mb-5" style={{ color: "var(--muted)" }}>Elegí servicio, día y hora</p>
+        <p className="mt-2 mb-5" style={{ color: "var(--muted)" }}>Elegí servicio, barbero, día y hora</p>
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
         <h2 className="font-medium mb-3">Elegí un servicio</h2>
@@ -206,13 +215,42 @@ export default function ReservarPage() {
         </div>
 
         {servicio && (
-          <div className="rounded-2xl p-4 mt-3 mb-7" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <div className="rounded-2xl p-4 mt-3 mb-6" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted)" }}>Servicio elegido</p>
             <p className="font-medium">{servicio.nombre}</p>
-            <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-              {servicio.duracion_minutos} min · ${servicio.precio}
-            </p>
+            <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{servicio.duracion_minutos} min · ${servicio.precio}</p>
           </div>
+        )}
+
+        {barberos.length > 0 && (
+          <>
+            <h2 className="font-medium mb-3">Elegí barbero</h2>
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
+              {barberos.map((b) => {
+                const activo = barbero?.id === b.id;
+                return (
+                  <button
+                    key={b.id}
+                    onClick={() => { setBarbero(b); setHora(""); }}
+                    className="shrink-0 rounded-2xl p-3 w-28 text-center"
+                    style={{
+                      background: activo ? "#f3eee6" : "var(--card)",
+                      border: activo ? "1.5px solid #cfc3b0" : "1px solid var(--line)",
+                    }}
+                  >
+                    {b.foto_url ? (
+                      <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" />
+                    ) : (
+                      <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: "var(--bg)" }}>
+                        {b.nombre.slice(0, 1)}
+                      </div>
+                    )}
+                    <p className="text-sm font-medium leading-4">{b.nombre}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
 
         <h2 className="font-medium mb-3">Elegí día y hora</h2>
@@ -269,9 +307,7 @@ export default function ReservarPage() {
             {horariosDelDia.length === 0 && (
               <div className="mt-3">
                 <p className="text-sm mb-3">No hay horarios ese día.</p>
-                {esperaOk ? (
-                  <p className="text-sm">Quedaste en lista de espera.</p>
-                ) : (
+                {esperaOk ? <p className="text-sm">Quedaste en lista de espera.</p> : (
                   <form onSubmit={anotarEspera} className="space-y-2">
                     <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
                     <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
