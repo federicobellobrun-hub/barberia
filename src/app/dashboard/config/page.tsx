@@ -11,6 +11,7 @@ export default function ConfigPage() {
   const [nombre, setNombre] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [mensaje, setMensaje] = useState("");
+  const [slug, setSlug] = useState("diano");
   const [logo, setLogo] = useState<string | null>(null);
   const [ok, setOk] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export default function ConfigPage() {
       if (!u?.barberia_id) return;
       const { data } = await supabase
         .from("barberias")
-        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url")
+        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug")
         .eq("id", u.barberia_id)
         .single();
       if (data) {
@@ -34,6 +35,7 @@ export default function ConfigPage() {
         setWhatsapp(data.whatsapp_pedidos || "");
         setMensaje(data.mensaje_confirmacion || "");
         setLogo(data.logo_url || null);
+        setSlug(data.slug || "diano");
       }
     };
     load();
@@ -46,12 +48,14 @@ export default function ConfigPage() {
       nombre,
       whatsapp_pedidos: whatsapp,
       mensaje_confirmacion: mensaje,
+      slug: slug || "diano",
     }).eq("id", id);
     if (error) setError(error.message);
     else setOk("Guardado");
   };
 
   const subirLogo = async (file: File) => {
+    if (!id) return setError("No se encontró la barbería");
     const supabase = createClient();
     const path = `${id}/logo/${Date.now()}-${file.name}`;
     const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
@@ -61,7 +65,7 @@ export default function ConfigPage() {
     if (error) setError(error.message);
     else {
       setLogo(data.publicUrl);
-      setOk("Logo actualizado");
+      setOk("Logo actualizado. Recargá la página para verlo arriba.");
     }
   };
 
@@ -74,14 +78,49 @@ export default function ConfigPage() {
           {error && <p className="text-red-500 text-sm">{error}</p>}
           {ok && <p className="text-sm">{ok}</p>}
           {logo && <img src={logo} alt="Logo" className="h-20 w-20 object-contain rounded-full mx-auto" />}
-          <input type="file" accept="image/*" onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) subirLogo(file);
-          }} />
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre de la barbería" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp consultas. Ej: 099123456" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje de confirmación" rows={4} className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) subirLogo(file);
+            }}
+          />
+          <input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Nombre de la barbería"
+            className="w-full rounded-2xl px-4 py-3"
+            style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }}
+          />
+          <input
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(e.target.value)}
+            placeholder="WhatsApp consultas. Ej: 099123456"
+            className="w-full rounded-2xl px-4 py-3"
+            style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }}
+          />
+          <input
+            value={slug}
+            onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+            placeholder="link. Ej: diano"
+            className="w-full rounded-2xl px-4 py-3"
+            style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }}
+          />
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            Link público: https://barberia-murex.vercel.app/b/{slug || "diano"}
+          </p>
+          <textarea
+            value={mensaje}
+            onChange={(e) => setMensaje(e.target.value)}
+            placeholder="Mensaje de confirmación"
+            rows={4}
+            className="w-full rounded-2xl px-4 py-3"
+            style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }}
+          />
+          <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            Guardar
+          </button>
         </form>
       </div>
     </main>
