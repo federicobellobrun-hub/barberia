@@ -74,6 +74,7 @@ export default function DashboardPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [nuevaFecha, setNuevaFecha] = useState("");
   const [nuevaHora, setNuevaHora] = useState("");
+  const [nuevoBarbero, setNuevoBarbero] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -164,14 +165,19 @@ export default function DashboardPage() {
     if (!nuevaFecha || !nuevaHora) return;
     const supabase = createClient();
     const fechaHora = new Date(`${nuevaFecha}T${nuevaHora}:00-03:00`).toISOString();
-    const { error } = await supabase.from("turnos").update({ fecha_hora: fechaHora, estado: "confirmado" }).eq("id", turno.id);
+    const { error } = await supabase.from("turnos").update({
+      fecha_hora: fechaHora,
+      estado: "confirmado",
+      barbero_id: nuevoBarbero || turno.barbero_id,
+    }).eq("id", turno.id);
     if (error) return setError(error.message);
     const cliente = one(turno.clientes);
     const servicio = one(turno.servicios);
+    const barberoNombre = barberos.find((b) => b.id === (nuevoBarbero || turno.barbero_id))?.nombre;
     if (cliente?.telefono) {
       abrirWhatsapp(
         cliente.telefono,
-        `Hola ${cliente.nombre}, te reagendamos el turno.\n\nServicio: ${servicio?.nombre}\nNuevo día: ${nuevaFecha}\nNueva hora: ${nuevaHora}`
+        `Hola ${cliente.nombre}, te reagendamos el turno.\n\nServicio: ${servicio?.nombre}\nNuevo día: ${nuevaFecha}\nNueva hora: ${nuevaHora}${barberoNombre ? `\nBarbero: ${barberoNombre}` : ""}`
       );
     }
     setEditId(null);
@@ -250,6 +256,7 @@ export default function DashboardPage() {
                     setEditId(t.id);
                     setNuevaFecha(ymd(new Date(t.fecha_hora)));
                     setNuevaHora(horaUy(t.fecha_hora));
+                    setNuevoBarbero(t.barbero_id || "");
                   }}
                   className="text-xs px-4 py-2 rounded-full"
                   style={{ background: "var(--bg)", border: "1px solid var(--line)" }}
@@ -284,6 +291,19 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-2 mt-3">
             <input type="date" value={nuevaFecha} onChange={(e) => setNuevaFecha(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input type="time" value={nuevaHora} onChange={(e) => setNuevaHora(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+            {barberos.length > 0 && (
+              <select
+                value={nuevoBarbero}
+                onChange={(e) => setNuevoBarbero(e.target.value)}
+                className="col-span-2 rounded-xl px-3 py-2"
+                style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}
+              >
+                <option value="">Barbero</option>
+                {barberos.map((b) => (
+                  <option key={b.id} value={b.id}>{b.nombre}</option>
+                ))}
+              </select>
+            )}
             <button onClick={() => moverTurno(t)} className="col-span-2 rounded-xl py-2 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
               Guardar y avisar
             </button>
