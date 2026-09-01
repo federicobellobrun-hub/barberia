@@ -63,6 +63,12 @@ export async function POST(request: Request) {
       { barberia_id: shop.id, dia_semana: 0, hora_inicio: "09:00", hora_fin: "13:00", activo: false },
     ]);
 
+    await admin.from("servicios").insert([
+      { barberia_id: shop.id, nombre: "Corte", duracion_minutos: 30, precio: 400, activo: true, orden: 1 },
+      { barberia_id: shop.id, nombre: "Barba", duracion_minutos: 20, precio: 250, activo: true, orden: 2 },
+      { barberia_id: shop.id, nombre: "Corte y barba", duracion_minutos: 45, precio: 600, activo: true, orden: 3 },
+    ]);
+
     return NextResponse.json({
       ok: true,
       slug: shop.slug,
@@ -91,6 +97,11 @@ export async function DELETE(request: Request) {
     const { id } = await request.json();
     if (!id) return NextResponse.json({ error: "Falta la barbería" }, { status: 400 });
     const admin = adminClient();
+
+    const { data: shop } = await admin.from("barberias").select("slug").eq("id", id).single();
+    if (shop?.slug === "diano") {
+      return NextResponse.json({ error: "Diano no se puede borrar" }, { status: 400 });
+    }
 
     const { data: users } = await admin.from("usuarios").select("auth_user_id").eq("barberia_id", id);
     await admin.from("horario_semanal").delete().eq("barberia_id", id);
