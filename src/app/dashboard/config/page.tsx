@@ -14,6 +14,7 @@ export default function ConfigPage() {
   const [slug, setSlug] = useState("diano");
   const [direccion, setDireccion] = useState("");
   const [maps, setMaps] = useState("");
+  const [fidelizacion, setFidelizacion] = useState(true);
   const [logo, setLogo] = useState<string | null>(null);
   const [portada, setPortada] = useState<string | null>(null);
   const [ok, setOk] = useState("");
@@ -29,7 +30,7 @@ export default function ConfigPage() {
       if (!u?.barberia_id) return;
       const { data } = await supabase
         .from("barberias")
-        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url")
+        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion")
         .eq("id", u.barberia_id)
         .single();
       if (data) {
@@ -42,6 +43,7 @@ export default function ConfigPage() {
         setDireccion(data.direccion || "");
         setMaps(data.maps_url || "");
         setPortada(data.portada_url || null);
+        setFidelizacion(data.fidelizacion !== false);
       }
     };
     load();
@@ -57,6 +59,7 @@ export default function ConfigPage() {
       slug: slug || "diano",
       direccion,
       maps_url: maps,
+      fidelizacion,
     }).eq("id", id);
     if (error) setError(error.message);
     else setOk("Guardado");
@@ -102,7 +105,13 @@ export default function ConfigPage() {
           <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="link. Ej: diano" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <p className="text-xs" style={{ color: "var(--muted)" }}>Link público: /b/{slug || "diano"}</p>
           <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje de confirmación" rows={4} className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={fidelizacion} onChange={(e) => setFidelizacion(e.target.checked)} />
+            Cortesía cada 10 cortes
+          </label>
+          <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            Guardar
+          </button>
         </form>
       </div>
     </main>
