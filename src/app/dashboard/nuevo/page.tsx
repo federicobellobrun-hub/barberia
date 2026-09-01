@@ -10,6 +10,7 @@ type Servicio = { id: string; barberia_id: string; nombre: string; duracion_minu
 type Barbero = { id: string; nombre: string };
 
 export default function NuevoTurnoPage() {
+  const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [servicioId, setServicioId] = useState("");
@@ -28,10 +29,15 @@ export default function NuevoTurnoPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      const [{ data: s }, { data: b }] = await Promise.all([
-        supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos").eq("activo", true),
-        supabase.from("barberos").select("id, nombre").eq("activo", true).order("nombre"),
+      const { data: u } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).single();
+      if (!u?.barberia_id) return setError("Este usuario no tiene barbería");
+      setBarberiaId(u.barberia_id);
+      const [{ data: s, error: sErr }, { data: b, error: bErr }] = await Promise.all([
+        supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos").eq("barberia_id", u.barberia_id).eq("activo", true),
+        supabase.from("barberos").select("id, nombre").eq("barberia_id", u.barberia_id).eq("activo", true).order("nombre"),
       ]);
+      if (sErr) setError(sErr.message);
+      if (bErr) setError(bErr.message);
       setServicios(s || []);
       setBarberos(b || []);
       if (s?.[0]) setServicioId(s[0].id);
@@ -43,14 +49,14 @@ export default function NuevoTurnoPage() {
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
     const servicio = servicios.find((s) => s.id === servicioId);
-    if (!servicio) return;
+    if (!servicio || !barberiaId) return;
     const supabase = createClient();
     const veces = repetir ? 4 : 1;
     for (let i = 0; i < veces; i++) {
       const d = new Date(`${fecha}T${hora}:00-03:00`);
       d.setDate(d.getDate() + 7 * i);
       const { error } = await supabase.rpc("crear_reserva", {
-        p_barberia_id: servicio.barberia_id,
+        p_barberia_id: barberiaId,
         p_servicio_id: servicio.id,
         p_nombre: nombre.trim(),
         p_telefono: telefono.trim(),
@@ -77,6 +83,7 @@ export default function NuevoTurnoPage() {
           <form onSubmit={guardar} className="space-y-3">
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <select value={servicioId} onChange={(e) => setServicioId(e.target.value)} className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }}>
+              {servicios.length === 0 && <option value="">Sin servicios</option>}
               {servicios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
             {barberos.length > 0 && (
