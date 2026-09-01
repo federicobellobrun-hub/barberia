@@ -9,8 +9,16 @@ import { createClient } from "@/lib/supabase";
 
 const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
+type Shop = {
+  id: string;
+  direccion: string | null;
+  maps_url: string | null;
+  portada_url: string | null;
+};
+
 export default function BarberiaHomePage() {
   const { slug } = useParams<{ slug: string }>();
+  const [shop, setShop] = useState<Shop | null>(null);
   const [fotos, setFotos] = useState<{ id: string; url: string }[]>([]);
   const [horarios, setHorarios] = useState<{ dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -19,11 +27,16 @@ export default function BarberiaHomePage() {
     if (slug) localStorage.setItem("barberia_slug", slug);
     const load = async () => {
       const supabase = createClient();
-      const { data: b, error } = await supabase.from("barberias").select("id").eq("slug", slug).maybeSingle();
+      const { data: b, error } = await supabase
+        .from("barberias")
+        .select("id, direccion, maps_url, portada_url")
+        .eq("slug", slug)
+        .maybeSingle();
       if (error || !b) {
         setError("No se encontró la barbería");
         return;
       }
+      setShop(b);
       const [f, h] = await Promise.all([
         supabase.from("fotos").select("id, url").eq("barberia_id", b.id).eq("mostrar_inicio", true).order("created_at", { ascending: false }).limit(6),
         supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin, activo").eq("barberia_id", b.id).order("dia_semana"),
@@ -39,8 +52,17 @@ export default function BarberiaHomePage() {
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        {shop?.portada_url && (
+          <img src={shop.portada_url} alt="" className="w-full h-44 object-cover rounded-2xl mb-5" />
+        )}
         <h1 className="text-[36px] font-semibold tracking-tight leading-9 text-center mb-3">Reservá tu turno</h1>
-        <p className="text-center mb-8" style={{ color: "var(--muted)" }}>Agenda simple. Atención precisa.</p>
+        <p className="text-center mb-4" style={{ color: "var(--muted)" }}>Agenda simple. Atención precisa.</p>
+        {shop?.direccion && <p className="text-center text-sm mb-3">{shop.direccion}</p>}
+        {shop?.maps_url && (
+          <a href={shop.maps_url} target="_blank" rel="noreferrer" className="block text-center text-sm mb-6">
+            Cómo llegar
+          </a>
+        )}
         <Link href={`/reservar?b=${slug}`} className="block text-center rounded-2xl py-4 text-base font-medium mb-3" style={{ background: "#1c1712", color: "#f4efe6" }}>
           Reservar
         </Link>
