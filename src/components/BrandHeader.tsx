@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import ThemeToggle from "./ThemeToggle";
 import { createClient } from "@/lib/supabase";
 
-function BrandHeaderInner({ left }: { left?: React.ReactNode }) {
+export default function BrandHeader({ left }: { left?: React.ReactNode }) {
   const pathname = usePathname() || "/";
-  const search = useSearchParams();
   const [nombre, setNombre] = useState("Diano");
   const [logo, setLogo] = useState<string | null>(null);
   const [home, setHome] = useState("/");
@@ -38,8 +37,8 @@ function BrandHeaderInner({ left }: { left?: React.ReactNode }) {
       }
 
       const slugFromPath = pathname.startsWith("/b/") ? pathname.split("/")[2] : null;
-      const slug = slugFromPath || search.get("b") || "diano";
-      localStorage.setItem("barberia_slug", slug);
+      const slug = slugFromPath || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
+      if (typeof window !== "undefined") localStorage.setItem("barberia_slug", slug);
 
       const { data: b } = await supabase
         .from("barberias")
@@ -51,7 +50,7 @@ function BrandHeaderInner({ left }: { left?: React.ReactNode }) {
       setHome(b?.slug ? `/b/${b.slug}` : "/");
     };
     load();
-  }, [pathname, search]);
+  }, [pathname]);
 
   const principal = nombre.split(" ")[0] || "Diano";
   const resto = nombre.split(" ").slice(1).join(" ") || "Barbershop";
@@ -78,8 +77,4 @@ function BrandHeaderInner({ left }: { left?: React.ReactNode }) {
       </div>
     </header>
   );
-}
-
-export default function BrandHeader({ left }: { left?: React.ReactNode }) {
-  return <BrandHeaderInner left={left} />;
 }
