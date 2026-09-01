@@ -4,13 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import ThemeToggle from "@/components/ThemeToggle";
+import BrandHeader from "@/components/BrandHeader";
 
 type Servicio = { id: string; barberia_id: string; nombre: string; duracion_minutos: number };
+type Barbero = { id: string; nombre: string };
 
 export default function NuevoTurnoPage() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [servicioId, setServicioId] = useState("");
+  const [barberoId, setBarberoId] = useState("");
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
   const [nombre, setNombre] = useState("");
@@ -25,9 +28,14 @@ export default function NuevoTurnoPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      const { data } = await supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos").eq("activo", true);
-      setServicios(data || []);
-      if (data?.[0]) setServicioId(data[0].id);
+      const [{ data: s }, { data: b }] = await Promise.all([
+        supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos").eq("activo", true),
+        supabase.from("barberos").select("id, nombre").eq("activo", true).order("nombre"),
+      ]);
+      setServicios(s || []);
+      setBarberos(b || []);
+      if (s?.[0]) setServicioId(s[0].id);
+      if (b?.[0]) setBarberoId(b[0].id);
     };
     load();
   }, [router]);
@@ -48,6 +56,7 @@ export default function NuevoTurnoPage() {
         p_telefono: telefono.trim(),
         p_fecha_hora: d.toISOString(),
         p_duracion_minutos: servicio.duracion_minutos,
+        p_barbero_id: barberoId || null,
       });
       if (error) {
         setError(error.message);
@@ -58,12 +67,9 @@ export default function NuevoTurnoPage() {
   };
 
   return (
-    <main className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="max-w-md mx-auto px-5 pt-4">
-        <header className="flex items-center justify-between mb-6">
-          <Link href="/dashboard/mas">‹</Link>
-          <ThemeToggle />
-        </header>
+    <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <div className="max-w-md mx-auto px-5 pt-5">
+        <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-6">Nuevo turno</h1>
         {ok ? (
           <p>Turno cargado. <Link href="/dashboard">Ver agenda</Link></p>
@@ -73,6 +79,11 @@ export default function NuevoTurnoPage() {
             <select value={servicioId} onChange={(e) => setServicioId(e.target.value)} className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }}>
               {servicios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
+            {barberos.length > 0 && (
+              <select value={barberoId} onChange={(e) => setBarberoId(e.target.value)} className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }}>
+                {barberos.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+              </select>
+            )}
             <input type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input type="time" required value={hora} onChange={(e) => setHora(e.target.value)} className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
             <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
@@ -81,7 +92,7 @@ export default function NuevoTurnoPage() {
               <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} />
               Repetir las próximas 4 semanas
             </label>
-            <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>Guardar turno</button>
+            <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar turno</button>
           </form>
         )}
       </div>
