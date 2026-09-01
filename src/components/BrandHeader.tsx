@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import ThemeToggle from "./ThemeToggle";
 import { createClient } from "@/lib/supabase";
 
-export default function BrandHeader({ left }: { left?: React.ReactNode }) {
-  const [nombre, setNombre] = useState("Barbería");
+function BrandHeaderInner({ left }: { left?: React.ReactNode }) {
+  const pathname = usePathname() || "/";
+  const search = useSearchParams();
+  const [nombre, setNombre] = useState("Diano");
   const [logo, setLogo] = useState<string | null>(null);
   const [home, setHome] = useState("/");
 
@@ -18,7 +21,7 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
       if (user) {
         const { data: u } = await supabase
           .from("usuarios")
-          .select("barberia_id, rol")
+          .select("barberia_id")
           .eq("auth_user_id", user.id)
           .single();
         if (u?.barberia_id) {
@@ -28,24 +31,29 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
             .eq("id", u.barberia_id)
             .single();
           if (b?.nombre) setNombre(b.nombre);
-          if (b?.logo_url) setLogo(b.logo_url);
-          if (b?.slug) setHome(`/b/${b.slug}`);
+          setLogo(b?.logo_url || null);
+          setHome(b?.slug ? `/b/${b.slug}` : "/");
           return;
         }
       }
 
-      const slug = typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null;
-      if (slug) {
-        const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug").eq("slug", slug).maybeSingle();
-        if (b?.nombre) setNombre(b.nombre);
-        if (b?.logo_url) setLogo(b.logo_url);
-        if (b?.slug) setHome(`/b/${b.slug}`);
-      }
+      const slugFromPath = pathname.startsWith("/b/") ? pathname.split("/")[2] : null;
+      const slug = slugFromPath || search.get("b") || "diano";
+      localStorage.setItem("barberia_slug", slug);
+
+      const { data: b } = await supabase
+        .from("barberias")
+        .select("nombre, logo_url, slug")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (b?.nombre) setNombre(b.nombre);
+      setLogo(b?.logo_url || null);
+      setHome(b?.slug ? `/b/${b.slug}` : "/");
     };
     load();
-  }, []);
+  }, [pathname, search]);
 
-  const principal = nombre.split(" ")[0] || "Barbería";
+  const principal = nombre.split(" ")[0] || "Diano";
   const resto = nombre.split(" ").slice(1).join(" ") || "Barbershop";
 
   return (
@@ -70,4 +78,8 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
       </div>
     </header>
   );
+}
+
+export default function BrandHeader({ left }: { left?: React.ReactNode }) {
+  return <BrandHeaderInner left={left} />;
 }
