@@ -12,12 +12,18 @@ export default function BarberosPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [nombre, setNombre] = useState("");
+  const [foto, setFoto] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const load = async (id: string) => {
     const supabase = createClient();
-    const { data, error } = await supabase.from("barberos").select("id, nombre, foto_url, activo").eq("barberia_id", id).order("nombre");
+    const { data, error } = await supabase
+      .from("barberos")
+      .select("id, nombre, foto_url, activo")
+      .eq("barberia_id", id)
+      .order("nombre");
     if (error) setError(error.message);
     setBarberos(data || []);
   };
@@ -35,30 +41,45 @@ export default function BarberosPage() {
     init();
   }, [router]);
 
+  const subirFoto = async (barberoId: string, file: File, idBarberia: string) => {
+    const supabase = createClient();
+    const path = `${idBarberia}/barberos/${barberoId}-${Date.now()}-${file.name}`;
+    const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
+    if (upErr) throw new Error(upErr.message);
+    const { data } = supabase.storage.from("fotos").getPublicUrl(path);
+    const { error } = await supabase.from("barberos").update({ foto_url: data.publicUrl }).eq("id", barberoId);
+    if (error) throw new Error(error.message);
+  };
+
   const crear = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!barberiaId) return;
     const supabase = createClient();
-    const { error } = await supabase.from("barberos").insert({
-      barberia_id: barberiaId,
-      nombre: nombre.trim(),
-      activo: true,
-    });
+    const { data, error } = await supabase
+      .from("barberos")
+      .insert({ barberia_id: barberiaId, nombre: nombre.trim(), activo: true })
+      .select("id")
+      .single();
     if (error) return setError(error.message);
+    try {
+      if (foto && data?.id) await subirFoto(data.id, foto, barberiaId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo subir la foto");
+    }
     setNombre("");
+    setFoto(null);
+    setPreview(null);
     await load(barberiaId);
   };
 
-  const subirFoto = async (id: string, file: File) => {
+  const cambiarFoto = async (id: string, file: File) => {
     if (!barberiaId) return;
-    const supabase = createClient();
-    const path = `${barberiaId}/barberos/${id}-${Date.now()}-${file.name}`;
-    const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
-    if (upErr) return setError(upErr.message);
-    const { data } = supabase.storage.from("fotos").getPublicUrl(path);
-    const { error } = await supabase.from("barberos").update({ foto_url: data.publicUrl }).eq("id", id);
-    if (error) setError(error.message);
-    else await load(barberiaId);
+    try {
+      await subirFoto(id, file, barberiaId);
+      await load(barberiaId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo subir la foto");
+    }
   };
 
   const borrar = async (id: string) => {
@@ -76,19 +97,49 @@ export default function BarberosPage() {
         <h1 className="text-[34px] font-semibold tracking-tight mb-5">Barberos</h1>
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
-        <form onSubmit={crear} className="rounded-2xl p-4 mb-5 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del barbero" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Agregar</button>
+        <form onSubmit={crear} className="rounded-2xl p-4 mb-5 space-y-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          {preview && <img src={preview} alt="" className="h-20 w-20 object-cover rounded-full mx-auto" />}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              setFoto(file);
+              setPreview(file ? URL.createObjectURL(file) : null);
+            }}
+          />
+          <input
+            required
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Nombre del barbero"
+            className="w-full rounded-xl px-3 py-3"
+            style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}
+          />
+          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            Agregar
+          </button>
         </form>
 
         {barberos.map((b) => (
           <div key={b.id} className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            {b.foto_url && <img src={b.foto_url} alt="" className="h-20 w-20 object-cover rounded-full mb-3" />}
+            {b.foto_url ? (
+              <img src={b.foto_url} alt="" className="h-20 w-20 object-cover rounded-full mb-3" />
+            ) : (
+              <div className="h-20 w-20 rounded-full mb-3 flex items-center justify-center" style={{ background: "var(--bg)" }}>
+                {b.nombre.slice(0, 1)}
+              </div>
+            )}
             <p className="font-medium mb-2">{b.nombre}</p>
-            <input type="file" accept="image/*" className="text-sm mb-3" onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) subirFoto(b.id, file);
-            }} />
+            <input
+              type="file"
+              accept="image/*"
+              className="text-sm mb-3"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) cambiarFoto(b.id, file);
+              }}
+            />
             <button onClick={() => borrar(b.id)} className="text-sm text-red-500">Borrar</button>
           </div>
         ))}
