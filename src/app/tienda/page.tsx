@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import ThemeToggle from "@/components/ThemeToggle";
-
-const WHATSAPP_PEDIDOS = "59897344643";
+import BrandHeader from "@/components/BrandHeader";
 
 type Producto = {
   id: string;
@@ -17,114 +16,133 @@ type Producto = {
 };
 type Item = Producto & { cantidad: number };
 
-export default function TiendaPage() {
+function waNumber(telefono: string) {
+  const solo = telefono.replace(/\D/g, "");
+  if (solo.startsWith("598")) return solo;
+  if (solo.startsWith("0")) return `598${solo.slice(1)}`;
+  return `598${solo}`;
+}
+
+function TiendaPage() {
+  const search = useSearchParams();
+  const slug = search.get("b") || "diano";
   const [productos, setProductos] = useState<Producto[]>([]);
   const [carrito, setCarrito] = useState<Item[]>([]);
+  const [whatsapp, setWhatsapp] = useState("");
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const load = async () => {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("productos")
-      .select("id, nombre, precio, descripcion, stock, imagen_url")
-      .eq("activo", true)
-      .order("nombre");
-    if (error) setError(error.message);
-    setProductos(data || []);
-    setLoading(false);
-  };
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient();
+      const { data: shop, error: shopErr } = await supabase
+        .from("barberias")
+        .select("id, whatsapp_pedidos")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (shopErr || !shop) {
+        setError("No se encontró la barbería");
+        return;
+      }
+      setWhatsapp(shop.whatsapp_pedidos || "");
+      const { data, error } = await supabase
+        .from("productos")
+        .select("id, nombre, precio, descripcion, stock, imagen_url")
+        .eq("barberia_id", shop.id)
+        .eq("activo", true)
+        .order("nombre");
+      if (error) setError(error.message);
+      setProductos(data || []);
+    };
+    load();
+  }, [slug]);
 
-  useEffect(() => { load(); }, []);
+  const total = useMemo(
+    () => carrito.reduce((acc, i) => acc + Number(i.precio) * i.cantidad, 0),
+    [carrito]
+  );
 
   const agregar = (p: Producto) => {
-    if ((p.stock || 0) <= 0) return;
     setCarrito((prev) => {
-      const existe = prev.find((x) => x.id === p.id);
-      if (existe) {
-        if (existe.cantidad >= p.stock) return prev;
-        return prev.map((x) => x.id === p.id ? { ...x, cantidad: x.cantidad + 1 } : x);
-      }
+      const found = prev.find((i) => i.id === p.id);
+      if (found) return prev.map((i) => i.id === p.id ? { ...i, cantidad: i.cantidad + 1 } : i);
       return [...prev, { ...p, cantidad: 1 }];
     });
   };
 
   const quitar = (id: string) => {
-    setCarrito((prev) => prev.map((x) => x.id === id ? { ...x, cantidad: x.cantidad - 1 } : x).filter((x) => x.cantidad > 0));
+    setCarrito((prev) => prev.flatMap((i) => {
+      if (i.id !== id) return [i];
+      if (i.cantidad <= 1) return [];
+      return [{ ...i, cantidad: i.cantidad - 1 }];
+    }));
   };
 
-  const total = useMemo(() => carrito.reduce((acc, i) => acc + Number(i.precio) * i.cantidad, 0), [carrito]);
-
-  const comprar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (carrito.length === 0) return setError("Agregá al menos un producto");
-    const supabase = createClient();
-    await supabase.rpc("descontar_stock", {
-      p_items: carrito.map((i) => ({ id: i.id, cantidad: i.cantidad })),
-    });
-    const lineas = carrito.map((i) => `• ${i.nombre} x${i.cantidad} — $${Number(i.precio) * i.cantidad}`).join("\n");
-    const texto = `Hola, quiero hacer este pedido en Diano Barbershop:\n\n${lineas}\n\nTotal: $${total}\nNombre: ${nombre}\nWhatsApp: ${telefono}`;
-    window.open(`https://wa.me/${WHATSAPP_PEDIDOS}?text=${encodeURIComponent(texto)}`, "_blank");
-    setCarrito([]);
-    await load();
+  const pedir = () => {
+    if (!whatsapp) return setError("Esta barbería no cargó WhatsApp en Configuración");
+    if (!nombre || !telefono || carrito.length === 0) return;
+    const lineas = carrito.map((i) => `• ${i.cantidad} x ${i.nombre} ($${i.precio})`).join("\n");
+    const texto = `Hola, soy ${nombre}. Quiero este pedido:\n\n${lineas}\n\nTotal: $${total}\nWhatsApp: ${telefono}`;
+    window.open(`https://wa.me/${waNumber(whatsapp)}?text=${encodeURIComponent(texto)}`, "_blank");
   };
 
   return (
-    <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="max-w-md mx-auto px-5 pt-4">
-        <header className="flex items-center justify-between mb-6">
-          <Link href="/">‹</Link>
-          <ThemeToggle />
-        </header>
-        <h1 className="text-[34px] font-semibold tracking-tight">Productos</h1>
-        <p className="mt-2 mb-6" style={{ color: "var(--muted)" }}>Armá el pedido y envialo por WhatsApp</p>
+    <main className="min-h-screen pb-28" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <div className="max-w-md mx-auto px-5 pt-5">
+        <BrandHeader />
+        <h1 className="text-[34px] font-semibold tracking-tight mb-2">Productos</h1>
+        <Link href={`/b/${slug}`} className="text-sm mb-6 inline-block" style={{ color: "var(--muted)" }}>Volver</Link>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-        {loading && <p style={{ color: "var(--muted)" }}>Cargando...</p>}
+        {productos.length === 0 && !error && (
+          <p className="text-sm" style={{ color: "var(--muted)" }}>Esta barbería todavía no cargó productos.</p>
+        )}
 
-        {productos.map((p) => (
-          <div key={p.id} className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            {p.imagen_url && <img src={p.imagen_url} alt="" className="h-40 w-full object-cover rounded-xl mb-3" />}
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="font-medium">{p.nombre}</p>
-                {p.descripcion && <p className="text-sm" style={{ color: "var(--muted)" }}>{p.descripcion}</p>}
-                <p className="text-sm mt-1">${p.precio} · Stock {p.stock ?? 0}</p>
+        <div className="grid grid-cols-2 gap-3 mb-8">
+          {productos.map((p) => (
+            <article key={p.id} className="rounded-2xl overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+              {p.imagen_url ? (
+                <img src={p.imagen_url} alt="" className="h-28 w-full object-cover" />
+              ) : (
+                <div className="h-28 flex items-center justify-center" style={{ background: "var(--bg)" }}>✂</div>
+              )}
+              <div className="p-3">
+                <p className="font-medium leading-4">{p.nombre}</p>
+                <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>${p.precio}</p>
+                <button onClick={() => agregar(p)} className="mt-2 w-full rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
+                  Agregar
+                </button>
               </div>
-              <button disabled={(p.stock || 0) <= 0} onClick={() => agregar(p)} className="shrink-0 rounded-full px-4 py-2 text-sm font-medium disabled:opacity-40" style={{ background: "#1d1d1f", color: "#fff" }}>
-                {(p.stock || 0) <= 0 ? "Sin stock" : "Agregar"}
-              </button>
-            </div>
-          </div>
-        ))}
+            </article>
+          ))}
+        </div>
 
         {carrito.length > 0 && (
-          <section className="mt-8">
-            <h2 className="font-medium mb-3">Carrito</h2>
-            <div className="rounded-2xl overflow-hidden mb-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-              {carrito.map((i) => (
-                <div key={i.id} className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: "var(--line)" }}>
-                  <div>
-                    <p>{i.nombre}</p>
-                    <p className="text-sm" style={{ color: "var(--muted)" }}>x{i.cantidad} · ${Number(i.precio) * i.cantidad}</p>
-                  </div>
-                  <button onClick={() => quitar(i.id)} className="text-sm">Quitar</button>
-                </div>
-              ))}
-              <div className="px-4 py-3 flex justify-between font-medium">
-                <span>Total</span>
-                <span>${total}</span>
+          <section className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            <h2 className="font-medium mb-3">Pedido</h2>
+            {carrito.map((i) => (
+              <div key={i.id} className="flex justify-between items-center mb-2 text-sm">
+                <span>{i.cantidad} x {i.nombre}</span>
+                <button onClick={() => quitar(i.id)}>Quitar</button>
               </div>
-            </div>
-            <form onSubmit={comprar} className="space-y-3">
-              <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-              <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="Tu WhatsApp" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-              <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1d1d1f", color: "#fff" }}>Comprar por WhatsApp</button>
-            </form>
+            ))}
+            <p className="font-medium my-3">Total ${total}</p>
+            <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full rounded-xl px-3 py-3 mb-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+            <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full rounded-xl px-3 py-3 mb-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+            <button onClick={pedir} className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+              Pedir por WhatsApp
+            </button>
           </section>
         )}
       </div>
     </main>
+  );
+}
+
+export default function TiendaPageWrapper() {
+  return (
+    <Suspense fallback={<main className="min-h-screen flex items-center justify-center">Cargando...</main>}>
+      <TiendaPage />
+    </Suspense>
   );
 }
