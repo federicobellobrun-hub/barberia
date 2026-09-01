@@ -318,10 +318,24 @@ export default function DashboardPage() {
         <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-5">Agenda</h1>
 
         <div className="grid grid-cols-2 gap-2 mb-6">
-          <Link href="/dashboard/clientes" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Clientes</Link>
-          <Link href="/dashboard/bloqueos" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Bloqueos</Link>
-          <Link href="/dashboard/catalogo" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Catálogo</Link>
-          <Link href="/dashboard/mas" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Más</Link>
+          {[
+            ["Clientes", "/dashboard/clientes", "M12 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 19c1.5-3 4-5 7-5s5.5 2 7 5"],
+            ["Bloqueos", "/dashboard/bloqueos", "M7 11V8a5 5 0 0 1 10 0v3M6 11h12v10H6z"],
+            ["Catálogo", "/dashboard/catalogo", "M7 4h10l2 4H5l2-4zM6 8h12v12H6zM10 13h4"],
+            ["Más", "/dashboard/mas", "M5 8h14M5 12h14M5 16h10"],
+          ].map(([label, href, d]) => (
+            <Link
+              key={href}
+              href={href}
+              className="rounded-2xl p-4 text-center text-sm"
+              style={{ background: "var(--card)", border: "1px solid var(--line)" }}
+            >
+              <svg className="mx-auto mb-2" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d={d} />
+              </svg>
+              {label}
+            </Link>
+          ))}
         </div>
 
         {barberos.length > 0 && (
