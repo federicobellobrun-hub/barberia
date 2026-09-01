@@ -16,6 +16,7 @@ export default function BarberiaHomePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (slug) localStorage.setItem("barberia_slug", slug);
     const load = async () => {
       const supabase = createClient();
       const { data: b, error } = await supabase.from("barberias").select("id").eq("slug", slug).maybeSingle();
@@ -40,9 +41,15 @@ export default function BarberiaHomePage() {
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         <h1 className="text-[36px] font-semibold tracking-tight leading-9 text-center mb-3">Reservá tu turno</h1>
         <p className="text-center mb-8" style={{ color: "var(--muted)" }}>Agenda simple. Atención precisa.</p>
-        <Link href={`/b/${slug}/reservar`} className="block text-center rounded-2xl py-4 text-base font-medium mb-3" style={{ background: "#1c1712", color: "#f4efe6" }}>Reservar</Link>
-        <Link href={`/b/${slug}/tienda`} className="block text-center rounded-2xl py-4 text-base mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Productos</Link>
-        <Link href="/login" className="block text-center rounded-2xl py-4 text-base mb-10" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Panel del barbero</Link>
+        <Link href={`/reservar?b=${slug}`} className="block text-center rounded-2xl py-4 text-base font-medium mb-3" style={{ background: "#1c1712", color: "#f4efe6" }}>
+          Reservar
+        </Link>
+        <Link href={`/tienda?b=${slug}`} className="block text-center rounded-2xl py-4 text-base mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          Productos
+        </Link>
+        <Link href="/login" className="block text-center rounded-2xl py-4 text-base mb-10" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          Panel del barbero
+        </Link>
 
         {horarios.length > 0 && (
           <section className="mb-8">
@@ -74,8 +81,8 @@ export default function BarberiaHomePage() {
       <BottomNav
         items={[
           { href: `/b/${slug}`, label: "Inicio", active: true },
-          { href: `/b/${slug}/reservar`, label: "Reservar" },
-          { href: `/b/${slug}/tienda`, label: "Tienda" },
+          { href: `/reservar?b=${slug}`, label: "Reservar" },
+          { href: `/tienda?b=${slug}`, label: "Tienda" },
         ]}
       />
     </main>
