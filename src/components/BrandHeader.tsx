@@ -6,26 +6,52 @@ import ThemeToggle from "./ThemeToggle";
 import { createClient } from "@/lib/supabase";
 
 export default function BrandHeader({ left }: { left?: React.ReactNode }) {
-  const [nombre, setNombre] = useState("Diano");
+  const [nombre, setNombre] = useState("Barbería");
   const [logo, setLogo] = useState<string | null>(null);
+  const [home, setHome] = useState("/");
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient();
-      const { data } = await supabase.from("barberias").select("nombre, logo_url").limit(1).maybeSingle();
-      if (data?.nombre) setNombre(data.nombre);
-      if (data?.logo_url) setLogo(data.logo_url);
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: u } = await supabase
+          .from("usuarios")
+          .select("barberia_id, rol")
+          .eq("auth_user_id", user.id)
+          .single();
+        if (u?.barberia_id) {
+          const { data: b } = await supabase
+            .from("barberias")
+            .select("nombre, logo_url, slug")
+            .eq("id", u.barberia_id)
+            .single();
+          if (b?.nombre) setNombre(b.nombre);
+          if (b?.logo_url) setLogo(b.logo_url);
+          if (b?.slug) setHome(`/b/${b.slug}`);
+          return;
+        }
+      }
+
+      const slug = typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null;
+      if (slug) {
+        const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug").eq("slug", slug).maybeSingle();
+        if (b?.nombre) setNombre(b.nombre);
+        if (b?.logo_url) setLogo(b.logo_url);
+        if (b?.slug) setHome(`/b/${b.slug}`);
+      }
     };
     load();
   }, []);
 
-  const principal = nombre.split(" ")[0] || "Diano";
+  const principal = nombre.split(" ")[0] || "Barbería";
   const resto = nombre.split(" ").slice(1).join(" ") || "Barbershop";
 
   return (
     <header className="flex items-center justify-between mb-8">
       <div className="w-16">{left || <span />}</div>
-      <Link href="/" className="text-center">
+      <Link href={home} className="text-center">
         {logo ? (
           <img src={logo} alt={nombre} className="h-14 w-14 mx-auto object-contain rounded-full mb-2" />
         ) : null}
