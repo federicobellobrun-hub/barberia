@@ -74,6 +74,7 @@ export default function AdminPage() {
   };
 
   const borrar = async (s: Shop) => {
+    if (s.slug === "diano") return setError("Diano no se puede borrar");
     if (!confirm(`¿Borrar ${s.nombre}? Se borra el login también.`)) return;
     const res = await fetch("/api/admin/barberias", {
       method: "DELETE",
@@ -120,7 +121,9 @@ export default function AdminPage() {
             <div className="flex gap-3 text-sm">
               <a href={`/b/${s.slug}`}>Abrir</a>
               <button onClick={() => toggle(s)}>{s.activo === false ? "Activar" : "Desactivar"}</button>
-              <button onClick={() => borrar(s)} className="text-red-500">Borrar</button>
+              {s.slug !== "diano" && (
+                <button onClick={() => borrar(s)} className="text-red-500">Borrar</button>
+              )}
             </div>
           </div>
         ))}
