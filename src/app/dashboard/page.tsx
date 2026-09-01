@@ -10,15 +10,18 @@ import BottomNav from "@/components/BottomNav";
 type Persona = { nombre: string; telefono: string };
 type Servicio = { nombre: string; precio: number };
 type Pago = { id: string; monto: number; metodo: string };
+type Barbero = { id: string; nombre: string };
 type Turno = {
   id: string;
   barberia_id: string;
+  barbero_id: string | null;
   fecha_hora: string;
   duracion_minutos: number;
   estado: string;
   clientes: Persona | Persona[] | null;
   servicios: Servicio | Servicio[] | null;
   pagos: Pago | Pago[] | null;
+  barberos: Barbero | Barbero[] | null;
 };
 
 function one<T>(value: T | T[] | null): T | null {
@@ -63,6 +66,8 @@ export default function DashboardPage() {
   const [fecha, setFecha] = useState(ymd(new Date()));
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [maniana, setManiana] = useState<Turno[]>([]);
+  const [barberos, setBarberos] = useState<Barbero[]>([]);
+  const [filtroBarbero, setFiltroBarbero] = useState("todos");
   const [totalMes, setTotalMes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,27 +103,29 @@ export default function DashboardPage() {
       const siguiente = new Date(`${mes}-01T00:00:00-03:00`);
       siguiente.setMonth(siguiente.getMonth() + 1);
 
-      const [turnosRes, manianaRes, pagosMesRes] = await Promise.all([
+      const [turnosRes, manianaRes, pagosMesRes, barberosRes] = await Promise.all([
         supabase
           .from("turnos")
-          .select("id, barberia_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo)")
+          .select("id, barberia_id, barbero_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo), barberos(nombre)")
           .gte("fecha_hora", desde)
           .lte("fecha_hora", hasta)
           .neq("estado", "cancelado")
           .order("fecha_hora"),
         supabase
           .from("turnos")
-          .select("id, barberia_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo)")
+          .select("id, barberia_id, barbero_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo), barberos(nombre)")
           .gte("fecha_hora", new Date(`${diaManiana}T00:00:00-03:00`).toISOString())
           .lte("fecha_hora", new Date(`${diaManiana}T23:59:59-03:00`).toISOString())
           .neq("estado", "cancelado")
           .order("fecha_hora"),
         supabase.from("pagos").select("monto").gte("pagado_at", inicioMes).lt("pagado_at", siguiente.toISOString()),
+        supabase.from("barberos").select("id, nombre").eq("activo", true).order("nombre"),
       ]);
 
       if (turnosRes.error) setError(turnosRes.error.message);
       setTurnos((turnosRes.data as any) || []);
       setManiana((manianaRes.data as any) || []);
+      setBarberos((barberosRes.data as any) || []);
       setTotalMes((pagosMesRes.data || []).reduce((acc: number, p: { monto: number }) => acc + Number(p.monto || 0), 0));
       setLoading(false);
     };
@@ -127,6 +134,10 @@ export default function DashboardPage() {
 
   const pendientes = useMemo(() => turnos.filter((t) => t.estado === "pendiente"), [turnos]);
   const totalDia = useMemo(() => turnos.reduce((acc, t) => acc + Number(one(t.pagos)?.monto || 0), 0), [turnos]);
+  const turnosFiltrados = useMemo(
+    () => (filtroBarbero === "todos" ? turnos : turnos.filter((t) => t.barbero_id === filtroBarbero)),
+    [turnos, filtroBarbero]
+  );
 
   const cambiarEstado = async (id: string, estado: string) => {
     const supabase = createClient();
@@ -183,6 +194,7 @@ export default function DashboardPage() {
     const cliente = one(t.clientes);
     const servicio = one(t.servicios);
     const pago = one(t.pagos);
+    const barberoTurno = one(t.barberos);
     return (
       <article className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
         <div className="flex justify-between items-start">
@@ -192,6 +204,9 @@ export default function DashboardPage() {
             <p className="text-sm" style={{ color: "var(--muted)" }}>
               {servicio?.nombre} · ${servicio?.precio || 0}
             </p>
+            {barberoTurno?.nombre && (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>Barbero: {barberoTurno.nombre}</p>
+            )}
             <p className="text-sm" style={{ color: "var(--muted)" }}>{cliente?.telefono}</p>
           </div>
           <span className="text-[11px] uppercase tracking-wider" style={{ color: "var(--muted)" }}>
@@ -277,17 +292,11 @@ export default function DashboardPage() {
 
         {!recordatorio &&
           (pago ? (
-            <p className="text-sm mt-3" style={{ color: "var(--muted)" }}>
-              Pagado · {pago.metodo} · ${pago.monto}
-            </p>
+            <p className="text-sm mt-3" style={{ color: "var(--muted)" }}>Pagado · {pago.metodo} · ${pago.monto}</p>
           ) : (
             <div className="flex gap-2 mt-3">
-              <button onClick={() => registrarPago(t, "efectivo")} className="text-xs px-4 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>
-                Efectivo
-              </button>
-              <button onClick={() => registrarPago(t, "transferencia")} className="text-xs px-4 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>
-                Transferencia
-              </button>
+              <button onClick={() => registrarPago(t, "efectivo")} className="text-xs px-4 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>Efectivo</button>
+              <button onClick={() => registrarPago(t, "transferencia")} className="text-xs px-4 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>Transferencia</button>
             </div>
           ))}
       </article>
@@ -305,37 +314,55 @@ export default function DashboardPage() {
           }
         />
 
-        <p className="text-sm" style={{ color: "var(--muted)" }}>
-          Hola, {nombre}
-        </p>
+        <p className="text-sm" style={{ color: "var(--muted)" }}>Hola, {nombre}</p>
         <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-5">Agenda</h1>
 
         <div className="grid grid-cols-2 gap-2 mb-6">
-          <Link href="/dashboard/clientes" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            Clientes
-          </Link>
-          <Link href="/dashboard/bloqueos" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            Bloqueos
-          </Link>
-          <Link href="/dashboard/catalogo" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            Catálogo
-          </Link>
-          <Link href="/dashboard/mas" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            Más
-          </Link>
+          <Link href="/dashboard/clientes" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Clientes</Link>
+          <Link href="/dashboard/bloqueos" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Bloqueos</Link>
+          <Link href="/dashboard/catalogo" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Catálogo</Link>
+          <Link href="/dashboard/mas" className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>Más</Link>
         </div>
+
+        {barberos.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
+            <button
+              onClick={() => setFiltroBarbero("todos")}
+              className="shrink-0 rounded-full px-4 py-2 text-sm"
+              style={{
+                background: filtroBarbero === "todos" ? "#1c1712" : "var(--card)",
+                color: filtroBarbero === "todos" ? "#fff" : "var(--text)",
+                border: "1px solid var(--line)",
+              }}
+            >
+              Todos
+            </button>
+            {barberos.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => setFiltroBarbero(b.id)}
+                className="shrink-0 rounded-full px-4 py-2 text-sm"
+                style={{
+                  background: filtroBarbero === b.id ? "#1c1712" : "var(--card)",
+                  color: filtroBarbero === b.id ? "#fff" : "var(--text)",
+                  border: "1px solid var(--line)",
+                }}
+              >
+                {b.nombre}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2 mb-6">
           {[
             ["Pendientes", pendientes.length],
-            ["Hoy", turnos.length],
+            ["Hoy", turnosFiltrados.length],
             ["Día", `$${totalDia}`],
             ["Mes", `$${totalMes}`],
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-              <p className="text-xs" style={{ color: "var(--muted)" }}>
-                {label}
-              </p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>{label}</p>
               <p className="text-2xl font-semibold mt-1">{value}</p>
             </div>
           ))}
@@ -344,33 +371,23 @@ export default function DashboardPage() {
         {maniana.length > 0 && (
           <section className="mb-8">
             <h2 className="font-medium mb-3">Recordatorios de mañana</h2>
-            {maniana.map((t) => (
-              <Card key={t.id} t={t} recordatorio />
-            ))}
+            {maniana.map((t) => <Card key={t.id} t={t} recordatorio />)}
           </section>
         )}
 
         <div className="flex items-center justify-between mb-4">
-          <button onClick={() => setFecha(addDays(fecha, -1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>
-            ‹
-          </button>
+          <button onClick={() => setFecha(addDays(fecha, -1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>‹</button>
           <div className="text-center">
             <p className="font-medium capitalize">{labelFecha}</p>
-            <button onClick={() => setFecha(ymd(new Date()))} className="text-xs" style={{ color: "var(--muted)" }}>
-              Hoy
-            </button>
+            <button onClick={() => setFecha(ymd(new Date()))} className="text-xs" style={{ color: "var(--muted)" }}>Hoy</button>
           </div>
-          <button onClick={() => setFecha(addDays(fecha, 1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>
-            ›
-          </button>
+          <button onClick={() => setFecha(addDays(fecha, 1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>›</button>
         </div>
 
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
         {loading && <p style={{ color: "var(--muted)" }}>Cargando...</p>}
-        {!loading && turnos.length === 0 && <p style={{ color: "var(--muted)" }}>No hay turnos este día.</p>}
-        {turnos.map((t) => (
-          <Card key={t.id} t={t} />
-        ))}
+        {!loading && turnosFiltrados.length === 0 && <p style={{ color: "var(--muted)" }}>No hay turnos este día.</p>}
+        {turnosFiltrados.map((t) => <Card key={t.id} t={t} />)}
       </div>
 
       <BottomNav
