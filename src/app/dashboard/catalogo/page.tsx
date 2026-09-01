@@ -149,10 +149,10 @@ export default function CatalogoPage() {
     else await load(barberiaId);
   };
 
-  const delServicio = async (id: string) => {
+  const ocultarServicio = async (id: string, activo: boolean) => {
     if (!barberiaId) return;
     const supabase = createClient();
-    const { error } = await supabase.from("servicios").delete().eq("id", id);
+    const { error } = await supabase.from("servicios").update({ activo }).eq("id", id);
     if (error) setError(error.message);
     else await load(barberiaId);
   };
@@ -169,9 +169,8 @@ export default function CatalogoPage() {
     <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader left={<Link href="/dashboard">‹</Link>} />
-
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Catálogo</h1>
-        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Servicios, productos y fotos</p>
+        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Los servicios con turnos se ocultan, no se borran</p>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
         <h2 className="font-medium mb-3">Servicios</h2>
@@ -185,7 +184,7 @@ export default function CatalogoPage() {
         </form>
 
         {servicios.map((s) => (
-          <div key={s.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <div key={s.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)", opacity: s.activo ? 1 : 0.55 }}>
             {s.imagen_url && <img src={s.imagen_url} alt="" className="h-28 w-full object-cover rounded-xl" />}
             <input type="file" accept="image/*" onChange={(e) => {
               const file = e.target.files?.[0];
@@ -196,9 +195,12 @@ export default function CatalogoPage() {
               <input type="number" value={s.duracion_minutos} onChange={(e) => setServicios((prev) => prev.map((x) => x.id === s.id ? { ...x, duracion_minutos: Number(e.target.value) } : x))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
               <input type="number" value={s.precio} onChange={(e) => setServicios((prev) => prev.map((x) => x.id === s.id ? { ...x, precio: Number(e.target.value) } : x))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             </div>
+            {!s.activo && <p className="text-xs" style={{ color: "var(--muted)" }}>Oculto en reservas</p>}
             <div className="flex gap-2">
               <button type="button" onClick={() => updateServicio(s)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
-              <button type="button" onClick={() => delServicio(s.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
+              <button type="button" onClick={() => ocultarServicio(s.id, !s.activo)} className="px-4 rounded-xl text-sm">
+                {s.activo ? "Ocultar" : "Mostrar"}
+              </button>
             </div>
           </div>
         ))}
