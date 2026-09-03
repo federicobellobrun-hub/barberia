@@ -28,8 +28,35 @@ function waNumber(telefono: string) {
 async function enviarWhatsapp(to: string, nombre: string, fecha: string, hora: string, local: string) {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const plantilla = process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "recordatorio_turno";
+  const plantilla = process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "hello_world";
   if (!token || !phoneId) return { ok: false, motivo: "Falta token de WhatsApp" };
+
+  const esPrueba = plantilla === "hello_world";
+  const body: Record<string, unknown> = {
+    messaging_product: "whatsapp",
+    to,
+    type: "template",
+    template: esPrueba
+      ? {
+          name: "hello_world",
+          language: { code: "en_US" },
+        }
+      : {
+          name: plantilla,
+          language: { code: "es" },
+          components: [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: nombre },
+                { type: "text", text: fecha },
+                { type: "text", text: hora },
+                { type: "text", text: local },
+              ],
+            },
+          ],
+        },
+  };
 
   const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
     method: "POST",
@@ -37,29 +64,10 @@ async function enviarWhatsapp(to: string, nombre: string, fecha: string, hora: s
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "template",
-      template: {
-        name: plantilla,
-        language: { code: "es" },
-        components: [
-          {
-            type: "body",
-            parameters: [
-              { type: "text", text: nombre },
-              { type: "text", text: fecha },
-              { type: "text", text: hora },
-              { type: "text", text: local },
-            ],
-          },
-        ],
-      },
-    }),
+    body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) return { ok: false, motivo: data?.error?.message || "Error WhatsApp" };
+  if (!res.ok) return { ok: false, motivo: data?.error?.message || JSON.stringify(data) };
   return { ok: true };
 }
 
