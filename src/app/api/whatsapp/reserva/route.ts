@@ -33,7 +33,7 @@ async function sendTemplate(to: string, name: string, params: string[]) {
   if (!token || !phoneId) return { ok: false, motivo: "Falta token" };
 
   const esPrueba = name === "hello_world";
-  const body: Record<string, unknown> = {
+  const body = {
     messaging_product: "whatsapp",
     to,
     type: "template",
@@ -68,22 +68,14 @@ export async function POST(req: Request) {
   const supabase = admin();
   const { data: t, error } = await supabase
     .from("turnos")
-    .select("id, fecha_hora, clientes(nombre, telefono), barberias(nombre, modo_whatsapp, telefono, whatsapp)")
+    .select("id, fecha_hora, clientes(nombre, telefono), barberias(nombre, modo_whatsapp, telefono)")
     .eq("id", turnoId)
     .maybeSingle();
 
   if (error || !t) return NextResponse.json({ error: error?.message || "Turno no encontrado" }, { status: 404 });
 
-  const cliente = (Array.isArray(t.clientes) ? t.clientes[0] : t.clientes) as {
-    nombre: string | null;
-    telefono: string | null;
-  } | null;
-  const shop = (Array.isArray(t.barberias) ? t.barberias[0] : t.barberias) as {
-    nombre: string | null;
-    modo_whatsapp: string | null;
-    telefono: string | null;
-    whatsapp: string | null;
-  } | null;
+  const cliente = Array.isArray(t.clientes) ? t.clientes[0] : t.clientes;
+  const shop = Array.isArray(t.barberias) ? t.barberias[0] : t.barberias;
 
   if (!shop || shop.modo_whatsapp !== "automatico") {
     return NextResponse.json({ ok: true, skipped: "manual" });
@@ -95,7 +87,7 @@ export async function POST(req: Request) {
   const conf = process.env.WHATSAPP_TEMPLATE_CONFIRMACION || process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "hello_world";
   const aviso = process.env.WHATSAPP_TEMPLATE_AVISO_BARBERO || process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "hello_world";
 
-  const resultados: Array<Record<string, unknown>> = [];
+  const resultados = [];
 
   if (cliente?.telefono) {
     resultados.push({
@@ -104,11 +96,10 @@ export async function POST(req: Request) {
     });
   }
 
-  const telBarbero = shop.whatsapp || shop.telefono;
-  if (telBarbero) {
+  if (shop.telefono) {
     resultados.push({
       a: "barbero",
-      ...(await sendTemplate(waNumber(telBarbero), aviso, [cliente?.nombre || "cliente", fecha, hora, local])),
+      ...(await sendTemplate(waNumber(shop.telefono), aviso, [cliente?.nombre || "cliente", fecha, hora, local])),
     });
   }
 
