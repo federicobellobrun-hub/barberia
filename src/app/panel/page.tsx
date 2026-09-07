@@ -25,6 +25,8 @@ export default function PanelReservo() {
   const [msg, setMsg] = useState("");
   const [nombre, setNombre] = useState("");
   const [slug, setSlug] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [modo, setModo] = useState("manual");
 
   async function init() {
@@ -65,34 +67,35 @@ export default function PanelReservo() {
   async function crear(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setMsg("");
-    const s = slug
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
-    if (!nombre.trim() || !s) {
-      setMsg("Nombre y enlace son obligatorios");
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      setMsg("Sesión vencida");
       return;
     }
-    const { data: existe } = await supabase.from("barberias").select("id").eq("slug", s).maybeSingle();
-    if (existe) {
-      setMsg("Ese enlace ya está en uso. Probá " + s + "-2");
-      return;
-    }
-    const { error } = await supabase.from("barberias").insert({
-      nombre: nombre.trim(),
-      slug: s,
-      activo: true,
-      modo_whatsapp: modo,
+    const res = await fetch("/api/admin/barberias", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify({
+        nombre,
+        slug,
+        email,
+        password,
+        modo_whatsapp: modo,
+      }),
     });
-    if (error) {
-      setMsg(error.message.includes("slug") ? "Ese enlace ya está en uso" : error.message);
+    const json = (await res.json()) as { error?: string };
+    if (!res.ok) {
+      setMsg(json.error || "No se pudo crear");
       return;
     }
     setNombre("");
     setSlug("");
+    setEmail("");
+    setPassword("");
     setModo("manual");
     void init();
   }
@@ -196,6 +199,21 @@ export default function PanelReservo() {
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
               />
+              <input
+                type="email"
+                className="w-full rounded-xl px-3 py-3 bg-transparent"
+                style={{ border: "1px solid #ddd4c8" }}
+                placeholder="Email del dueño"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <input
+                className="w-full rounded-xl px-3 py-3 bg-transparent"
+                style={{ border: "1px solid #ddd4c8" }}
+                placeholder="Contraseña (mínimo 6)"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
               <select
                 className="w-full rounded-xl px-3 py-3 bg-transparent"
                 style={{ border: "1px solid #ddd4c8" }}
@@ -205,7 +223,11 @@ export default function PanelReservo() {
                 <option value="manual">WhatsApp manual</option>
                 <option value="automatico">WhatsApp automático</option>
               </select>
-              <button type="submit" className="w-full rounded-full py-3 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
+              <button
+                type="submit"
+                className="w-full rounded-full py-3 text-sm"
+                style={{ background: "#1C1712", color: "#F5F0E8" }}
+              >
                 Crear barbería
               </button>
               {msg ? <p className="text-sm text-red-700">{msg}</p> : null}
