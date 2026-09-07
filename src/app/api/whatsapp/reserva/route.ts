@@ -58,7 +58,7 @@ async function sendTemplate(to: string, name: string, params: string[]) {
   });
   const data = await res.json();
   if (!res.ok) return { ok: false, motivo: data?.error?.message || JSON.stringify(data) };
-  return { ok: true };
+  return { ok: true, to };
 }
 
 export async function POST(req: Request) {
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
   const supabase = admin();
   const { data: t, error } = await supabase
     .from("turnos")
-    .select("id, fecha_hora, clientes(nombre, telefono), barberias(nombre, modo_whatsapp, telefono)")
+    .select("id, fecha_hora, barberia_id, clientes(nombre, telefono), barberias(nombre, modo_whatsapp, whatsapp_pedidos)")
     .eq("id", turnoId)
     .maybeSingle();
 
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
   const shop = Array.isArray(t.barberias) ? t.barberias[0] : t.barberias;
 
   if (!shop || shop.modo_whatsapp !== "automatico") {
-    return NextResponse.json({ ok: true, skipped: "manual" });
+    return NextResponse.json({ ok: true, skipped: "manual", shop });
   }
 
   const fecha = fechaUy(t.fecha_hora);
@@ -96,12 +96,12 @@ export async function POST(req: Request) {
     });
   }
 
-  if (shop.telefono) {
+  if (shop.whatsapp_pedidos) {
     resultados.push({
       a: "barbero",
-      ...(await sendTemplate(waNumber(shop.telefono), aviso, [cliente?.nombre || "cliente", fecha, hora, local])),
+      ...(await sendTemplate(waNumber(shop.whatsapp_pedidos), aviso, [cliente?.nombre || "cliente", fecha, hora, local])),
     });
   }
 
-  return NextResponse.json({ ok: true, resultados });
+  return NextResponse.json({ ok: true, shop, resultados });
 }
