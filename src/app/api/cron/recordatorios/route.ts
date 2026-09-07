@@ -11,6 +11,7 @@ function admin() {
 function ymdUy(date: Date) {
   return date.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
 }
+
 function horaUy(fechaHora: string) {
   return new Date(fechaHora).toLocaleTimeString("es-UY", {
     hour: "2-digit",
@@ -18,6 +19,7 @@ function horaUy(fechaHora: string) {
     timeZone: "America/Montevideo",
   });
 }
+
 function waNumber(telefono: string) {
   const solo = telefono.replace(/\D/g, "");
   if (solo.startsWith("598")) return solo;
@@ -37,13 +39,10 @@ async function enviarWhatsapp(to: string, nombre: string, fecha: string, hora: s
     to,
     type: "template",
     template: esPrueba
-      ? {
-          name: "hello_world",
-          language: { code: "en_US" },
-        }
+      ? { name: "hello_world", language: { code: "en_US" } }
       : {
           name: plantilla,
-          language: { code: "es" },
+          language: { code: "es_UY" },
           components: [
             {
               type: "body",
@@ -71,6 +70,9 @@ async function enviarWhatsapp(to: string, nombre: string, fecha: string, hora: s
   return { ok: true };
 }
 
+type ClienteRel = { nombre: string | null; telefono: string | null };
+type ShopRel = { nombre: string | null; modo_whatsapp: string | null };
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   const header = request.headers.get("authorization");
@@ -88,31 +90,42 @@ export async function GET(request: Request) {
 
     const { data: turnos, error } = await supabase
       .from("turnos")
-      .select("id, fecha_hora, recordatorio_enviado_at, clientes(nombre, telefono), barberias(nombre)")
+      .select("id, fecha_hora, recordatorio_enviado_at, clientes(nombre, telefono), barberias(nombre, modo_whatsapp)")
       .gte("fecha_hora", desde)
       .lte("fecha_hora", hasta)
       .in("estado", ["pendiente", "confirmado"])
       .is("recordatorio_enviado_at", null);
+
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    const resultados = [];
+    const resultados: Array<Record<string, unknown>> = [];
+
     for (const t of turnos || []) {
-      const cliente = Array.isArray(t.clientes) ? t.clientes[0] : t.clientes;
-      const shop = Array.isArray(t.barberias) ? t.barberias[0] : t.barberias;
+      const cliente = (Array.isArray(t.clientes) ? t.clientes[0] : t.clientes) as ClienteRel | null;
+      const shop = (Array.isArray(t.barberias) ? t.barberias[0] : t.barberias) as ShopRel | null;
+
+      if (!shop || shop.modo_whatsapp !== "automatico") {
+        resultados.push({ id: t.id, ok: false, motivo: "Local en modo manual" });
+        continue;
+      }
+
       if (!cliente?.telefono) {
         resultados.push({ id: t.id, ok: false, motivo: "Sin teléfono" });
         continue;
       }
+
       const envio = await enviarWhatsapp(
         waNumber(cliente.telefono),
         cliente.nombre || "cliente",
         dia,
         horaUy(t.fecha_hora),
-        shop?.nombre || "la barbería"
+        shop.nombre || "la barbería"
       );
+
       if (envio.ok) {
         await supabase.from("turnos").update({ recordatorio_enviado_at: new Date().toISOString() }).eq("id", t.id);
       }
+
       resultados.push({ id: t.id, nombre: cliente.nombre, ...envio });
     }
 
