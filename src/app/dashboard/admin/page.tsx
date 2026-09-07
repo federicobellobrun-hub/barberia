@@ -2,131 +2,176 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase";
-import BrandHeader from "@/components/BrandHeader";
+import { createBrowserClient } from "@supabase/ssr";
 
-type Shop = { id: string; nombre: string; slug: string | null; activo: boolean | null };
+type Barberia = {
+  id: string;
+  nombre: string;
+  slug: string;
+  activo: boolean | null;
+  modo_whatsapp: string | null;
+};
 
 export default function AdminPage() {
-  const [okAdmin, setOkAdmin] = useState(false);
-  const [shops, setShops] = useState<Shop[]>([]);
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const [ok, setOk] = useState(false);
+  const [lista, setLista] = useState<Barberia[]>([]);
+  const [msg, setMsg] = useState("");
   const [nombre, setNombre] = useState("");
   const [slug, setSlug] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState("");
-  const router = useRouter();
+  const [modo, setModo] = useState("manual");
 
-  const load = async () => {
-    const supabase = createClient();
-    const { data } = await supabase.from("barberias").select("id, nombre, slug, activo").order("nombre");
-    setShops(data || []);
-  };
-
-  useEffect(() => {
-    const init = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
-      const { data } = await supabase.from("usuarios").select("rol").eq("auth_user_id", user.id).single();
-      if (data?.rol !== "superadmin") {
-        setError("Este panel es solo tuyo.");
-        return;
-      }
-      setOkAdmin(true);
-      await load();
-    };
-    init();
-  }, [router]);
-
-  const crear = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setOk("");
-    const res = await fetch("/api/admin/barberias", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre, slug, email, password, whatsapp }),
-    });
-    const data = await res.json();
-    if (!res.ok) return setError(data.error || "No se pudo crear");
-    setOk(`Creada. Link: ${data.link}`);
-    setNombre("");
-    setSlug("");
-    setEmail("");
-    setPassword("");
-    setWhatsapp("");
-    await load();
-  };
-
-  const toggle = async (s: Shop) => {
-    const res = await fetch("/api/admin/barberias", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: s.id, activo: !s.activo }),
-    });
-    const data = await res.json();
-    if (!res.ok) setError(data.error || "No se pudo actualizar");
-    else await load();
-  };
-
-  const borrar = async (s: Shop) => {
-    if (s.slug === "diano") return setError("Diano no se puede borrar");
-    if (!confirm(`¿Borrar ${s.nombre}? Se borra el login también.`)) return;
-    const res = await fetch("/api/admin/barberias", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: s.id }),
-    });
-    const data = await res.json();
-    if (!res.ok) setError(data.error || "No se pudo borrar");
-    else await load();
-  };
-
-  if (!okAdmin) {
-    return (
-      <main className="min-h-screen px-6 py-20 text-center">
-        <p>{error || "Cargando..."}</p>
-        <Link href="/dashboard" className="inline-block mt-6">Volver</Link>
-      </main>
-    );
+  async function cargar() {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) {
+      window.location.href = "/login";
+      return;
+    }
+    const { data: yo } = await supabase
+      .from("usuarios")
+      .select("rol")
+      .eq("auth_user_id", auth.user.id)
+      .maybeSingle();
+    if (yo?.rol !== "superadmin") {
+      window.location.href = "/dashboard";
+      return;
+    }
+    setOk(true);
+    const { data } = await supabase
+      .from("barberias")
+      .select("id,nombre,slug,activo,modo_whatsapp")
+      .order("nombre");
+    setLista((data as Barberia[]) || []);
   }
 
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function guardar(b: Barberia, patch: Partial<Barberia>) {
+    setMsg("");
+    const { error } = await supabase.from("barberias").update(patch).eq("id", b.id);
+    if (error) setMsg(error.message);
+    else cargar();
+  }
+
+  async function crear(e: React.FormEvent) {
+    e.preventDefault();
+    setMsg("");
+    const s = slug
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    if (!nombre.trim() || !s) {
+      setMsg("Nombre y enlace son obligatorios");
+      return;
+    }
+    const { data: existe } = await supabase.from("barberias").select("id").eq("slug", s).maybeSingle();
+    if (existe) {
+      setMsg("Ese enlace ya está en uso. Probá otro, por ejemplo " + s + "-2");
+      return;
+    }
+    const { error } = await supabase.from("barberias").insert({
+      nombre: nombre.trim(),
+      slug: s,
+      activo: true,
+      modo_whatsapp: modo,
+    });
+    if (error) {
+      if (error.message.includes("barberias_slug_key")) {
+        setMsg("Ese enlace ya está en uso");
+      } else setMsg(error.message);
+      return;
+    }
+    setNombre("");
+    setSlug("");
+    setModo("manual");
+    cargar();
+  }
+
+  if (!ok) return <p className="p-6">Cargando…</p>;
+
   return (
-    <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
-        <h1 className="text-[34px] font-semibold tracking-tight mb-2">Panel</h1>
-        <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>Crear, desactivar o borrar barberías</p>
-        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-        {ok && <p className="text-sm mb-3">{ok}</p>}
+    <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
+      <div className="mx-auto max-w-md px-5 py-8">
+        <Link href="/dashboard" className="text-sm text-[#7a7268]">
+          ← Panel
+        </Link>
+        <h1 className="mt-4 text-3xl" style={{ fontFamily: "Georgia, Times, serif" }}>
+          Panel Reservo Apps
+        </h1>
+        <p className="text-sm text-[#7a7268] mb-8">Activá locales y el modo de WhatsApp.</p>
 
-        <form onSubmit={crear} className="rounded-2xl p-4 mb-8 space-y-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre. Ej: Barbería Juan" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input required value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="Link. Ej: juan" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email de acceso" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input required type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp del local" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Crear barbería</button>
-        </form>
-
-        <h2 className="font-medium mb-3">Barberías</h2>
-        {shops.map((s) => (
-          <div key={s.id} className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)", opacity: s.activo === false ? 0.55 : 1 }}>
-            <p className="font-medium">{s.nombre}</p>
-            <p className="text-sm mb-2" style={{ color: "var(--muted)" }}>/b/{s.slug} · {s.activo === false ? "Inactiva" : "Activa"}</p>
-            <div className="flex gap-3 text-sm">
-              <a href={`/b/${s.slug}`}>Abrir</a>
-              <button onClick={() => toggle(s)}>{s.activo === false ? "Activar" : "Desactivar"}</button>
-              {s.slug !== "diano" && (
-                <button onClick={() => borrar(s)} className="text-red-500">Borrar</button>
-              )}
+        {lista.map((b) => (
+          <article key={b.id} className="rounded-2xl p-4 mb-3" style={{ border: "1px solid #ddd4c8" }}>
+            <p className="font-medium">{b.nombre}</p>
+            <p className="text-xs text-[#7a7268] mb-3">/b/{b.slug}</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button
+                className="rounded-full px-3 py-1 text-xs"
+                style={{
+                  background: b.activo === false ? "#EFE8DC" : "#1C1712",
+                  color: b.activo === false ? "#1C1712" : "#F5F0E8",
+                }}
+                onClick={() => guardar(b, { activo: !(b.activo !== false) })}
+              >
+                {b.activo === false ? "Activar" : "Activa"}
+              </button>
+              <select
+                className="rounded-full px-3 py-1 text-xs bg-transparent"
+                style={{ border: "1px solid #ddd4c8" }}
+                value={b.modo_whatsapp || "manual"}
+                onChange={(e) => guardar(b, { modo_whatsapp: e.target.value })}
+              >
+                <option value="manual">WhatsApp manual</option>
+                <option value="automatico">WhatsApp automático</option>
+              </select>
             </div>
-          </div>
+            <Link href={`/b/${b.slug}`} className="text-xs underline">
+              Abrir local
+            </Link>
+          </article>
         ))}
+
+        <form onSubmit={crear} className="mt-10 space-y-3">
+          <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
+            Nueva barbería
+          </p>
+          <input
+            className="w-full rounded-xl px-3 py-3 bg-transparent"
+            style={{ border: "1px solid #ddd4c8" }}
+            placeholder="Nombre"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+          />
+          <input
+            className="w-full rounded-xl px-3 py-3 bg-transparent"
+            style={{ border: "1px solid #ddd4c8" }}
+            placeholder="enlace (ej: valecejas)"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+          />
+          <select
+            className="w-full rounded-xl px-3 py-3 bg-transparent"
+            style={{ border: "1px solid #ddd4c8" }}
+            value={modo}
+            onChange={(e) => setModo(e.target.value)}
+          >
+            <option value="manual">WhatsApp manual</option>
+            <option value="automatico">WhatsApp automático</option>
+          </select>
+          <button className="w-full rounded-full py-3 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
+            Crear barbería
+          </button>
+          {msg && <p className="text-sm text-red-700">{msg}</p>}
+        </form>
       </div>
     </main>
   );
