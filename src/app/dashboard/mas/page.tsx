@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { createBrowserClient } from "@supabase/ssr";
 
 const items = [
   { href: "/dashboard", t: "Agenda" },
@@ -12,12 +14,29 @@ const items = [
   { href: "/dashboard/galeria", t: "Galería" },
   { href: "/dashboard/horarios", t: "Horarios" },
   { href: "/dashboard/caja", t: "Caja" },
-  { href: "/dashboard/configuracion", t: "Configuración" },
+  { href: "/dashboard/config", t: "Configuración" },
   { href: "/dashboard/barberos", t: "Barberos" },
-  { href: "/panel", t: "Panel dueño" },
 ];
 
 export default function MasPage() {
+  const [dueño, setDueño] = useState(false);
+
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    void supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: yo } = await supabase
+        .from("usuarios")
+        .select("rol")
+        .eq("auth_user_id", data.user.id)
+        .maybeSingle();
+      setDueño(yo?.rol === "superadmin");
+    });
+  }, []);
+
   return (
     <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
       <div className="mx-auto max-w-md px-5 py-8">
@@ -38,6 +57,15 @@ export default function MasPage() {
               {i.t}
             </Link>
           ))}
+          {dueño ? (
+            <Link
+              href="/panel"
+              className="rounded-2xl p-4 text-sm"
+              style={{ background: "#EFE8DC", border: "1px solid #ddd4c8" }}
+            >
+              Panel dueño
+            </Link>
+          ) : null}
         </div>
       </div>
     </main>
