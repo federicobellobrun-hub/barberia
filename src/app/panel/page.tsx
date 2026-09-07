@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 
@@ -45,22 +46,23 @@ export default function PanelReservo() {
       .from("barberias")
       .select("id,nombre,slug,activo,modo_whatsapp")
       .order("nombre");
-    setLista((data as Barberia[]) || []);
+    setLista((data as Barberia[] | null) ?? []);
     setOk(true);
   }
 
   useEffect(() => {
-    init();
+    void init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function guardar(b: Barberia, patch: Partial<Barberia>) {
+  async function guardar(id: string, patch: { activo?: boolean; modo_whatsapp?: string }) {
     setMsg("");
-    const { error } = await supabase.from("barberias").update(patch).eq("id", b.id);
+    const { error } = await supabase.from("barberias").update(patch).eq("id", id);
     if (error) setMsg(error.message);
-    else init();
+    else void init();
   }
 
-  async function crear(e: React.FormEvent) {
+  async function crear(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setMsg("");
     const s = slug
@@ -92,7 +94,7 @@ export default function PanelReservo() {
     setNombre("");
     setSlug("");
     setModo("manual");
-    init();
+    void init();
   }
 
   if (!ok) return <p className="p-6">Cargando…</p>;
@@ -109,6 +111,7 @@ export default function PanelReservo() {
           <>
             <p className="text-sm text-[#7a7268] mt-2 mb-8">Elegí el producto.</p>
             <button
+              type="button"
               onClick={() => setVista("barberias")}
               className="w-full text-left rounded-2xl p-5 mb-3"
               style={{ border: "1px solid #ddd4c8", background: "#EFE8DC" }}
@@ -131,7 +134,7 @@ export default function PanelReservo() {
 
         {vista === "barberias" && (
           <>
-            <button onClick={() => setVista("apps")} className="text-sm text-[#7a7268] mt-2 mb-6">
+            <button type="button" onClick={() => setVista("apps")} className="text-sm text-[#7a7268] mt-2 mb-6">
               ← Productos
             </button>
 
@@ -144,12 +147,13 @@ export default function PanelReservo() {
                 </p>
                 <div className="flex flex-wrap gap-2 mb-3">
                   <button
+                    type="button"
                     className="rounded-full px-3 py-1 text-xs"
                     style={{
                       background: b.activo === false ? "#EFE8DC" : "#1C1712",
                       color: b.activo === false ? "#1C1712" : "#F5F0E8",
                     }}
-                    onClick={() => guardar(b, { activo: b.activo === false })}
+                    onClick={() => void guardar(b.id, { activo: b.activo === false })}
                   >
                     {b.activo === false ? "Activar" : "Activa"}
                   </button>
@@ -157,7 +161,7 @@ export default function PanelReservo() {
                     className="rounded-full px-3 py-1 text-xs bg-transparent"
                     style={{ border: "1px solid #ddd4c8" }}
                     value={b.modo_whatsapp || "manual"}
-                    onChange={(e) => guardar(b, { modo_whatsapp: e.target.value })}
+                    onChange={(e) => void guardar(b.id, { modo_whatsapp: e.target.value })}
                   >
                     <option value="manual">WhatsApp manual</option>
                     <option value="automatico">WhatsApp automático</option>
@@ -201,10 +205,10 @@ export default function PanelReservo() {
                 <option value="manual">WhatsApp manual</option>
                 <option value="automatico">WhatsApp automático</option>
               </select>
-              <button className="w-full rounded-full py-3 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
+              <button type="submit" className="w-full rounded-full py-3 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
                 Crear barbería
               </button>
-              {msg && <p className="text-sm text-red-700">{msg}</p>}
+              {msg ? <p className="text-sm text-red-700">{msg}</p> : null}
             </form>
           </>
         )}
