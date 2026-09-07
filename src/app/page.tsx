@@ -30,9 +30,8 @@ export default function HomePage() {
           to { opacity: 1; transform: translateY(0); }
         }
         .rise { animation: rise .7s ease both; }
-        .card:hover { transform: translateY(-2px); }
         .card { transition: transform .25s ease, box-shadow .25s ease; }
-        .card:hover { box-shadow: 0 10px 24px rgba(28,23,18,.08); }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(28,23,18,.08); }
       `}</style>
 
       <div className="mx-auto max-w-md px-5 pt-6 pb-16">
@@ -46,21 +45,13 @@ export default function HomePage() {
         <h1 className="rise text-[34px] leading-[1.15] mb-4" style={{ fontFamily: "Georgia, Times, serif" }}>
           Apps de reservas para negocios locales.
         </h1>
-        <p className="rise text-sm text-[#7a7268] mb-8" style={{ animationDelay: ".08s" }}>
+        <p className="rise text-sm text-[#7a7268] mb-10" style={{ animationDelay: ".08s" }}>
           Agenda, clientes y avisos para tu local.
         </p>
 
-        <Link
-          href="/b/diano"
-          className="rise inline-block rounded-full px-6 py-3 text-[13px] mb-10"
-          style={{ background: "#1C1712", color: "#F5F0E8", animationDelay: ".14s" }}
-        >
-          Ver demo barbería
-        </Link>
-
         <p className="text-[11px] tracking-[0.16em] uppercase text-[#9a9388] mb-3">Nuestras apps</p>
 
-        <article className="card rise overflow-hidden rounded-2xl mb-3" style={{ background: "#EFE8DC", animationDelay: ".2s" }}>
+        <article className="card rise overflow-hidden rounded-2xl mb-3" style={{ background: "#EFE8DC", animationDelay: ".16s" }}>
           <div className="grid grid-cols-2 min-h-[150px]">
             <div className="p-4 flex flex-col justify-between">
               <div>
@@ -82,7 +73,7 @@ export default function HomePage() {
           </div>
         </article>
 
-        <article className="card rise overflow-hidden rounded-2xl" style={{ background: "#EFE8DC", animationDelay: ".28s" }}>
+        <article className="card rise overflow-hidden rounded-2xl" style={{ background: "#EFE8DC", animationDelay: ".24s" }}>
           <div className="grid grid-cols-2 min-h-[150px]">
             <div className="p-4 flex flex-col justify-between">
               <div>
