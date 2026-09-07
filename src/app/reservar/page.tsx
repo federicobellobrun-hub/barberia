@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, Suspense } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -91,7 +92,7 @@ function ReservarPage() {
         setLoading(false);
       }
     };
-    load();
+    void load();
   }, [slug]);
 
   const horarios = useMemo(() => {
@@ -140,7 +141,7 @@ function ReservarPage() {
     return slots;
   }, [servicio, barbero, fecha, horarios, bloqueos, turnos]);
 
-  const guardar = async (e: React.FormEvent) => {
+  const guardar = async (e: FormEvent) => {
     e.preventDefault();
     if (!servicio || !fecha || !hora) return;
     if (barberos.length > 0 && !barbero) return setError("Elegí un barbero");
@@ -148,16 +149,35 @@ function ReservarPage() {
     setError(null);
     try {
       const supabase = createClient();
-      const { error } = await supabase.rpc("crear_reserva", {
+      const fechaHora = new Date(`${fecha}T${hora}:00-03:00`).toISOString();
+      const { error: rpcError } = await supabase.rpc("crear_reserva", {
         p_barberia_id: servicio.barberia_id,
         p_servicio_id: servicio.id,
         p_nombre: nombre.trim(),
         p_telefono: telefono.trim(),
-        p_fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
+        p_fecha_hora: fechaHora,
         p_duracion_minutos: servicio.duracion_minutos,
         p_barbero_id: barbero?.id || null,
       });
-      if (error) throw new Error(error.message);
+      if (rpcError) throw new Error(rpcError.message);
+
+      const { data: creado } = await supabase
+        .from("turnos")
+        .select("id")
+        .eq("barberia_id", servicio.barberia_id)
+        .eq("fecha_hora", fechaHora)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (creado?.id) {
+        await fetch("/api/whatsapp/reserva", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ turnoId: creado.id }),
+        });
+      }
+
       setOk(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo reservar");
@@ -166,18 +186,18 @@ function ReservarPage() {
     }
   };
 
-  const anotarEspera = async (e: React.FormEvent) => {
+  const anotarEspera = async (e: FormEvent) => {
     e.preventDefault();
     if (!servicio || !barberiaId) return;
     const supabase = createClient();
-    const { error } = await supabase.from("lista_espera").insert({
+    const { error: waitError } = await supabase.from("lista_espera").insert({
       barberia_id: barberiaId,
       servicio_id: servicio.id,
       nombre,
       telefono,
       fecha,
     });
-    if (error) setError(error.message);
+    if (waitError) setError(waitError.message);
     else setEsperaOk(true);
   };
 
@@ -189,8 +209,13 @@ function ReservarPage() {
     return (
       <main className="min-h-screen px-6 py-20 text-center">
         <h1 className="text-4xl font-semibold tracking-tight">Turno reservado</h1>
-        <p className="mt-4">{servicio.nombre}{barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}</p>
-        <Link href={`/b/${slug}`} className="inline-block mt-8">Volver</Link>
+        <p className="mt-4">
+          {servicio.nombre}
+          {barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}
+        </p>
+        <Link href={`/b/${slug}`} className="inline-block mt-8">
+          Volver
+        </Link>
       </main>
     );
   }
@@ -200,11 +225,15 @@ function ReservarPage() {
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
         <h1 className="text-[34px] font-semibold tracking-tight leading-9">Reservá tu turno</h1>
-        <p className="mt-2 mb-5" style={{ color: "var(--muted)" }}>Elegí servicio, barbero, día y hora</p>
+        <p className="mt-2 mb-5" style={{ color: "var(--muted)" }}>
+          Elegí servicio, barbero, día y hora
+        </p>
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
         {servicios.length === 0 && (
-          <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Esta barbería todavía no cargó servicios.</p>
+          <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>
+            Esta barbería todavía no cargó servicios.
+          </p>
         )}
 
         <h2 className="font-medium mb-3">Elegí un servicio</h2>
@@ -214,7 +243,10 @@ function ReservarPage() {
             return (
               <button
                 key={s.id}
-                onClick={() => { setServicio(s); setHora(""); }}
+                onClick={() => {
+                  setServicio(s);
+                  setHora("");
+                }}
                 className="rounded-2xl text-left overflow-hidden flex flex-col h-full"
                 style={{
                   background: activo ? "#f3eee6" : "var(--card)",
@@ -225,11 +257,15 @@ function ReservarPage() {
                 {s.imagen_url ? (
                   <img src={s.imagen_url} alt="" className="h-24 w-full object-cover shrink-0" />
                 ) : (
-                  <div className="h-24 w-full shrink-0 flex items-center justify-center text-xl" style={{ background: "var(--bg)" }}>✂</div>
+                  <div className="h-24 w-full shrink-0 flex items-center justify-center text-xl" style={{ background: "var(--bg)" }}>
+                    ✂
+                  </div>
                 )}
                 <div className="p-3 flex-1">
                   <p className="text-sm font-medium leading-4 line-clamp-2">{s.nombre}</p>
-                  <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>${s.precio}</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+                    ${s.precio}
+                  </p>
                 </div>
               </button>
             );
@@ -238,9 +274,13 @@ function ReservarPage() {
 
         {servicio && (
           <div className="rounded-2xl p-4 mt-3 mb-6" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted)" }}>Servicio elegido</p>
+            <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted)" }}>
+              Servicio elegido
+            </p>
             <p className="font-medium">{servicio.nombre}</p>
-            <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{servicio.duracion_minutos} min · ${servicio.precio}</p>
+            <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
+              {servicio.duracion_minutos} min · ${servicio.precio}
+            </p>
           </div>
         )}
 
@@ -253,7 +293,10 @@ function ReservarPage() {
                 return (
                   <button
                     key={b.id}
-                    onClick={() => { setBarbero(b); setHora(""); }}
+                    onClick={() => {
+                      setBarbero(b);
+                      setHora("");
+                    }}
                     className="shrink-0 rounded-2xl p-3 w-28 text-center"
                     style={{
                       background: activoSel ? "#f3eee6" : "var(--card)",
@@ -283,7 +326,9 @@ function ReservarPage() {
             <button onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
           </div>
           <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: "var(--muted)" }}>
-            {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => <span key={i}>{d}</span>)}
+            {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
+              <span key={i}>{d}</span>
+            ))}
           </div>
           <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
             {celdasMes.map((value, i) => {
@@ -294,7 +339,11 @@ function ReservarPage() {
                 <button
                   key={value}
                   disabled={pasado}
-                  onClick={() => { setFecha(value); setHora(""); setEsperaOk(false); }}
+                  onClick={() => {
+                    setFecha(value);
+                    setHora("");
+                    setEsperaOk(false);
+                  }}
                   className="h-8 w-8 mx-auto rounded-full"
                   style={{
                     background: activoDia ? "#1c1712" : "transparent",
@@ -329,11 +378,15 @@ function ReservarPage() {
             {horariosDelDia.length === 0 && (
               <div className="mt-3">
                 <p className="text-sm mb-3">No hay horarios ese día.</p>
-                {esperaOk ? <p className="text-sm">Quedaste en lista de espera.</p> : (
+                {esperaOk ? (
+                  <p className="text-sm">Quedaste en lista de espera.</p>
+                ) : (
                   <form onSubmit={anotarEspera} className="space-y-2">
                     <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
                     <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-                    <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Anotarme en lista de espera</button>
+                    <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+                      Anotarme en lista de espera
+                    </button>
                   </form>
                 )}
               </div>
