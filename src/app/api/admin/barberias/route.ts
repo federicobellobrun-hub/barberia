@@ -11,22 +11,24 @@ function slugify(v: string) {
     .replace(/^-|-$/g, "");
 }
 
-export async function POST(req: Request) {
+async function adminGuard(req: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
   if (!url || !service || !anon) {
-    return NextResponse.json({ error: "Faltan claves de servidor" }, { status: 500 });
+    return { error: NextResponse.json({ error: "Faltan claves de servidor" }, { status: 500 }) };
   }
 
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.replace("Bearer ", "");
-  if (!token) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const token = (req.headers.get("authorization") || "").replace("Bearer ", "");
+  if (!token) {
+    return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
+  }
 
   const userClient = createClient(url, anon);
   const { data: userData } = await userClient.auth.getUser(token);
-  if (!userData.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!userData.user) {
+    return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
+  }
 
   const admin = createClient(url, service);
   const { data: yo } = await admin
@@ -35,8 +37,16 @@ export async function POST(req: Request) {
     .eq("auth_user_id", userData.user.id)
     .maybeSingle();
   if (yo?.rol !== "superadmin") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    return { error: NextResponse.json({ error: "No autorizado" }, { status: 403 }) };
   }
+
+  return { admin, url, service, anon };
+}
+
+export async function POST(req: Request) {
+  const g = await adminGuard(req);
+  if ("error" in g && g.error) return g.error;
+  const admin = g.admin!;
 
   const body = await req.json();
   const nombre = String(body.nombre || "").trim();
@@ -92,4 +102,41 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, slug });
+}
+
+export async function DELETE(req: Request) {
+  const g = await adminGuard(req);
+  if ("error" in g && g.error) return g.error;
+  const admin = g.admin!;
+
+  const body = await req.json();
+  const id = String(body.id || "");
+  if (!id) return NextResponse.json({ error: "Falta id" }, { status: 400 });
+
+  const { data: b } = await admin.from("barberias").select("id,slug").eq("id", id).maybeSingle();
+  if (!b) return NextResponse.json({ error: "No existe" }, { status: 404 });
+  if (b.slug === "diano") {
+    return NextResponse.json({ error: "Diano es la demo y no se puede borrar" }, { status: 400 });
+  }
+
+  const { data: users } = await admin.from("usuarios").select("auth_user_id").eq("barberia_id", id);
+
+  await admin.from("turnos").delete().eq("barberia_id", id);
+  await admin.from("clientes").delete().eq("barberia_id", id);
+  await admin.from("servicios").delete().eq("barberia_id", id);
+  await admin.from("productos").delete().eq("barberia_id", id);
+  await admin.from("barberos").delete().eq("barberia_id", id);
+  await admin.from("bloqueos").delete().eq("barberia_id", id);
+  await admin.from("usuarios").delete().eq("barberia_id", id);
+
+  const { error } = await admin.from("barberias").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (users) {
+    for (const u of users) {
+      if (u.auth_user_id) await admin.auth.admin.deleteUser(u.auth_user_id);
+    }
+  }
+
+  return NextResponse.json({ ok: true });
 }
