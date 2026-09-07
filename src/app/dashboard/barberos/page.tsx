@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -12,34 +13,56 @@ export default function BarberosPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [nombre, setNombre] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [foto, setFoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState("");
   const router = useRouter();
 
   const load = async (id: string) => {
     const supabase = createClient();
-    const { data, error } = await supabase
+    const { data, error: e } = await supabase
       .from("barberos")
       .select("id, nombre, foto_url, activo")
       .eq("barberia_id", id)
       .order("nombre");
-    if (error) setError(error.message);
+    if (e) setError(e.message);
     setBarberos(data || []);
   };
 
   useEffect(() => {
     const init = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).single();
+      const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
       if (!data?.barberia_id) return;
       setBarberiaId(data.barberia_id);
       await load(data.barberia_id);
     };
-    init();
+    void init();
   }, [router]);
+
+  const token = async () => {
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || "";
+  };
+
+  const crearAcceso = async (barberoId: string, mail: string, pass: string) => {
+    const t = await token();
+    const res = await fetch("/api/barberos/acceso", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+      body: JSON.stringify({ barberoId, email: mail, password: pass }),
+    });
+    const json = (await res.json()) as { error?: string };
+    if (!res.ok) throw new Error(json.error || "No se creó el acceso");
+  };
 
   const subirFoto = async (barberoId: string, file: File, idBarberia: string) => {
     const supabase = createClient();
@@ -47,29 +70,49 @@ export default function BarberosPage() {
     const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
     if (upErr) throw new Error(upErr.message);
     const { data } = supabase.storage.from("fotos").getPublicUrl(path);
-    const { error } = await supabase.from("barberos").update({ foto_url: data.publicUrl }).eq("id", barberoId);
-    if (error) throw new Error(error.message);
+    const { error: e } = await supabase.from("barberos").update({ foto_url: data.publicUrl }).eq("id", barberoId);
+    if (e) throw new Error(e.message);
   };
 
-  const crear = async (e: React.FormEvent) => {
+  const crear = async (e: FormEvent) => {
     e.preventDefault();
     if (!barberiaId) return;
+    setError(null);
+    setMsg("");
     const supabase = createClient();
-    const { data, error } = await supabase
+    const { data, error: e1 } = await supabase
       .from("barberos")
       .insert({ barberia_id: barberiaId, nombre: nombre.trim(), activo: true })
       .select("id")
       .single();
-    if (error) return setError(error.message);
+    if (e1) return setError(e1.message);
     try {
       if (foto && data?.id) await subirFoto(data.id, foto, barberiaId);
+      if (email && password && data?.id) {
+        await crearAcceso(data.id, email, password);
+        setMsg("Barbero y acceso creados");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo subir la foto");
+      setError(err instanceof Error ? err.message : "Error");
     }
     setNombre("");
+    setEmail("");
+    setPassword("");
     setFoto(null);
     setPreview(null);
     await load(barberiaId);
+  };
+
+  const accesoExistente = async (id: string) => {
+    const mail = window.prompt("Email del barbero");
+    const pass = window.prompt("Contraseña (mínimo 6)");
+    if (!mail || !pass) return;
+    try {
+      await crearAcceso(id, mail, pass);
+      setMsg("Acceso creado. Ya puede entrar en /login");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se creó el acceso");
+    }
   };
 
   const cambiarFoto = async (id: string, file: File) => {
@@ -85,8 +128,8 @@ export default function BarberosPage() {
   const borrar = async (id: string) => {
     if (!barberiaId) return;
     const supabase = createClient();
-    const { error } = await supabase.from("barberos").delete().eq("id", id);
-    if (error) setError(error.message);
+    const { error: e } = await supabase.from("barberos").delete().eq("id", id);
+    if (e) setError(e.message);
     else await load(barberiaId);
   };
 
@@ -96,6 +139,7 @@ export default function BarberosPage() {
         <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-5">Barberos</h1>
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+        {msg && <p className="text-sm mb-3">{msg}</p>}
 
         <form onSubmit={crear} className="rounded-2xl p-4 mb-5 space-y-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
           {preview && <img src={preview} alt="" className="h-20 w-20 object-cover rounded-full mx-auto" />}
@@ -108,14 +152,9 @@ export default function BarberosPage() {
               setPreview(file ? URL.createObjectURL(file) : null);
             }}
           />
-          <input
-            required
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            placeholder="Nombre del barbero"
-            className="w-full rounded-xl px-3 py-3"
-            style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}
-          />
+          <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del barbero" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (opcional, para que entre)" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña (opcional)" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
             Agregar
           </button>
@@ -137,10 +176,17 @@ export default function BarberosPage() {
               className="text-sm mb-3"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) cambiarFoto(b.id, file);
+                if (file) void cambiarFoto(b.id, file);
               }}
             />
-            <button onClick={() => borrar(b.id)} className="text-sm text-red-500">Borrar</button>
+            <div className="flex gap-4 text-sm">
+              <button type="button" onClick={() => void accesoExistente(b.id)}>
+                Dar acceso
+              </button>
+              <button type="button" onClick={() => void borrar(b.id)} className="text-red-500">
+                Borrar
+              </button>
+            </div>
           </div>
         ))}
       </div>
