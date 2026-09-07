@@ -57,6 +57,11 @@ export default function PanelReservo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function token() {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || "";
+  }
+
   async function guardar(id: string, patch: { activo?: boolean; modo_whatsapp?: string }) {
     setMsg("");
     const { error } = await supabase.from("barberias").update(patch).eq("id", id);
@@ -67,25 +72,15 @@ export default function PanelReservo() {
   async function crear(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setMsg("");
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) {
+    const t = await token();
+    if (!t) {
       setMsg("Sesión vencida");
       return;
     }
     const res = await fetch("/api/admin/barberias", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
-      body: JSON.stringify({
-        nombre,
-        slug,
-        email,
-        password,
-        modo_whatsapp: modo,
-      }),
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+      body: JSON.stringify({ nombre, slug, email, password, modo_whatsapp: modo }),
     });
     const json = (await res.json()) as { error?: string };
     if (!res.ok) {
@@ -98,6 +93,25 @@ export default function PanelReservo() {
     setPassword("");
     setModo("manual");
     void init();
+  }
+
+  async function borrar(id: string, shopSlug: string) {
+    if (shopSlug === "diano") return;
+    if (!window.confirm("¿Borrar este local y su usuario? No se puede deshacer.")) return;
+    setMsg("");
+    const t = await token();
+    if (!t) {
+      setMsg("Sesión vencida");
+      return;
+    }
+    const res = await fetch("/api/admin/barberias", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+      body: JSON.stringify({ id }),
+    });
+    const json = (await res.json()) as { error?: string };
+    if (!res.ok) setMsg(json.error || "No se pudo borrar");
+    else void init();
   }
 
   if (!ok) return <p className="p-6">Cargando…</p>;
@@ -177,6 +191,11 @@ export default function PanelReservo() {
                     <Link href={`/b/${b.slug}`}>Ver local público</Link>
                   )}
                   <Link href={`/b/${b.slug}`}>Abrir web</Link>
+                  {b.slug !== "diano" ? (
+                    <button type="button" className="text-red-700" onClick={() => void borrar(b.id, b.slug)}>
+                      Borrar
+                    </button>
+                  ) : null}
                 </div>
               </article>
             ))}
@@ -223,11 +242,7 @@ export default function PanelReservo() {
                 <option value="manual">WhatsApp manual</option>
                 <option value="automatico">WhatsApp automático</option>
               </select>
-              <button
-                type="submit"
-                className="w-full rounded-full py-3 text-sm"
-                style={{ background: "#1C1712", color: "#F5F0E8" }}
-              >
+              <button type="submit" className="w-full rounded-full py-3 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
                 Crear barbería
               </button>
               {msg ? <p className="text-sm text-red-700">{msg}</p> : null}
