@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import BrandHeader from "@/components/BrandHeader";
@@ -27,12 +27,12 @@ export default function BarberiaHomePage() {
     if (slug) localStorage.setItem("barberia_slug", slug);
     const load = async () => {
       const supabase = createClient();
-      const { data: b, error } = await supabase
+      const { data: b, error: e } = await supabase
         .from("barberias")
         .select("id, direccion, maps_url, portada_url")
         .eq("slug", slug)
         .maybeSingle();
-      if (error || !b) {
+      if (e || !b) {
         setError("No se encontró la barbería");
         return;
       }
@@ -44,54 +44,82 @@ export default function BarberiaHomePage() {
       setFotos(f.data || []);
       setHorarios(h.data || []);
     };
-    load();
+    void load();
   }, [slug]);
 
+  const resumenHorario = useMemo(() => {
+    const abiertos = horarios.filter((h) => h.activo);
+    if (!abiertos.length) return null;
+    const ini = String(abiertos[0].hora_inicio).slice(0, 5);
+    const fin = String(abiertos[0].hora_fin).slice(0, 5);
+    const nombres = abiertos.map((h) => dias[h.dia_semana]);
+    return `${nombres[0]}–${nombres[nombres.length - 1]} ${ini} – ${fin}`;
+  }, [horarios]);
+
   return (
-    <main className="min-h-screen pb-28" style={{ background: "var(--bg)", color: "var(--text)" }}>
+    <main className="min-h-screen pb-28" style={{ background: "#F5F0E8", color: "#1C1712" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+
         {shop?.portada_url && (
-          <img src={shop.portada_url} alt="" className="w-full h-44 object-cover rounded-2xl mb-5" />
+          <img src={shop.portada_url} alt="" className="w-full h-48 object-cover rounded-2xl mb-6" />
         )}
-        <h1 className="text-[36px] font-semibold tracking-tight leading-9 text-center mb-3">Reservá tu turno</h1>
-        <p className="text-center mb-4" style={{ color: "var(--muted)" }}>Agenda simple. Atención precisa.</p>
-        {shop?.direccion && <p className="text-center text-sm mb-3">{shop.direccion}</p>}
+
+        <h1 className="text-[34px] leading-tight text-center mb-3" style={{ fontFamily: "Georgia, Times, serif" }}>
+          Reservá tu turno
+        </h1>
+
+        {shop?.direccion && (
+          <p className="text-center text-sm mb-1">
+            <span className="mr-1">📍</span>
+            {shop.direccion}
+          </p>
+        )}
         {shop?.maps_url && (
-          <a href={shop.maps_url} target="_blank" rel="noreferrer" className="block text-center text-sm mb-6">
-            Cómo llegar
+          <a href={shop.maps_url} target="_blank" rel="noreferrer" className="block text-center text-sm underline mb-6">
+            Cómo llegar →
           </a>
         )}
-        <Link href={`/reservar?b=${slug}`} className="block text-center rounded-2xl py-4 text-base font-medium mb-3" style={{ background: "#1c1712", color: "#f4efe6" }}>
+
+        <Link
+          href={`/reservar?b=${slug}`}
+          className="block text-center rounded-full py-3.5 text-[15px] mb-3"
+          style={{ background: "#1C1712", color: "#F5F0E8" }}
+        >
           Reservar
         </Link>
-        <Link href={`/tienda?b=${slug}`} className="block text-center rounded-2xl py-4 text-base mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          Productos
-        </Link>
-        <Link href="/login" className="block text-center rounded-2xl py-4 text-base mb-10" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          Panel del barbero
-        </Link>
 
-        {horarios.length > 0 && (
-          <section className="mb-8">
-            <h2 className="font-brand text-center tracking-[0.15em] uppercase mb-3">Horarios</h2>
-            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-              {horarios.map((h) => (
-                <div key={h.dia_semana} className="px-4 py-3.5 flex justify-between text-sm border-b" style={{ borderColor: "var(--line)" }}>
-                  <span>{dias[h.dia_semana]}</span>
-                  <span style={{ color: "var(--muted)" }}>
-                    {h.activo ? `${String(h.hora_inicio).slice(0, 5)} – ${String(h.hora_fin).slice(0, 5)}` : "Cerrado"}
-                  </span>
-                </div>
-              ))}
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <Link
+            href={`/tienda?b=${slug}`}
+            className="rounded-full py-3 text-center text-sm"
+            style={{ border: "1px solid #1C1712" }}
+          >
+            Productos
+          </Link>
+          <Link
+            href="/login"
+            className="rounded-full py-3 text-center text-sm"
+            style={{ border: "1px solid #1C1712" }}
+          >
+            Panel del barbero
+          </Link>
+        </div>
+
+        {resumenHorario && (
+          <div className="rounded-2xl px-4 py-3 mb-8 flex items-center gap-3" style={{ border: "1px solid #ddd4c8" }}>
+            <span className="text-lg">🕒</span>
+            <div>
+              <p className="text-[10px] tracking-[0.16em] uppercase text-[#7a7268]">Horario</p>
+              <p className="text-sm">{resumenHorario}</p>
             </div>
-          </section>
+          </div>
         )}
 
         {fotos.length > 0 && (
           <section>
-            <h2 className="font-brand text-center tracking-[0.15em] uppercase mb-3">Cortes</h2>
+            <h2 className="text-center text-xs tracking-[0.16em] uppercase mb-3 text-[#7a7268]">Cortes</h2>
             <div className="grid grid-cols-2 gap-2">
               {fotos.map((f) => (
                 <img key={f.id} src={f.url} alt="Corte" className="h-36 w-full object-cover rounded-2xl" />
@@ -100,6 +128,7 @@ export default function BarberiaHomePage() {
           </section>
         )}
       </div>
+
       <BottomNav
         items={[
           { href: `/b/${slug}`, label: "Inicio", active: true },
