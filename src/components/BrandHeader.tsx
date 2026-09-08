@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase";
 
 export default function BrandHeader({ left }: { left?: React.ReactNode }) {
   const pathname = usePathname() || "/";
-  const [nombre, setNombre] = useState("Reservo");
+  const [nombre, setNombre] = useState("Diano Barbershop");
   const [logo, setLogo] = useState<string | null>(null);
   const [home, setHome] = useState("/");
 
@@ -28,17 +28,9 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
           data: { user },
         } = await supabase.auth.getUser();
         if (user) {
-          const { data: u } = await supabase
-            .from("usuarios")
-            .select("barberia_id")
-            .eq("auth_user_id", user.id)
-            .maybeSingle();
+          const { data: u } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
           if (u?.barberia_id) {
-            const { data: b } = await supabase
-              .from("barberias")
-              .select("nombre, logo_url, slug")
-              .eq("id", u.barberia_id)
-              .maybeSingle();
+            const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug").eq("id", u.barberia_id).maybeSingle();
             if (b?.nombre) setNombre(b.nombre);
             setLogo(b?.logo_url || null);
             setHome(b?.slug ? `/b/${b.slug}` : "/");
@@ -49,12 +41,7 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
 
       slug = slug || "diano";
       if (typeof window !== "undefined") localStorage.setItem("barberia_slug", slug);
-
-      const { data: b } = await supabase
-        .from("barberias")
-        .select("nombre, logo_url, slug")
-        .eq("slug", slug)
-        .maybeSingle();
+      const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug").eq("slug", slug).maybeSingle();
       if (b?.nombre) setNombre(b.nombre);
       setLogo(b?.logo_url || null);
       setHome(b?.slug ? `/b/${b.slug}` : "/");
@@ -62,29 +49,41 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
     void load();
   }, [pathname]);
 
-  const principal = nombre.split(" ")[0] || "Reservo";
-  const resto = nombre.split(" ").slice(1).join(" ");
+  const partes = nombre.trim().split(" ");
+  const principal = partes[0] || "Diano";
+  const resto = partes.slice(1).join(" ") || "Barbershop";
 
   return (
-    <header className="flex items-center justify-between mb-8">
-      <div className="w-16">{left || <span />}</div>
+    <header className="flex items-center justify-between mb-6">
+      <div className="w-14">{left || <span />}</div>
       <Link href={home} className="text-center">
-        {logo ? <img src={logo} alt={nombre} className="h-14 w-14 mx-auto object-contain rounded-full mb-2" /> : null}
-        <p className="font-brand text-xl tracking-[0.35em] uppercase">{principal}</p>
-        {resto ? (
-          <>
-            <div className="flex items-center justify-center gap-2 my-1">
-              <span className="h-px w-8" style={{ background: "var(--line)" }} />
-              <span className="text-[10px]">Scissors</span>
-              <span className="h-px w-8" style={{ background: "var(--line)" }} />
-            </div>
-            <p className="font-brand text-[11px] tracking-[0.28em] uppercase" style={{ color: "var(--muted)" }}>
-              {resto}
-            </p>
-          </>
-        ) : null}
+        {logo ? (
+          <img src={logo} alt={nombre} className="h-16 w-16 mx-auto object-contain rounded-full mb-2" />
+        ) : (
+          <span
+            className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full text-lg"
+            style={{ border: "1.5px solid currentColor", fontFamily: "Georgia, Times, serif" }}
+          >
+            {principal.slice(0, 2).toUpperCase()}
+          </span>
+        )}
+        <p className="tracking-[0.28em] uppercase" style={{ fontFamily: "Georgia, Times, serif", fontSize: "34px", lineHeight: 1 }}>
+          {principal}
+        </p>
+        <div className="flex items-center justify-center gap-2 my-1.5">
+          <span className="h-px w-10" style={{ background: "currentColor", opacity: 0.35 }} />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <circle cx="6" cy="7" r="3" />
+            <circle cx="18" cy="7" r="3" />
+            <path d="M8 9 12 14 16 9M12 14v7" />
+          </svg>
+          <span className="h-px w-10" style={{ background: "currentColor", opacity: 0.35 }} />
+        </div>
+        <p className="tracking-[0.32em] uppercase text-[11px]" style={{ color: "var(--muted)" }}>
+          {resto}
+        </p>
       </Link>
-      <div className="w-16 flex justify-end">
+      <div className="w-14 flex justify-end">
         <ThemeToggle />
       </div>
     </header>
