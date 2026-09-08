@@ -3,17 +3,16 @@ export type Rubro = "barberia" | "pestanas_unas";
 export function temaRubro(rubro?: string | null) {
   if (rubro === "pestanas_unas") {
     return {
-      bg: "#FBF6F8",
-      card: "#F4E8EE",
+      bg: "linear-gradient(180deg, #FDF7F9 0%, #F6E6EE 100%)",
+      card: "#FFFFFF",
       text: "#3A2430",
-      muted: "#8A6F7A",
-      line: "#E4D0D8",
-      btn: "#6B3148",
-      btnText: "#FBF6F8",
+      muted: "#9A7584",
+      line: "#E8CED8",
+      btn: "#B76E79",
+      btnText: "#FFF9FB",
       cita: "Reservá tu cita",
       panel: "Panel del estudio",
       galeria: "Trabajos",
-      profesional: "Profesional",
     };
   }
   return {
@@ -27,6 +26,5 @@ export function temaRubro(rubro?: string | null) {
     cita: "Reservá tu turno",
     panel: "Panel del barbero",
     galeria: "Cortes",
-    profesional: "Barbero",
   };
 }
