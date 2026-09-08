@@ -63,56 +63,43 @@ export default function BarberiaHomePage() {
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
         {shop?.portada_url && (
-          <img src={shop.portada_url} alt="" className="w-full h-48 object-cover rounded-2xl mb-6" />
+          <img src={shop.portada_url} alt="" className="w-full h-52 object-cover rounded-2xl mb-7" />
         )}
 
-        <h1 className="text-[34px] leading-tight text-center mb-3" style={{ fontFamily: "Georgia, Times, serif" }}>
+        <h1 className="text-center mb-4" style={{ fontFamily: "Georgia, Times, serif", fontSize: "40px", lineHeight: 1.05 }}>
           Reservá tu turno
         </h1>
 
-        {shop?.direccion && (
-          <p className="text-center text-sm mb-1">
-            <span className="mr-1">📍</span>
-            {shop.direccion}
-          </p>
-        )}
+        {shop?.direccion && <p className="text-center text-[15px] mb-1">📍 {shop.direccion}</p>}
         {shop?.maps_url && (
-          <a href={shop.maps_url} target="_blank" rel="noreferrer" className="block text-center text-sm underline mb-6">
+          <a href={shop.maps_url} target="_blank" rel="noreferrer" className="block text-center text-sm underline mb-7">
             Cómo llegar →
           </a>
         )}
 
         <Link
           href={`/reservar?b=${slug}`}
-          className="block text-center rounded-full py-3.5 text-[15px] mb-3"
+          className="block text-center rounded-full py-4 text-[16px] mb-3"
           style={{ background: "#1C1712", color: "#F5F0E8" }}
         >
           Reservar
         </Link>
 
         <div className="grid grid-cols-2 gap-2 mb-3">
-          <Link
-            href={`/tienda?b=${slug}`}
-            className="rounded-full py-3 text-center text-sm"
-            style={{ border: "1px solid #1C1712" }}
-          >
-            Productos
+          <Link href={`/tienda?b=${slug}`} className="rounded-full py-3.5 text-center text-sm flex items-center justify-center gap-2" style={{ border: "1.5px solid #1C1712" }}>
+            🧴 Productos
           </Link>
-          <Link
-            href="/login"
-            className="rounded-full py-3 text-center text-sm"
-            style={{ border: "1px solid #1C1712" }}
-          >
-            Panel del barbero
+          <Link href="/login" className="rounded-full py-3.5 text-center text-sm flex items-center justify-center gap-2" style={{ border: "1.5px solid #1C1712" }}>
+            👤 Panel del barbero
           </Link>
         </div>
 
         {resumenHorario && (
-          <div className="rounded-2xl px-4 py-3 mb-8 flex items-center gap-3" style={{ border: "1px solid #ddd4c8" }}>
-            <span className="text-lg">🕒</span>
+          <div className="rounded-2xl px-4 py-3.5 mb-8 flex items-center gap-3" style={{ border: "1.5px solid #ddd4c8" }}>
+            <span className="text-xl">🕒</span>
             <div>
-              <p className="text-[10px] tracking-[0.16em] uppercase text-[#7a7268]">Horario</p>
-              <p className="text-sm">{resumenHorario}</p>
+              <p className="text-[10px] tracking-[0.18em] uppercase text-[#7a7268]">Horario</p>
+              <p className="text-[15px]">{resumenHorario}</p>
             </div>
           </div>
         )}
