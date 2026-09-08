@@ -21,6 +21,46 @@ function Logo() {
   );
 }
 
+function Card({
+  title,
+  text,
+  href,
+  label,
+  img,
+  delay,
+}: {
+  title: string;
+  text: string;
+  href?: string;
+  label: string;
+  img: string;
+  delay: string;
+}) {
+  return (
+    <article className="card rise overflow-hidden rounded-2xl mb-3 h-[168px]" style={{ background: "#EFE8DC", animationDelay: delay }}>
+      <div className="grid grid-cols-2 h-full">
+        <div className="p-4 flex flex-col justify-between">
+          <div>
+            <p className="text-lg leading-6" style={{ fontFamily: "Georgia, Times, serif" }}>
+              {title}
+            </p>
+            <div className="w-8 h-px bg-[#1C1712] my-2" />
+            <p className="text-xs leading-4 text-[#6f675e]">{text}</p>
+          </div>
+          {href ? (
+            <Link href={href} className="text-xs">
+              {label}
+            </Link>
+          ) : (
+            <span className="text-xs text-[#9a9388]">{label}</span>
+          )}
+        </div>
+        <img src={img} alt={title} className="h-full w-full object-cover" />
+      </div>
+    </article>
+  );
+}
+
 export default function HomePage() {
   return (
     <main className="min-h-screen relative" style={{ background: "#F5F0E8", color: "#1C1712" }}>
@@ -58,47 +98,21 @@ export default function HomePage() {
 
         <p className="text-[11px] tracking-[0.16em] uppercase text-[#9a9388] mb-3">Nuestras apps</p>
 
-        <article className="card rise overflow-hidden rounded-2xl mb-3" style={{ background: "#EFE8DC", animationDelay: ".16s" }}>
-          <div className="grid grid-cols-2 min-h-[188px]">
-            <div className="p-4 flex flex-col justify-between">
-              <div>
-                <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
-                  Barberías
-                </p>
-                <div className="w-8 h-px bg-[#1C1712] my-2" />
-                <p className="text-xs leading-4 text-[#6f675e]">Citas, clientes y servicios para tu barbería.</p>
-              </div>
-              <Link href="/b/diano" className="text-xs mt-3">
-                Explorar →
-              </Link>
-            </div>
-            <img
-              src="https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=600&q=80"
-              alt="Barbería"
-              className="h-full w-full object-cover"
-            />
-          </div>
-        </article>
-
-        <article className="card rise overflow-hidden rounded-2xl" style={{ background: "#EFE8DC", animationDelay: ".24s" }}>
-          <div className="grid grid-cols-2 min-h-[188px]">
-            <div className="p-4 flex flex-col justify-between">
-              <div>
-                <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
-                  Uñas y pestañas
-                </p>
-                <div className="w-8 h-px bg-[#1C1712] my-2" />
-                <p className="text-xs leading-4 text-[#6f675e]">Agenda para profesionales de estética.</p>
-              </div>
-              <span className="text-xs mt-3 text-[#9a9388]">Próximamente</span>
-            </div>
-            <img
-              src="https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80"
-              alt="Uñas y pestañas"
-              className="h-full w-full object-cover"
-            />
-          </div>
-        </article>
+        <Card
+          title="Barberías"
+          text="Citas, clientes y servicios para tu barbería."
+          href="/b/diano"
+          label="Explorar →"
+          img="https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=600&q=80"
+          delay=".16s"
+        />
+        <Card
+          title="Uñas y pestañas"
+          text="Agenda para profesionales de estética."
+          label="Próximamente"
+          img="https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80"
+          delay=".24s"
+        />
 
         <p className="mt-16 text-center text-[11px] tracking-[0.12em] text-[#9a9388]">
           Hecho en Uruguay · reservoapps.com
