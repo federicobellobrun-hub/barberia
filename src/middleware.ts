@@ -1,50 +1,64 @@
+import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+
+const ROOT = "reservoapps.com";
+
+function slugFromHost(request: NextRequest) {
+  const host = (request.headers.get("host") || "").split(":")[0];
+  if (!host.endsWith(ROOT)) return null;
+  if (host === ROOT || host === `www.${ROOT}`) return null;
+  const slug = host.slice(0, -(ROOT.length + 1));
+  if (!slug || slug === "www") return null;
+  return slug;
+}
+
+function destino(request: NextRequest) {
+  const slug = slugFromHost(request);
+  if (!slug) return null;
+  const { pathname } = request.nextUrl;
+  if (
+    pathname.startsWith("/b/") ||
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/panel") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/_next")
+  ) {
+    return null;
+  }
+  const url = request.nextUrl.clone();
+  url.pathname = pathname === "/" ? `/b/${slug}` : `/b/${slug}${pathname}`;
+  return url;
+}
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const url = destino(request);
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  let response = url ? NextResponse.rewrite(url) : NextResponse.next({ request });
 
-  if (!url || !key) {
-    return response;
-  }
-
-  const supabase = createServerClient(url, key, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = url ? NextResponse.rewrite(url) : NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options as never)
+          );
+        },
       },
-      setAll(
-        cookiesToSet: {
-          name: string;
-          value: string;
-          options?: Record<string, unknown>;
-        }[]
-      ) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options as any)
-        );
-      },
-    },
-  });
+    }
+  );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
-    return NextResponse.redirect(redirectUrl);
-  }
-
+  await supabase.auth.getUser();
   return response;
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
