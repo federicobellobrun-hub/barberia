@@ -53,21 +53,30 @@ async function sendTemplate(to: string, name: string, params: string[]) {
 }
 
 export async function POST(req: Request) {
-  const { turnoId, tipo } = await req.json();
-  if (!turnoId || !tipo) return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
+  const body = await req.json();
+  const turnoId = String(body.turnoId || "").trim();
+  const tipo = String(body.tipo || "").trim();
+  if (!turnoId || !tipo) return NextResponse.json({ error: "Faltan datos", body }, { status: 400 });
 
   const supabase = admin();
   const { data: t, error } = await supabase
     .from("turnos")
-    .select("id, fecha_hora, clientes(nombre, telefono), barberias(nombre, modo_whatsapp)")
+    .select("id, fecha_hora, barberia_id, cliente_id")
     .eq("id", turnoId)
     .maybeSingle();
-  if (error || !t) return NextResponse.json({ error: "Turno no encontrado" }, { status: 404 });
 
-  const cliente = Array.isArray(t.clientes) ? t.clientes[0] : t.clientes;
-  const shop = Array.isArray(t.barberias) ? t.barberias[0] : t.barberias;
+  if (error) return NextResponse.json({ error: error.message, turnoId }, { status: 400 });
+  if (!t) return NextResponse.json({ error: "Turno no encontrado", turnoId }, { status: 404 });
+
+  const [{ data: shop }, { data: cliente }] = await Promise.all([
+    supabase.from("barberias").select("nombre, modo_whatsapp").eq("id", t.barberia_id).maybeSingle(),
+    t.cliente_id
+      ? supabase.from("clientes").select("nombre, telefono").eq("id", t.cliente_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
   if (!shop || shop.modo_whatsapp !== "automatico") {
-    return NextResponse.json({ ok: true, skipped: "manual" });
+    return NextResponse.json({ ok: true, skipped: "manual", shop: shop?.nombre || null });
   }
   if (!cliente?.telefono) return NextResponse.json({ ok: true, skipped: "sin telefono" });
 
@@ -83,5 +92,5 @@ export async function POST(req: Request) {
     shop.nombre || "la barbería",
   ]);
 
-  return NextResponse.json({ ok: true, envio });
+  return NextResponse.json({ ok: true, tipo, envio });
 }
