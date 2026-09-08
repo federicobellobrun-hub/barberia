@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
+import BottomNav from "@/components/BottomNav";
 
 type Producto = {
   id: string;
@@ -25,7 +26,13 @@ function waNumber(telefono: string) {
 
 function TiendaPage() {
   const search = useSearchParams();
-  const slug = search.get("b") || "diano";
+  const host =
+    typeof window !== "undefined" && window.location.hostname.endsWith("reservoapps.com")
+      ? window.location.hostname.replace(".reservoapps.com", "")
+      : "";
+  const slugHost = host && host !== "www" && host !== "reservoapps" ? host : null;
+  const slug = search.get("b") || slugHost || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
+
   const [productos, setProductos] = useState<Producto[]>([]);
   const [carrito, setCarrito] = useState<Item[]>([]);
   const [whatsapp, setWhatsapp] = useState("");
@@ -34,6 +41,7 @@ function TiendaPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    localStorage.setItem("barberia_slug", slug);
     const load = async () => {
       const supabase = createClient();
       const { data: shop, error: shopErr } = await supabase
@@ -46,37 +54,36 @@ function TiendaPage() {
         return;
       }
       setWhatsapp(shop.whatsapp_pedidos || "");
-      const { data, error } = await supabase
+      const { data, error: e } = await supabase
         .from("productos")
         .select("id, nombre, precio, descripcion, stock, imagen_url")
         .eq("barberia_id", shop.id)
         .eq("activo", true)
         .order("nombre");
-      if (error) setError(error.message);
+      if (e) setError(e.message);
       setProductos(data || []);
     };
-    load();
+    void load();
   }, [slug]);
 
-  const total = useMemo(
-    () => carrito.reduce((acc, i) => acc + Number(i.precio) * i.cantidad, 0),
-    [carrito]
-  );
+  const total = useMemo(() => carrito.reduce((acc, i) => acc + Number(i.precio) * i.cantidad, 0), [carrito]);
 
   const agregar = (p: Producto) => {
     setCarrito((prev) => {
       const found = prev.find((i) => i.id === p.id);
-      if (found) return prev.map((i) => i.id === p.id ? { ...i, cantidad: i.cantidad + 1 } : i);
+      if (found) return prev.map((i) => (i.id === p.id ? { ...i, cantidad: i.cantidad + 1 } : i));
       return [...prev, { ...p, cantidad: 1 }];
     });
   };
 
   const quitar = (id: string) => {
-    setCarrito((prev) => prev.flatMap((i) => {
-      if (i.id !== id) return [i];
-      if (i.cantidad <= 1) return [];
-      return [{ ...i, cantidad: i.cantidad - 1 }];
-    }));
+    setCarrito((prev) =>
+      prev.flatMap((i) => {
+        if (i.id !== id) return [i];
+        if (i.cantidad <= 1) return [];
+        return [{ ...i, cantidad: i.cantidad - 1 }];
+      })
+    );
   };
 
   const pedir = () => {
@@ -87,15 +94,29 @@ function TiendaPage() {
     window.open(`https://wa.me/${waNumber(whatsapp)}?text=${encodeURIComponent(texto)}`, "_blank");
   };
 
+  const nav = (
+    <BottomNav
+      items={[
+        { href: `/b/${slug}`, label: "Inicio" },
+        { href: `/reservar?b=${slug}`, label: "Reservar" },
+        { href: `/tienda?b=${slug}`, label: "Tienda", active: true },
+      ]}
+    />
+  );
+
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Productos</h1>
-        <Link href={`/b/${slug}`} className="text-sm mb-6 inline-block" style={{ color: "var(--muted)" }}>Volver</Link>
+        <Link href={`/b/${slug}`} className="text-sm mb-6 inline-block" style={{ color: "var(--muted)" }}>
+          Volver
+        </Link>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         {productos.length === 0 && !error && (
-          <p className="text-sm" style={{ color: "var(--muted)" }}>Esta barbería todavía no cargó productos.</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            Esta barbería todavía no cargó productos.
+          </p>
         )}
 
         <div className="grid grid-cols-2 gap-3 mb-8">
@@ -104,11 +125,15 @@ function TiendaPage() {
               {p.imagen_url ? (
                 <img src={p.imagen_url} alt="" className="h-28 w-full object-cover" />
               ) : (
-                <div className="h-28 flex items-center justify-center" style={{ background: "var(--bg)" }}>✂</div>
+                <div className="h-28 flex items-center justify-center" style={{ background: "var(--bg)" }}>
+                  Scissor
+                </div>
               )}
               <div className="p-3">
                 <p className="font-medium leading-4">{p.nombre}</p>
-                <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>${p.precio}</p>
+                <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
+                  ${p.precio}
+                </p>
                 <button onClick={() => agregar(p)} className="mt-2 w-full rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
                   Agregar
                 </button>
@@ -122,7 +147,9 @@ function TiendaPage() {
             <h2 className="font-medium mb-3">Pedido</h2>
             {carrito.map((i) => (
               <div key={i.id} className="flex justify-between items-center mb-2 text-sm">
-                <span>{i.cantidad} x {i.nombre}</span>
+                <span>
+                  {i.cantidad} x {i.nombre}
+                </span>
                 <button onClick={() => quitar(i.id)}>Quitar</button>
               </div>
             ))}
@@ -135,6 +162,7 @@ function TiendaPage() {
           </section>
         )}
       </div>
+      {nav}
     </main>
   );
 }
