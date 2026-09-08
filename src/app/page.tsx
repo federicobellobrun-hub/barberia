@@ -23,7 +23,14 @@ function Logo() {
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
+    <main className="min-h-screen relative" style={{ background: "#F5F0E8", color: "#1C1712" }}>
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/></filter><rect width='180' height='180' filter='url(%23n)' opacity='0.35'/></svg>\")",
+        }}
+      />
       <style>{`
         @keyframes rise {
           from { opacity: 0; transform: translateY(10px); }
@@ -34,8 +41,8 @@ export default function HomePage() {
         .card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(28,23,18,.08); }
       `}</style>
 
-      <div className="mx-auto max-w-md px-5 pt-6 pb-16">
-        <header className="flex items-start justify-between mb-10">
+      <div className="relative mx-auto max-w-md px-5 pt-6 pb-16">
+        <header className="flex items-start justify-between mb-12">
           <Logo />
           <Link href="/login" className="mt-2 text-[13px] text-[#9a9388] hover:text-[#1C1712]">
             Ingresar
@@ -45,14 +52,14 @@ export default function HomePage() {
         <h1 className="rise text-[34px] leading-[1.15] mb-4" style={{ fontFamily: "Georgia, Times, serif" }}>
           Apps de reservas para negocios locales.
         </h1>
-        <p className="rise text-sm text-[#7a7268] mb-10" style={{ animationDelay: ".08s" }}>
+        <p className="rise text-sm text-[#7a7268] mb-12" style={{ animationDelay: ".08s" }}>
           Agenda, clientes y avisos para tu local.
         </p>
 
         <p className="text-[11px] tracking-[0.16em] uppercase text-[#9a9388] mb-3">Nuestras apps</p>
 
         <article className="card rise overflow-hidden rounded-2xl mb-3" style={{ background: "#EFE8DC", animationDelay: ".16s" }}>
-          <div className="grid grid-cols-2 min-h-[150px]">
+          <div className="grid grid-cols-2 min-h-[188px]">
             <div className="p-4 flex flex-col justify-between">
               <div>
                 <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
@@ -74,7 +81,7 @@ export default function HomePage() {
         </article>
 
         <article className="card rise overflow-hidden rounded-2xl" style={{ background: "#EFE8DC", animationDelay: ".24s" }}>
-          <div className="grid grid-cols-2 min-h-[150px]">
+          <div className="grid grid-cols-2 min-h-[188px]">
             <div className="p-4 flex flex-col justify-between">
               <div>
                 <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
@@ -92,6 +99,10 @@ export default function HomePage() {
             />
           </div>
         </article>
+
+        <p className="mt-16 text-center text-[11px] tracking-[0.12em] text-[#9a9388]">
+          Hecho en Uruguay · reservoapps.com
+        </p>
       </div>
     </main>
   );
