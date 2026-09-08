@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 
-const items = [
+const todos = [
   { href: "/dashboard", t: "Agenda" },
   { href: "/dashboard/nuevo", t: "Nuevo turno" },
   { href: "/dashboard/clientes", t: "Clientes" },
@@ -19,7 +19,7 @@ const items = [
 ];
 
 export default function MasPage() {
-  const [dueño, setDueño] = useState(false);
+  const [rol, setRol] = useState<string>("");
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -33,9 +33,17 @@ export default function MasPage() {
         .select("rol")
         .eq("auth_user_id", data.user.id)
         .maybeSingle();
-      setDueño(yo?.rol === "superadmin");
+      setRol(yo?.rol || "");
     });
   }, []);
+
+  const items =
+    rol === "barbero"
+      ? [
+          { href: "/dashboard", t: "Agenda" },
+          { href: "/dashboard/nuevo", t: "Nuevo turno" },
+        ]
+      : todos.concat(rol === "superadmin" ? [{ href: "/panel", t: "Panel dueño" }] : []);
 
   return (
     <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
@@ -57,15 +65,6 @@ export default function MasPage() {
               {i.t}
             </Link>
           ))}
-          {dueño ? (
-            <Link
-              href="/panel"
-              className="rounded-2xl p-4 text-sm"
-              style={{ background: "#EFE8DC", border: "1px solid #ddd4c8" }}
-            >
-              Panel dueño
-            </Link>
-          ) : null}
         </div>
       </div>
     </main>
