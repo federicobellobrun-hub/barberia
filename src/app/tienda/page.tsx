@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import BottomNav from "@/components/BottomNav";
+import { temaRubro } from "@/lib/rubro";
 
 type Producto = {
   id: string;
@@ -39,6 +40,9 @@ function TiendaPage() {
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [rubro, setRubro] = useState<string>("barberia");
+  const t = temaRubro(rubro);
+  const rosa = rubro === "pestanas_unas";
 
   useEffect(() => {
     localStorage.setItem("barberia_slug", slug);
@@ -46,7 +50,7 @@ function TiendaPage() {
       const supabase = createClient();
       const { data: shop, error: shopErr } = await supabase
         .from("barberias")
-        .select("id, whatsapp_pedidos")
+        .select("id, whatsapp_pedidos, rubro")
         .eq("slug", slug)
         .maybeSingle();
       if (shopErr || !shop) {
@@ -54,6 +58,7 @@ function TiendaPage() {
         return;
       }
       setWhatsapp(shop.whatsapp_pedidos || "");
+      setRubro(shop.rubro || "barberia");
       const { data, error: e } = await supabase
         .from("productos")
         .select("id, nombre, precio, descripcion, stock, imagen_url")
@@ -94,47 +99,43 @@ function TiendaPage() {
     window.open(`https://wa.me/${waNumber(whatsapp)}?text=${encodeURIComponent(texto)}`, "_blank");
   };
 
-  const nav = (
-    <BottomNav
-      items={[
-        { href: `/b/${slug}`, label: "Inicio" },
-        { href: `/reservar?b=${slug}`, label: "Reservar" },
-        { href: `/tienda?b=${slug}`, label: "Tienda", active: true },
-      ]}
-    />
-  );
-
   return (
-    <main className="min-h-screen pb-28" style={{ background: "var(--bg)", color: "var(--text)" }}>
+    <main className="min-h-screen pb-28" style={{ background: t.bg, color: t.text }}>
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
-        <h1 className="text-[34px] font-semibold tracking-tight mb-2">Productos</h1>
-        <Link href={`/b/${slug}`} className="text-sm mb-6 inline-block" style={{ color: "var(--muted)" }}>
+        <h1 className="text-[34px] tracking-tight mb-2" style={{ fontFamily: "Georgia, Times, serif" }}>
+          Productos
+        </h1>
+        <Link href={`/b/${slug}`} className="text-sm mb-6 inline-block" style={{ color: t.muted }}>
           Volver
         </Link>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         {productos.length === 0 && !error && (
-          <p className="text-sm" style={{ color: "var(--muted)" }}>
-            Esta barbería todavía no cargó productos.
+          <p className="text-sm" style={{ color: t.muted }}>
+            Este estudio todavía no cargó productos.
           </p>
         )}
 
         <div className="grid grid-cols-2 gap-3 mb-8">
           {productos.map((p) => (
-            <article key={p.id} className="rounded-2xl overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            <article key={p.id} className="overflow-hidden" style={{ background: t.card, borderRadius: rosa ? 18 : 16 }}>
               {p.imagen_url ? (
                 <img src={p.imagen_url} alt="" className="h-28 w-full object-cover" />
               ) : (
-                <div className="h-28 flex items-center justify-center" style={{ background: "var(--bg)" }}>
-                  Scissor
+                <div className="h-28 flex items-center justify-center text-sm" style={{ background: t.bg, color: t.muted }}>
+                  Foto
                 </div>
               )}
               <div className="p-3">
                 <p className="font-medium leading-4">{p.nombre}</p>
-                <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
+                <p className="text-sm mt-1" style={{ color: t.muted }}>
                   ${p.precio}
                 </p>
-                <button onClick={() => agregar(p)} className="mt-2 w-full rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
+                <button
+                  onClick={() => agregar(p)}
+                  className="mt-2 w-full py-2 text-sm"
+                  style={{ background: t.btn, color: t.btnText, borderRadius: rosa ? 999 : 12 }}
+                >
                   Agregar
                 </button>
               </div>
@@ -143,7 +144,7 @@ function TiendaPage() {
         </div>
 
         {carrito.length > 0 && (
-          <section className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <section className="p-4" style={{ background: t.card, borderRadius: rosa ? 22 : 16 }}>
             <h2 className="font-medium mb-3">Pedido</h2>
             {carrito.map((i) => (
               <div key={i.id} className="flex justify-between items-center mb-2 text-sm">
@@ -154,15 +155,21 @@ function TiendaPage() {
               </div>
             ))}
             <p className="font-medium my-3">Total ${total}</p>
-            <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full rounded-xl px-3 py-3 mb-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full rounded-xl px-3 py-3 mb-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            <button onClick={pedir} className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-3 py-3 mb-2" style={{ background: t.bg, border: `1px solid ${t.line}`, color: t.text, borderRadius: rosa ? 999 : 12 }} />
+            <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-3 py-3 mb-3" style={{ background: t.bg, border: `1px solid ${t.line}`, color: t.text, borderRadius: rosa ? 999 : 12 }} />
+            <button onClick={pedir} className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: rosa ? 999 : 16 }}>
               Pedir por WhatsApp
             </button>
           </section>
         )}
       </div>
-      {nav}
+      <BottomNav
+        items={[
+          { href: `/b/${slug}`, label: "Inicio" },
+          { href: `/reservar?b=${slug}`, label: "Reservar" },
+          { href: `/tienda?b=${slug}`, label: "Tienda", active: true },
+        ]}
+      />
     </main>
   );
 }
