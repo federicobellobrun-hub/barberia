@@ -61,6 +61,14 @@ function abrirWhatsapp(telefono: string, texto: string) {
   window.open(`https://wa.me/${waNumber(telefono)}?text=${encodeURIComponent(texto)}`, "_blank");
 }
 
+async function avisoCambio(turnoId: string, tipo: "cancelado" | "movido") {
+  await fetch("/api/whatsapp/cambio", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ turnoId, tipo }),
+  });
+}
+
 export default function DashboardPage() {
   const [nombre, setNombre] = useState("Barbero");
   const [rol, setRol] = useState("");
@@ -78,7 +86,6 @@ export default function DashboardPage() {
   const [nuevaHora, setNuevaHora] = useState("");
   const [nuevoBarbero, setNuevoBarbero] = useState("");
   const router = useRouter();
-
   const esBarbero = rol === "barbero";
 
   useEffect(() => {
@@ -118,7 +125,6 @@ export default function DashboardPage() {
       const inicioMes = new Date(`${mes}-01T00:00:00-03:00`).toISOString();
       const siguiente = new Date(`${mes}-01T00:00:00-03:00`);
       siguiente.setMonth(siguiente.getMonth() + 1);
-
       const [turnosRes, manianaRes, pagosMesRes, barberosRes] = await Promise.all([
         supabase
           .from("turnos")
@@ -137,7 +143,6 @@ export default function DashboardPage() {
         supabase.from("pagos").select("monto").gte("pagado_at", inicioMes).lt("pagado_at", siguiente.toISOString()),
         supabase.from("barberos").select("id, nombre").eq("activo", true).order("nombre"),
       ]);
-
       if (turnosRes.error) setError(turnosRes.error.message);
       setTurnos((turnosRes.data as Turno[]) || []);
       setManiana((manianaRes.data as Turno[]) || []);
@@ -191,15 +196,7 @@ export default function DashboardPage() {
       barbero_id: nuevoBarbero || turno.barbero_id,
     }).eq("id", turno.id);
     if (e) return setError(e.message);
-    const cliente = one(turno.clientes);
-    const servicio = one(turno.servicios);
-    const barberoNombre = barberos.find((b) => b.id === (nuevoBarbero || turno.barbero_id))?.nombre;
-    if (cliente?.telefono) {
-      abrirWhatsapp(
-        cliente.telefono,
-        `Hola ${cliente.nombre}, te reagendamos el turno.\n\nServicio: ${servicio?.nombre}\nNuevo día: ${nuevaFecha}\nNueva hora: ${nuevaHora}${barberoNombre ? `\nBarbero: ${barberoNombre}` : ""}`
-      );
-    }
+    await avisoCambio(turno.id, "movido");
     setEditId(null);
     setFecha(nuevaFecha);
   };
@@ -237,7 +234,6 @@ export default function DashboardPage() {
           </div>
           <span className="text-[11px] uppercase tracking-wider" style={{ color: "var(--muted)" }}>{t.estado}</span>
         </div>
-
         {cliente?.telefono && (
           <div className="flex flex-wrap gap-2 mt-4">
             {!recordatorio && (
@@ -287,7 +283,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => {
                     void cambiarEstado(t.id, "cancelado");
-                    abrirWhatsapp(cliente.telefono, `Hola ${cliente.nombre}, tu turno del ${fechaUy(t.fecha_hora)} a las ${horaUy(t.fecha_hora)} fue cancelado.`);
+                    void avisoCambio(t.id, "cancelado");
                   }}
                   className="text-xs px-4 py-2 rounded-full text-red-500"
                 >
@@ -297,7 +293,6 @@ export default function DashboardPage() {
             )}
           </div>
         )}
-
         {editId === t.id && (
           <div className="grid grid-cols-2 gap-2 mt-3">
             <input type="date" value={nuevaFecha} onChange={(e) => setNuevaFecha(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
@@ -315,7 +310,6 @@ export default function DashboardPage() {
             </button>
           </div>
         )}
-
         {!recordatorio &&
           (pago ? (
             <p className="text-sm mt-3" style={{ color: "var(--muted)" }}>Pagado · {pago.metodo} · ${pago.monto}</p>
@@ -351,10 +345,8 @@ export default function DashboardPage() {
             </button>
           }
         />
-
         <p className="text-sm" style={{ color: "var(--muted)" }}>Hola, {nombre}</p>
         <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-5">Agenda</h1>
-
         <div className="grid grid-cols-2 gap-2 mb-6">
           {atajos.map(([label, href, d]) => (
             <Link key={href} href={href} className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
@@ -365,7 +357,6 @@ export default function DashboardPage() {
             </Link>
           ))}
         </div>
-
         {!esBarbero && barberos.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
             <button onClick={() => setFiltroBarbero("todos")} className="shrink-0 rounded-full px-4 py-2 text-sm" style={{ background: filtroBarbero === "todos" ? "#1c1712" : "var(--card)", color: filtroBarbero === "todos" ? "#fff" : "var(--text)", border: "1px solid var(--line)" }}>
@@ -378,7 +369,6 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
-
         <div className="grid grid-cols-2 gap-2 mb-6">
           {[
             ["Pendientes", pendientes.length],
@@ -391,14 +381,14 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
-
         {manianaFiltrada.length > 0 && (
           <section className="mb-8">
             <h2 className="font-medium mb-3">Recordatorios de mañana</h2>
-            {manianaFiltrada.map((t) => <Card key={t.id} t={t} recordatorio />)}
+            {manianaFiltrada.map((t) => (
+              <Card key={t.id} t={t} recordatorio />
+            ))}
           </section>
         )}
-
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => setFecha(addDays(fecha, -1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>‹</button>
           <div className="text-center">
@@ -407,13 +397,13 @@ export default function DashboardPage() {
           </div>
           <button onClick={() => setFecha(addDays(fecha, 1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>›</button>
         </div>
-
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
         {loading && <p style={{ color: "var(--muted)" }}>Cargando...</p>}
         {!loading && turnosFiltrados.length === 0 && <p style={{ color: "var(--muted)" }}>No hay turnos este día.</p>}
-        {turnosFiltrados.map((t) => <Card key={t.id} t={t} />)}
+        {turnosFiltrados.map((t) => (
+          <Card key={t.id} t={t} />
+        ))}
       </div>
-
       <BottomNav
         items={
           esBarbero
