@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 
-const todos = [
+const dueño = [
   { href: "/dashboard", t: "Agenda" },
   { href: "/dashboard/nuevo", t: "Nuevo turno" },
   { href: "/dashboard/clientes", t: "Clientes" },
@@ -18,8 +18,13 @@ const todos = [
   { href: "/dashboard/barberos", t: "Barberos" },
 ];
 
+const barbero = [
+  { href: "/dashboard", t: "Agenda" },
+  { href: "/dashboard/nuevo", t: "Nuevo turno" },
+];
+
 export default function MasPage() {
-  const [rol, setRol] = useState<string>("");
+  const [items, setItems] = useState<{ href: string; t: string }[] | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -33,17 +38,11 @@ export default function MasPage() {
         .select("rol")
         .eq("auth_user_id", data.user.id)
         .maybeSingle();
-      setRol(yo?.rol || "");
+      if (yo?.rol === "barbero") setItems(barbero);
+      else if (yo?.rol === "superadmin") setItems([...dueño, { href: "/panel", t: "Panel dueño" }]);
+      else setItems(dueño);
     });
   }, []);
-
-  const items =
-    rol === "barbero"
-      ? [
-          { href: "/dashboard", t: "Agenda" },
-          { href: "/dashboard/nuevo", t: "Nuevo turno" },
-        ]
-      : todos.concat(rol === "superadmin" ? [{ href: "/panel", t: "Panel dueño" }] : []);
 
   return (
     <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
@@ -54,18 +53,22 @@ export default function MasPage() {
         <h1 className="mt-4 text-3xl mb-6" style={{ fontFamily: "Georgia, Times, serif" }}>
           Más
         </h1>
-        <div className="grid grid-cols-2 gap-3">
-          {items.map((i) => (
-            <Link
-              key={i.href}
-              href={i.href}
-              className="rounded-2xl p-4 text-sm"
-              style={{ background: "#EFE8DC", border: "1px solid #ddd4c8" }}
-            >
-              {i.t}
-            </Link>
-          ))}
-        </div>
+        {!items ? (
+          <p className="text-sm text-[#7a7268]">Cargando…</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {items.map((i) => (
+              <Link
+                key={i.href}
+                href={i.href}
+                className="rounded-2xl p-4 text-sm"
+                style={{ background: "#EFE8DC", border: "1px solid #ddd4c8" }}
+              >
+                {i.t}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   );
