@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
+import BottomNav from "@/components/BottomNav";
 
 type Servicio = {
   id: string;
@@ -37,7 +38,13 @@ function fromMinutes(mins: number) {
 
 function ReservarPage() {
   const search = useSearchParams();
-  const slug = search.get("b") || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
+  const host =
+    typeof window !== "undefined" && window.location.hostname.endsWith("reservoapps.com")
+      ? window.location.hostname.replace(".reservoapps.com", "")
+      : "";
+  const slugHost = host && host !== "www" && host !== "reservoapps" ? host : null;
+  const slug =
+    search.get("b") || slugHost || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
 
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -204,10 +211,28 @@ function ReservarPage() {
   const hoy = ymdMontevideo(new Date());
   const mesLabel = mes.toLocaleDateString("es-UY", { month: "long", year: "numeric" });
 
-  if (loading) return <main className="min-h-screen flex items-center justify-center">Cargando...</main>;
+  const nav = (
+    <BottomNav
+      items={[
+        { href: `/b/${slug}`, label: "Inicio" },
+        { href: `/reservar?b=${slug}`, label: "Reservar", active: true },
+        { href: `/tienda?b=${slug}`, label: "Tienda" },
+      ]}
+    />
+  );
+
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center pb-28">
+        Cargando...
+        {nav}
+      </main>
+    );
+  }
+
   if (ok && servicio) {
     return (
-      <main className="min-h-screen px-6 py-20 text-center">
+      <main className="min-h-screen px-6 py-20 text-center pb-28">
         <h1 className="text-4xl font-semibold tracking-tight">Turno reservado</h1>
         <p className="mt-4">
           {servicio.nombre}
@@ -216,12 +241,13 @@ function ReservarPage() {
         <Link href={`/b/${slug}`} className="inline-block mt-8">
           Volver
         </Link>
+        {nav}
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
         <h1 className="text-[34px] font-semibold tracking-tight leading-9">Reservá tu turno</h1>
@@ -404,6 +430,7 @@ function ReservarPage() {
           </form>
         )}
       </div>
+      {nav}
     </main>
   );
 }
