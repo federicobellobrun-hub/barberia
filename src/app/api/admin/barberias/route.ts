@@ -18,29 +18,15 @@ async function adminGuard(req: Request) {
   if (!url || !service || !anon) {
     return { error: NextResponse.json({ error: "Faltan claves de servidor" }, { status: 500 }) };
   }
-
   const token = (req.headers.get("authorization") || "").replace("Bearer ", "");
-  if (!token) {
-    return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
-  }
-
+  if (!token) return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
   const userClient = createClient(url, anon);
   const { data: userData } = await userClient.auth.getUser(token);
-  if (!userData.user) {
-    return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
-  }
-
+  if (!userData.user) return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
   const admin = createClient(url, service);
-  const { data: yo } = await admin
-    .from("usuarios")
-    .select("rol")
-    .eq("auth_user_id", userData.user.id)
-    .maybeSingle();
-  if (yo?.rol !== "superadmin") {
-    return { error: NextResponse.json({ error: "No autorizado" }, { status: 403 }) };
-  }
-
-  return { admin, url, service, anon };
+  const { data: yo } = await admin.from("usuarios").select("rol").eq("auth_user_id", userData.user.id).maybeSingle();
+  if (yo?.rol !== "superadmin") return { error: NextResponse.json({ error: "No autorizado" }, { status: 403 }) };
+  return { admin };
 }
 
 export async function POST(req: Request) {
@@ -54,12 +40,10 @@ export async function POST(req: Request) {
   const email = String(body.email || "").trim().toLowerCase();
   const password = String(body.password || "");
   const modo = body.modo_whatsapp === "automatico" ? "automatico" : "manual";
+  const rubro = body.rubro === "pestanas_unas" ? "pestanas_unas" : "barberia";
 
   if (!nombre || !slug || !email || password.length < 6) {
-    return NextResponse.json(
-      { error: "Nombre, enlace, email y contraseña (6+)" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Nombre, enlace, email y contraseña (6+)" }, { status: 400 });
   }
 
   const { data: existe } = await admin.from("barberias").select("id").eq("slug", slug).maybeSingle();
@@ -69,7 +53,7 @@ export async function POST(req: Request) {
 
   const { data: barberia, error: e1 } = await admin
     .from("barberias")
-    .insert({ nombre, slug, activo: true, modo_whatsapp: modo })
+    .insert({ nombre, slug, activo: true, modo_whatsapp: modo, rubro })
     .select("id")
     .single();
   if (e1 || !barberia) {
@@ -95,20 +79,16 @@ export async function POST(req: Request) {
     activo: true,
   });
   if (e3) {
-    return NextResponse.json(
-      { error: "Local creado, pero el perfil falló: " + e3.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Local creado, pero el perfil falló: " + e3.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, slug });
+  return NextResponse.json({ ok: true, slug, rubro });
 }
 
 export async function DELETE(req: Request) {
   const g = await adminGuard(req);
   if ("error" in g && g.error) return g.error;
   const admin = g.admin!;
-
   const body = await req.json();
   const id = String(body.id || "");
   if (!id) return NextResponse.json({ error: "Falta id" }, { status: 400 });
@@ -120,7 +100,6 @@ export async function DELETE(req: Request) {
   }
 
   const { data: users } = await admin.from("usuarios").select("auth_user_id").eq("barberia_id", id);
-
   await admin.from("turnos").delete().eq("barberia_id", id);
   await admin.from("clientes").delete().eq("barberia_id", id);
   await admin.from("servicios").delete().eq("barberia_id", id);
@@ -128,15 +107,12 @@ export async function DELETE(req: Request) {
   await admin.from("barberos").delete().eq("barberia_id", id);
   await admin.from("bloqueos").delete().eq("barberia_id", id);
   await admin.from("usuarios").delete().eq("barberia_id", id);
-
   const { error } = await admin.from("barberias").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
   if (users) {
     for (const u of users) {
       if (u.auth_user_id) await admin.auth.admin.deleteUser(u.auth_user_id);
     }
   }
-
   return NextResponse.json({ ok: true });
 }
