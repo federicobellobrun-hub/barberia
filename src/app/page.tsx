@@ -114,9 +114,16 @@ export default function HomePage() {
           delay=".24s"
         />
 
-        <p className="mt-16 text-center text-[11px] tracking-[0.12em] text-[#9a9388]">
-          Hecho en Uruguay · reservoapps.com
-        </p>
+        <footer className="mt-16 text-center text-[11px] leading-5 text-[#9a9388]">
+          <p className="tracking-[0.12em]">Hecho en Uruguay · reservoapps.com</p>
+          <p className="mt-3">
+            Reservo Apps es un producto de BELLO BRUN FEDERICO YAIR
+            <br />
+            RUT 040291740013
+            <br />
+            Montevideo 710 101, Juan Lacaze, Colonia
+          </p>
+        </footer>
       </div>
     </main>
   );
