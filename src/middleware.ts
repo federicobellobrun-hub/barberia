@@ -22,6 +22,8 @@ function destino(request: NextRequest) {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/panel") ||
     pathname.startsWith("/login") ||
+    pathname.startsWith("/reservar") ||
+    pathname.startsWith("/tienda") ||
     pathname.startsWith("/_next")
   ) {
     return null;
@@ -33,7 +35,6 @@ function destino(request: NextRequest) {
 
 export async function middleware(request: NextRequest) {
   const url = destino(request);
-
   let response = url ? NextResponse.rewrite(url) : NextResponse.next({ request });
 
   const supabase = createServerClient(
