@@ -127,9 +127,16 @@ export default function BarberosPage() {
 
   const borrar = async (id: string) => {
     if (!barberiaId) return;
-    const supabase = createClient();
-    const { error: e } = await supabase.from("barberos").delete().eq("id", id);
-    if (e) setError(e.message);
+    if (!window.confirm("¿Borrar barbero y su acceso?")) return;
+    setError(null);
+    const t = await token();
+    const res = await fetch("/api/barberos/acceso", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+      body: JSON.stringify({ barberoId: id }),
+    });
+    const json = (await res.json()) as { error?: string };
+    if (!res.ok) setError(json.error || "No se pudo borrar");
     else await load(barberiaId);
   };
 
