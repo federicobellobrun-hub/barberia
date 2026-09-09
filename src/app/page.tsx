@@ -107,9 +107,10 @@ export default function HomePage() {
           delay=".16s"
         />
         <Card
-          title="Uñas y pestañas"
-          text="Agenda para profesionales de estética."
-          label="Próximamente"
+          title="Pestañas y uñas"
+          text="Agenda para pestañas, uñas y estética."
+          href="/b/vale-studio"
+          label="Explorar →"
           img="https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80"
           delay=".24s"
         />
