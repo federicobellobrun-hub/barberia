@@ -15,6 +15,11 @@ function slugDeHost() {
   return sub;
 }
 
+function slugDeQuery() {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("b");
+}
+
 export default function BrandHeader({ left }: { left?: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const [nombre, setNombre] = useState("");
@@ -27,12 +32,13 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
       const supabase = createClient();
       const slugPath = pathname.startsWith("/b/") ? pathname.split("/")[2] : null;
       const slugHost = slugDeHost();
-      const enPublico = Boolean(slugPath || slugHost) || pathname.startsWith("/reservar") || pathname.startsWith("/tienda");
+      const slugQuery = slugDeQuery();
+      const enPublico = Boolean(slugPath || slugHost || slugQuery) || pathname.startsWith("/reservar") || pathname.startsWith("/tienda");
 
-      let slug = slugPath || slugHost || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null);
+      let slug = slugPath || slugHost || slugQuery || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null);
 
-      if (enPublico && (slugPath || slugHost)) {
-        slug = slugPath || slugHost;
+      if (enPublico && (slugPath || slugHost || slugQuery)) {
+        slug = slugPath || slugHost || slugQuery;
         if (slug) localStorage.setItem("barberia_slug", slug);
       } else if (!enPublico) {
         const {
@@ -55,9 +61,10 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
       if (typeof window !== "undefined") localStorage.setItem("barberia_slug", slug);
       const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug, rubro").eq("slug", slug).maybeSingle();
       if (b?.nombre) setNombre(b.nombre);
+      else setNombre(slug);
       setLogo(b?.logo_url || null);
       setRubro(b?.rubro || "barberia");
-      setHome(b?.slug ? `/b/${b.slug}` : "/");
+      setHome(b?.slug ? `/b/${b.slug}` : `/b/${slug}`);
     };
     void load();
   }, [pathname]);
