@@ -34,7 +34,7 @@ function Ornamento({ color }: { color: string }) {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.2">
         <path d="M12 3c2 3 2 5 0 8 2 0 5 1 7 3-4 0-6 1-7 4-1-3-3-4-7-4 2-2 5-3 7-3-2-3-2-5 0-8z" />
       </svg>
-      <span className="h-px w-8" style={{ background: color, opacity: 0.45 }} />
+      <span className="h-px w-8" style={{ background: color, opacity: 0.35 }} />
     </div>
   );
 }
@@ -126,9 +126,16 @@ export default function BarberiaHomePage() {
         </Link>
         <div className="grid grid-cols-2 gap-2 mb-3">
           <Link href={`/tienda?b=${slug}`} className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M4 8h16l-1 11H5L4 8zM9 8V6a3 3 0 0 1 6 0v2" />
+            </svg>
             Productos
           </Link>
           <Link href="/login" className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <rect x="5" y="11" width="14" height="10" rx="2" />
+              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+            </svg>
             {t.panel}
           </Link>
         </div>
@@ -139,14 +146,18 @@ export default function BarberiaHomePage() {
               <path d="M12 8v4l3 2" />
             </svg>
             <div>
-              <p className="text-[10px] tracking-[0.18em] uppercase" style={{ color: t.muted }}>Horario</p>
+              <p className="text-[10px] tracking-[0.18em] uppercase" style={{ color: t.muted }}>
+                Horario
+              </p>
               <p className="text-[15px]">{resumenHorario}</p>
             </div>
           </div>
         )}
         {fotos.length > 0 && (
           <section>
-            <h2 className="text-center text-xs tracking-[0.16em] uppercase mb-3" style={{ color: t.muted }}>{t.galeria}</h2>
+            <h2 className="text-center text-xs tracking-[0.16em] uppercase mb-3" style={{ color: t.muted }}>
+              {t.galeria}
+            </h2>
             <div className="grid grid-cols-2 gap-2">
               {fotos.map((f) => (
                 <img key={f.id} src={f.url} alt="" className="h-36 w-full object-cover" style={{ borderRadius: rosa ? 18 : 8 }} />
