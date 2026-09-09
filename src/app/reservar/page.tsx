@@ -36,7 +36,6 @@ function toMinutes(hhmm: string) {
 function fromMinutes(mins: number) {
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
-
 function slugDeHost() {
   if (typeof window === "undefined") return null;
   const host = window.location.hostname;
@@ -51,7 +50,10 @@ function ReservarPage() {
   const slug = search.get("b") || slugDeHost() || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
 
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
-  const [rubro, setRubro] = useState("barberia");
+  const [rubro, setRubro] = useState(() => {
+    if (typeof window === "undefined") return "barberia";
+    return localStorage.getItem("rubro_" + slug) || "barberia";
+  });
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [horariosLocal, setHorariosLocal] = useState<Horario[]>([]);
@@ -73,6 +75,7 @@ function ReservarPage() {
 
   const t = temaRubro(rubro);
   const rosa = rubro === "pestanas_unas";
+  const radio = rosa ? 999 : 16;
 
   useEffect(() => {
     localStorage.setItem("barberia_slug", slug);
@@ -82,7 +85,9 @@ function ReservarPage() {
         const { data: shop, error: shopErr } = await supabase.from("barberias").select("id, rubro").eq("slug", slug).maybeSingle();
         if (shopErr || !shop) throw new Error("No se encontró el local");
         setBarberiaId(shop.id);
-        setRubro(shop.rubro || "barberia");
+        const r = shop.rubro || "barberia";
+        setRubro(r);
+        localStorage.setItem("rubro_" + slug, r);
         const desde = new Date();
         const hasta = new Date();
         hasta.setDate(hasta.getDate() + 40);
@@ -216,8 +221,6 @@ function ReservarPage() {
 
   const hoy = ymdMontevideo(new Date());
   const mesLabel = mes.toLocaleDateString("es-UY", { month: "long", year: "numeric" });
-  const radio = rosa ? 999 : 16;
-
   const nav = (
     <BottomNav
       items={[
@@ -244,16 +247,12 @@ function ReservarPage() {
   if (ok && servicio) {
     return (
       <main className="min-h-screen px-6 py-20 text-center pb-28" style={{ background: t.bg, color: t.text }}>
-        <h1 className="text-4xl tracking-tight" style={{ fontFamily: "Georgia, Times, serif" }}>
-          Turno reservado
-        </h1>
+        <h1 className="text-4xl tracking-tight" style={{ fontFamily: "Georgia, Times, serif" }}>Turno reservado</h1>
         <p className="mt-4">
           {servicio.nombre}
           {barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}
         </p>
-        <Link href={`/b/${slug}`} className="inline-block mt-8">
-          Volver
-        </Link>
+        <Link href={`/b/${slug}`} className="inline-block mt-8">Volver</Link>
         {nav}
       </main>
     );
@@ -263,9 +262,7 @@ function ReservarPage() {
     <main className="min-h-screen pb-28" style={{ background: t.bg, color: t.text }}>
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
-        <h1 className="text-[34px] tracking-tight leading-9" style={{ fontFamily: "Georgia, Times, serif" }}>
-          {t.cita}
-        </h1>
+        <h1 className="text-[34px] tracking-tight leading-9" style={{ fontFamily: "Georgia, Times, serif" }}>{t.cita}</h1>
         <p className="mt-2 mb-5" style={{ color: t.muted }}>
           Elegí servicio, {rosa ? "profesional" : "barbero"}, día y hora
         </p>
@@ -276,32 +273,11 @@ function ReservarPage() {
           {servicios.map((s) => {
             const activo = servicio?.id === s.id;
             return (
-              <button
-                key={s.id}
-                onClick={() => {
-                  setServicio(s);
-                  setHora("");
-                }}
-                className="text-left overflow-hidden flex flex-col h-full"
-                style={{
-                  background: activo ? t.card : t.card,
-                  border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`,
-                  borderRadius: rosa ? 18 : 16,
-                  color: t.text,
-                }}
-              >
-                {s.imagen_url ? (
-                  <img src={s.imagen_url} alt="" className="h-24 w-full object-cover shrink-0" />
-                ) : (
-                  <div className="h-24 w-full shrink-0 flex items-center justify-center text-xl" style={{ background: t.bg }}>
-                    ✂
-                  </div>
-                )}
+              <button key={s.id} onClick={() => { setServicio(s); setHora(""); }} className="text-left overflow-hidden flex flex-col h-full" style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16, color: t.text }}>
+                {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-24 w-full object-cover shrink-0" /> : <div className="h-24 w-full shrink-0 flex items-center justify-center text-xl" style={{ background: t.bg }}>✂</div>}
                 <div className="p-3 flex-1">
                   <p className="text-sm font-medium leading-4 line-clamp-2">{s.nombre}</p>
-                  <p className="text-xs mt-1" style={{ color: t.muted }}>
-                    ${s.precio}
-                  </p>
+                  <p className="text-xs mt-1" style={{ color: t.muted }}>${s.precio}</p>
                 </div>
               </button>
             );
@@ -315,26 +291,8 @@ function ReservarPage() {
               {barberos.map((b) => {
                 const activoSel = barbero?.id === b.id;
                 return (
-                  <button
-                    key={b.id}
-                    onClick={() => {
-                      setBarbero(b);
-                      setHora("");
-                    }}
-                    className="shrink-0 p-3 w-28 text-center"
-                    style={{
-                      background: t.card,
-                      border: activoSel ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`,
-                      borderRadius: rosa ? 18 : 16,
-                    }}
-                  >
-                    {b.foto_url ? (
-                      <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" />
-                    ) : (
-                      <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: t.bg }}>
-                        {b.nombre.slice(0, 1)}
-                      </div>
-                    )}
+                  <button key={b.id} onClick={() => { setBarbero(b); setHora(""); }} className="shrink-0 p-3 w-28 text-center" style={{ background: t.card, border: activoSel ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
+                    {b.foto_url ? <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" /> : <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: t.bg }}>{b.nombre.slice(0, 1)}</div>}
                     <p className="text-sm font-medium leading-4">{b.nombre}</p>
                   </button>
                 );
@@ -351,9 +309,7 @@ function ReservarPage() {
             <button onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
           </div>
           <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>
-            {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
-              <span key={i}>{d}</span>
-            ))}
+            {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => <span key={i}>{d}</span>)}
           </div>
           <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
             {celdasMes.map((value, i) => {
@@ -361,20 +317,7 @@ function ReservarPage() {
               const activoDia = fecha === value;
               const pasado = value < hoy;
               return (
-                <button
-                  key={value}
-                  disabled={pasado}
-                  onClick={() => {
-                    setFecha(value);
-                    setHora("");
-                    setEsperaOk(false);
-                  }}
-                  className="h-8 w-8 mx-auto rounded-full"
-                  style={{
-                    background: activoDia ? t.btn : "transparent",
-                    color: activoDia ? t.btnText : pasado ? t.line : t.text,
-                  }}
-                >
+                <button key={value} disabled={pasado} onClick={() => { setFecha(value); setHora(""); setEsperaOk(false); }} className="h-8 w-8 mx-auto rounded-full" style={{ background: activoDia ? t.btn : "transparent", color: activoDia ? t.btnText : pasado ? t.line : t.text }}>
                   {Number(value.slice(8))}
                 </button>
               );
@@ -386,32 +329,17 @@ function ReservarPage() {
           <div className="mb-6">
             <div className="flex gap-2 overflow-x-auto pb-2">
               {horariosDelDia.map((h) => (
-                <button
-                  key={h}
-                  onClick={() => setHora(h)}
-                  className="shrink-0 px-3 py-2 text-sm font-medium"
-                  style={{
-                    background: hora === h ? t.btn : t.card,
-                    color: hora === h ? t.btnText : t.text,
-                    borderRadius: radio,
-                  }}
-                >
-                  {h}
-                </button>
+                <button key={h} onClick={() => setHora(h)} className="shrink-0 px-3 py-2 text-sm font-medium" style={{ background: hora === h ? t.btn : t.card, color: hora === h ? t.btnText : t.text, borderRadius: radio }}>{h}</button>
               ))}
             </div>
             {horariosDelDia.length === 0 && (
               <div className="mt-3">
                 <p className="text-sm mb-3">No hay horarios ese día.</p>
-                {esperaOk ? (
-                  <p className="text-sm">Quedaste en lista de espera.</p>
-                ) : (
+                {esperaOk ? <p className="text-sm">Quedaste en lista de espera.</p> : (
                   <form onSubmit={anotarEspera} className="space-y-2">
                     <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
                     <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
-                    <button className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
-                      Anotarme en lista de espera
-                    </button>
+                    <button className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>Anotarme en lista de espera</button>
                   </form>
                 )}
               </div>
