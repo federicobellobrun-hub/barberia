@@ -45,8 +45,12 @@ export default function BarberiaHomePage() {
   const [fotos, setFotos] = useState<{ id: string; url: string }[]>([]);
   const [horarios, setHorarios] = useState<{ dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const t = temaRubro(shop?.rubro);
-  const rosa = shop?.rubro === "pestanas_unas";
+  const [rubro, setRubro] = useState(() => {
+    if (typeof window === "undefined") return "barberia";
+    return localStorage.getItem("rubro_" + slug) || "barberia";
+  });
+  const t = temaRubro(shop?.rubro || rubro);
+  const rosa = (shop?.rubro || rubro) === "pestanas_unas";
 
   useEffect(() => {
     if (slug) localStorage.setItem("barberia_slug", slug);
@@ -62,6 +66,9 @@ export default function BarberiaHomePage() {
         return;
       }
       setShop(b as Shop);
+      const r = (b as Shop).rubro || "barberia";
+      setRubro(r);
+      localStorage.setItem("rubro_" + slug, r);
       const [f, h] = await Promise.all([
         supabase.from("fotos").select("id, url").eq("barberia_id", b.id).eq("mostrar_inicio", true).order("created_at", { ascending: false }).limit(6),
         supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin, activo").eq("barberia_id", b.id).order("dia_semana"),
@@ -86,13 +93,11 @@ export default function BarberiaHomePage() {
       <div className="max-w-md mx-auto px-5 pt-4">
         <BrandHeader />
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-
         {shop?.portada_url && (
           <div className="mb-6 overflow-hidden" style={{ borderRadius: rosa ? 22 : 8 }}>
             <img src={shop.portada_url} alt="" className="w-full h-52 object-cover" />
           </div>
         )}
-
         <p className="text-center text-[11px] tracking-[0.22em] uppercase" style={{ color: t.muted }}>
           {rosa ? "Estudio" : "Barbería"}
         </p>
@@ -105,7 +110,6 @@ export default function BarberiaHomePage() {
             Pestañas · Uñas · Belleza
           </p>
         )}
-
         {shop?.direccion && (
           <p className="text-center text-[15px] mb-1">
             <Pin />
@@ -117,38 +121,19 @@ export default function BarberiaHomePage() {
             Cómo llegar →
           </a>
         )}
-
-        <Link
-          href={`/reservar?b=${slug}`}
-          className="block text-center py-3.5 text-[16px] mb-3"
-          style={{
-            background: t.btn,
-            color: t.btnText,
-            borderRadius: rosa ? 999 : 8,
-            boxShadow: rosa ? "0 8px 20px rgba(183,110,121,.28)" : "none",
-          }}
-        >
+        <Link href={`/reservar?b=${slug}`} className="block text-center py-3.5 text-[16px] mb-3" style={{ background: t.btn, color: t.btnText, borderRadius: rosa ? 999 : 8, boxShadow: rosa ? "0 8px 20px rgba(183,110,121,.28)" : "none" }}>
           Reservar
         </Link>
-
         <div className="grid grid-cols-2 gap-2 mb-3">
           <Link href={`/tienda?b=${slug}`} className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <path d="M9 8V6a3 3 0 0 1 6 0v2M7 8h10l-1 13H8L7 8z" />
-            </svg>
             Productos
           </Link>
           <Link href="/login" className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <circle cx="12" cy="8" r="3.2" />
-              <path d="M5 19c1.4-3.2 3.8-5 7-5s5.6 1.8 7 5" />
-            </svg>
             {t.panel}
           </Link>
         </div>
-
         {resumenHorario && (
-          <div className="px-4 py-3.5 mb-8 flex items-center gap-3" style={{ background: t.card, borderRadius: rosa ? 22 : 8, boxShadow: rosa ? "0 6px 18px rgba(58,36,48,.06)" : "none" }}>
+          <div className="px-4 py-3.5 mb-8 flex items-center gap-3" style={{ background: t.card, borderRadius: rosa ? 22 : 8 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
               <circle cx="12" cy="12" r="8" />
               <path d="M12 8v4l3 2" />
@@ -159,12 +144,9 @@ export default function BarberiaHomePage() {
             </div>
           </div>
         )}
-
         {fotos.length > 0 && (
           <section>
-            <h2 className="text-center text-xs tracking-[0.16em] uppercase mb-3" style={{ color: t.muted }}>
-              {t.galeria}
-            </h2>
+            <h2 className="text-center text-xs tracking-[0.16em] uppercase mb-3" style={{ color: t.muted }}>{t.galeria}</h2>
             <div className="grid grid-cols-2 gap-2">
               {fotos.map((f) => (
                 <img key={f.id} src={f.url} alt="" className="h-36 w-full object-cover" style={{ borderRadius: rosa ? 18 : 8 }} />
@@ -173,7 +155,6 @@ export default function BarberiaHomePage() {
           </section>
         )}
       </div>
-
       <BottomNav
         items={[
           { href: `/b/${slug}`, label: "Inicio", active: true },
