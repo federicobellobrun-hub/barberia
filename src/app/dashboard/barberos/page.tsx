@@ -11,6 +11,7 @@ type Barbero = { id: string; nombre: string; foto_url: string | null; activo: bo
 
 export default function BarberosPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
+  const [rubro, setRubro] = useState("barberia");
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
@@ -20,14 +21,13 @@ export default function BarberosPage() {
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const router = useRouter();
+  const rosa = rubro === "pestanas_unas";
+  const titulo = rosa ? "Equipo" : "Barberos";
+  const uno = rosa ? "profesional" : "barbero";
 
   const load = async (id: string) => {
     const supabase = createClient();
-    const { data, error: e } = await supabase
-      .from("barberos")
-      .select("id, nombre, foto_url, activo")
-      .eq("barberia_id", id)
-      .order("nombre");
+    const { data, error: e } = await supabase.from("barberos").select("id, nombre, foto_url, activo").eq("barberia_id", id).order("nombre");
     if (e) setError(e.message);
     setBarberos(data || []);
   };
@@ -42,6 +42,8 @@ export default function BarberosPage() {
       const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
       if (!data?.barberia_id) return;
       setBarberiaId(data.barberia_id);
+      const { data: shop } = await supabase.from("barberias").select("rubro").eq("id", data.barberia_id).maybeSingle();
+      setRubro(shop?.rubro || "barberia");
       await load(data.barberia_id);
     };
     void init();
@@ -90,7 +92,7 @@ export default function BarberosPage() {
       if (foto && data?.id) await subirFoto(data.id, foto, barberiaId);
       if (email && password && data?.id) {
         await crearAcceso(data.id, email, password);
-        setMsg("Barbero y acceso creados");
+        setMsg(`${rosa ? "Profesional" : "Barbero"} y acceso creados`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
@@ -104,7 +106,7 @@ export default function BarberosPage() {
   };
 
   const accesoExistente = async (id: string) => {
-    const mail = window.prompt("Email del barbero");
+    const mail = window.prompt(`Email de la ${uno}`);
     const pass = window.prompt("Contraseña (mínimo 6)");
     if (!mail || !pass) return;
     try {
@@ -127,7 +129,7 @@ export default function BarberosPage() {
 
   const borrar = async (id: string) => {
     if (!barberiaId) return;
-    if (!window.confirm("¿Borrar barbero y su acceso?")) return;
+    if (!window.confirm(`¿Borrar ${uno} y su acceso?`)) return;
     setError(null);
     const t = await token();
     const res = await fetch("/api/barberos/acceso", {
@@ -144,7 +146,7 @@ export default function BarberosPage() {
     <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
-        <h1 className="text-[34px] font-semibold tracking-tight mb-5">Barberos</h1>
+        <h1 className="text-[34px] font-semibold tracking-tight mb-5">{titulo}</h1>
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
         {msg && <p className="text-sm mb-3">{msg}</p>}
 
@@ -159,7 +161,7 @@ export default function BarberosPage() {
               setPreview(file ? URL.createObjectURL(file) : null);
             }}
           />
-          <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del barbero" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={`Nombre ${rosa ? "de la profesional" : "del barbero"}`} className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (opcional, para que entre)" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña (opcional)" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
