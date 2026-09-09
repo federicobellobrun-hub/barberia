@@ -25,14 +25,18 @@ function waNumber(telefono: string) {
   return `598${solo}`;
 }
 
+function slugDeHost() {
+  if (typeof window === "undefined") return null;
+  const host = window.location.hostname;
+  if (!host.endsWith("reservoapps.com")) return null;
+  const sub = host.replace(".reservoapps.com", "");
+  if (!sub || sub === "www") return null;
+  return sub;
+}
+
 function TiendaPage() {
   const search = useSearchParams();
-  const host =
-    typeof window !== "undefined" && window.location.hostname.endsWith("reservoapps.com")
-      ? window.location.hostname.replace(".reservoapps.com", "")
-      : "";
-  const slugHost = host && host !== "www" && host !== "reservoapps" ? host : null;
-  const slug = search.get("b") || slugHost || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
+  const slug = search.get("b") || slugDeHost() || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
 
   const [productos, setProductos] = useState<Producto[]>([]);
   const [carrito, setCarrito] = useState<Item[]>([]);
@@ -40,9 +44,10 @@ function TiendaPage() {
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [rubro, setRubro] = useState<string>("barberia");
+  const [rubro, setRubro] = useState("barberia");
   const t = temaRubro(rubro);
   const rosa = rubro === "pestanas_unas";
+  const radio = rosa ? 999 : 16;
 
   useEffect(() => {
     localStorage.setItem("barberia_slug", slug);
@@ -54,7 +59,7 @@ function TiendaPage() {
         .eq("slug", slug)
         .maybeSingle();
       if (shopErr || !shop) {
-        setError("No se encontró la barbería");
+        setError("No se encontró el local");
         return;
       }
       setWhatsapp(shop.whatsapp_pedidos || "");
@@ -92,7 +97,7 @@ function TiendaPage() {
   };
 
   const pedir = () => {
-    if (!whatsapp) return setError("Esta barbería no cargó WhatsApp en Configuración");
+    if (!whatsapp) return setError("Este local no cargó WhatsApp en Configuración");
     if (!nombre || !telefono || carrito.length === 0) return;
     const lineas = carrito.map((i) => `• ${i.cantidad} x ${i.nombre} ($${i.precio})`).join("\n");
     const texto = `Hola, soy ${nombre}. Quiero este pedido:\n\n${lineas}\n\nTotal: $${total}\nWhatsApp: ${telefono}`;
@@ -112,7 +117,7 @@ function TiendaPage() {
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         {productos.length === 0 && !error && (
           <p className="text-sm" style={{ color: t.muted }}>
-            Este estudio todavía no cargó productos.
+            Este local todavía no cargó productos.
           </p>
         )}
 
@@ -134,7 +139,7 @@ function TiendaPage() {
                 <button
                   onClick={() => agregar(p)}
                   className="mt-2 w-full py-2 text-sm"
-                  style={{ background: t.btn, color: t.btnText, borderRadius: rosa ? 999 : 12 }}
+                  style={{ background: t.btn, color: t.btnText, borderRadius: radio }}
                 >
                   Agregar
                 </button>
@@ -155,9 +160,21 @@ function TiendaPage() {
               </div>
             ))}
             <p className="font-medium my-3">Total ${total}</p>
-            <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-3 py-3 mb-2" style={{ background: t.bg, border: `1px solid ${t.line}`, color: t.text, borderRadius: rosa ? 999 : 12 }} />
-            <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-3 py-3 mb-3" style={{ background: t.bg, border: `1px solid ${t.line}`, color: t.text, borderRadius: rosa ? 999 : 12 }} />
-            <button onClick={pedir} className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: rosa ? 999 : 16 }}>
+            <input
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Nombre"
+              className="w-full px-3 py-3 mb-2"
+              style={{ background: t.bg, border: `1px solid ${t.line}`, color: t.text, borderRadius: radio }}
+            />
+            <input
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              placeholder="WhatsApp"
+              className="w-full px-3 py-3 mb-3"
+              style={{ background: t.bg, border: `1px solid ${t.line}`, color: t.text, borderRadius: radio }}
+            />
+            <button onClick={pedir} className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
               Pedir por WhatsApp
             </button>
           </section>
@@ -169,6 +186,10 @@ function TiendaPage() {
           { href: `/reservar?b=${slug}`, label: "Reservar" },
           { href: `/tienda?b=${slug}`, label: "Tienda", active: true },
         ]}
+        bg={rosa ? "#FBF6F8" : "#F5F0E8"}
+        line={t.line}
+        text={t.text}
+        muted={t.muted}
       />
     </main>
   );
