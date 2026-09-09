@@ -8,9 +8,10 @@ import { createClient } from "@/lib/supabase";
 
 function slugDeHost() {
   if (typeof window === "undefined") return null;
-  const host = window.location.hostname;
-  if (!host.endsWith("reservoapps.com")) return null;
-  const sub = host.replace(".reservoapps.com", "");
+  const host = window.location.hostname.replace(/^www\./, "");
+  if (host === "reservoapps.com" || host === "localhost") return null;
+  if (!host.endsWith(".reservoapps.com")) return null;
+  const sub = host.replace(/\.reservoapps\.com$/, "");
   if (!sub || sub === "www") return null;
   return sub;
 }
@@ -58,10 +59,12 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
       }
 
       slug = slug || "diano";
-      if (typeof window !== "undefined") localStorage.setItem("barberia_slug", slug);
+      if (typeof window !== "undefined" && slug !== "reservoapps.com") {
+        localStorage.setItem("barberia_slug", slug);
+      }
       const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug, rubro").eq("slug", slug).maybeSingle();
       if (b?.nombre) setNombre(b.nombre);
-      else setNombre(slug);
+      else setNombre(slug === "reservoapps.com" ? "Reservo" : slug);
       setLogo(b?.logo_url || null);
       setRubro(b?.rubro || "barberia");
       setHome(b?.slug ? `/b/${b.slug}` : `/b/${slug}`);
