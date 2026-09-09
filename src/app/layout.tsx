@@ -3,12 +3,15 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Diano Barbershop",
-  description: "Reservas, agenda y productos",
+  title: {
+    default: "Reservo Apps",
+    template: "%s · Reservo Apps",
+  },
+  description: "Reservas para barberías, pestañas y uñas",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Diano",
+    title: "Reservo Apps",
     statusBarStyle: "default",
   },
 };
