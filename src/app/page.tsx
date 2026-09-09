@@ -113,7 +113,7 @@ export default function HomePage() {
           text="Agenda para pestañas, uñas y estética."
           href="/b/vale-studio"
           label="Explorar →"
-          img="https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80"
+          img="https://images.unsplash.com/photo-1583001931096-959e9a1a6223?w=800&q=80&fit=crop"
           delay=".24s"
         />
 
