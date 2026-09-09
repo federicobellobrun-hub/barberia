@@ -36,27 +36,29 @@ function Card({
   img: string;
   delay: string;
 }) {
-  return (
-    <article className="card rise overflow-hidden rounded-2xl mb-3 h-[168px]" style={{ background: "#EFE8DC", animationDelay: delay }}>
-      <div className="grid grid-cols-2 h-full">
-        <div className="p-4 flex flex-col justify-between">
-          <div>
-            <p className="text-lg leading-6" style={{ fontFamily: "Georgia, Times, serif" }}>
-              {title}
-            </p>
-            <div className="w-8 h-px bg-[#1C1712] my-2" />
-            <p className="text-xs leading-4 text-[#6f675e]">{text}</p>
-          </div>
-          {href ? (
-            <Link href={href} className="text-xs">
-              {label}
-            </Link>
-          ) : (
-            <span className="text-xs text-[#9a9388]">{label}</span>
-          )}
+  const inner = (
+    <div className="grid grid-cols-2 h-full">
+      <div className="p-4 flex flex-col justify-between">
+        <div>
+          <p className="text-lg leading-6" style={{ fontFamily: "Georgia, Times, serif" }}>
+            {title}
+          </p>
+          <div className="w-8 h-px bg-[#1C1712] my-2" />
+          <p className="text-xs leading-4 text-[#6f675e]">{text}</p>
         </div>
-        <img src={img} alt={title} className="h-full w-full object-cover" />
+        <span className="text-sm underline underline-offset-2">{label}</span>
       </div>
+      <img src={img} alt={title} className="h-full w-full object-cover" />
+    </div>
+  );
+
+  return href ? (
+    <Link href={href} className="card rise mb-3 block h-[168px] overflow-hidden rounded-2xl" style={{ background: "#EFE8DC", animationDelay: delay }}>
+      {inner}
+    </Link>
+  ) : (
+    <article className="card rise mb-3 h-[168px] overflow-hidden rounded-2xl" style={{ background: "#EFE8DC", animationDelay: delay }}>
+      {inner}
     </article>
   );
 }
