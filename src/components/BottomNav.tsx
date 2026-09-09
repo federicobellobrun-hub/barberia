@@ -29,9 +29,21 @@ function Icon({ label }: { label: string }) {
   );
 }
 
-export default function BottomNav({ items }: { items: Item[] }) {
+export default function BottomNav({
+  items,
+  bg = "#F5F0E8",
+  line = "#cfc6b8",
+  text = "#1C1712",
+  muted = "#7a7268",
+}: {
+  items: Item[];
+  bg?: string;
+  line?: string;
+  text?: string;
+  muted?: string;
+}) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0" style={{ background: "#F5F0E8", borderTop: "1px solid #cfc6b8" }}>
+    <nav className="fixed bottom-0 left-0 right-0" style={{ background: bg, borderTop: `1px solid ${line}` }}>
       <div className="max-w-md mx-auto grid" style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}>
         {items.map((item) => {
           const inner = (
@@ -41,11 +53,11 @@ export default function BottomNav({ items }: { items: Item[] }) {
             </span>
           );
           return item.active ? (
-            <span key={item.href} className="text-center" style={{ color: "#1C1712" }}>
+            <span key={item.href} className="text-center" style={{ color: text }}>
               {inner}
             </span>
           ) : (
-            <Link key={item.href} href={item.href} className="text-center" style={{ color: "#7a7268" }}>
+            <Link key={item.href} href={item.href} className="text-center" style={{ color: muted }}>
               {inner}
             </Link>
           );
