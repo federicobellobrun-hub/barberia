@@ -6,23 +6,33 @@ import { usePathname } from "next/navigation";
 import ThemeToggle from "./ThemeToggle";
 import { createClient } from "@/lib/supabase";
 
+function slugDeHost() {
+  if (typeof window === "undefined") return null;
+  const host = window.location.hostname;
+  if (!host.endsWith("reservoapps.com")) return null;
+  const sub = host.replace(".reservoapps.com", "");
+  if (!sub || sub === "www") return null;
+  return sub;
+}
+
 export default function BrandHeader({ left }: { left?: React.ReactNode }) {
   const pathname = usePathname() || "/";
-  const [nombre, setNombre] = useState("Diano Barbershop");
+  const [nombre, setNombre] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
   const [home, setHome] = useState("/");
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient();
-      const slugFromPath = pathname.startsWith("/b/") ? pathname.split("/")[2] : null;
-      const enPublico = Boolean(slugFromPath) || pathname.startsWith("/reservar") || pathname.startsWith("/tienda");
+      const slugPath = pathname.startsWith("/b/") ? pathname.split("/")[2] : null;
+      const slugHost = slugDeHost();
+      const enPublico = Boolean(slugPath || slugHost) || pathname.startsWith("/reservar") || pathname.startsWith("/tienda");
 
-      let slug = slugFromPath || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null);
+      let slug = slugPath || slugHost || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null);
 
-      if (enPublico && slugFromPath) {
-        slug = slugFromPath;
-        localStorage.setItem("barberia_slug", slugFromPath);
+      if (enPublico && (slugPath || slugHost)) {
+        slug = slugPath || slugHost;
+        if (slug) localStorage.setItem("barberia_slug", slug);
       } else if (!enPublico) {
         const {
           data: { user },
@@ -49,9 +59,9 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
     void load();
   }, [pathname]);
 
-  const partes = nombre.trim().split(" ");
-  const principal = partes[0] || "Diano";
-  const resto = partes.slice(1).join(" ") || "Barbershop";
+  const partes = (nombre || "Reservo").trim().split(" ");
+  const principal = partes[0];
+  const resto = partes.slice(1).join(" ");
 
   return (
     <header className="flex items-center justify-between mb-6">
@@ -79,9 +89,11 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
           </svg>
           <span className="h-px w-10" style={{ background: "currentColor", opacity: 0.35 }} />
         </div>
-        <p className="tracking-[0.32em] uppercase text-[11px]" style={{ color: "var(--muted)" }}>
-          {resto}
-        </p>
+        {resto ? (
+          <p className="tracking-[0.32em] uppercase text-[11px]" style={{ color: "var(--muted)" }}>
+            {resto}
+          </p>
+        ) : null}
       </Link>
       <div className="w-14 flex justify-end">
         <ThemeToggle />
