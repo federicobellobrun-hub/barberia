@@ -131,7 +131,14 @@ export default function PanelReservo() {
 
         {!rubroVista && (
           <>
-            <p className="text-sm text-[#7a7268] mt-2 mb-8">Elegí el tipo de agenda.</p>
+            <p className="text-sm text-[#7a7268] mt-2 mb-6">Elegí el tipo de agenda.</p>
+            <Link
+              href="/dashboard"
+              className="mb-8 block rounded-2xl p-4 text-center text-sm"
+              style={{ background: "#1C1712", color: "#F5F0E8" }}
+            >
+              Editar demo Diano →
+            </Link>
             {RUBROS.map((r) => {
               const n = lista.filter((b) => (b.rubro || "barberia") === r.id).length;
               return (
@@ -194,6 +201,7 @@ export default function PanelReservo() {
                 </div>
                 <div className="flex gap-4 text-xs">
                   <Link href={`/b/${b.slug}`}>Ver web</Link>
+                  {b.slug === "diano" ? <Link href="/dashboard">Editar panel</Link> : null}
                   {b.slug !== "diano" ? (
                     <button type="button" className="text-red-700" onClick={() => void borrar(b.id, b.slug)}>
                       Borrar
