@@ -27,6 +27,18 @@ function Pin() {
   );
 }
 
+function Ornamento({ color }: { color: string }) {
+  return (
+    <div className="flex items-center justify-center gap-2 my-3">
+      <span className="h-px w-8" style={{ background: color, opacity: 0.45 }} />
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.2">
+        <path d="M12 3c2 3 2 5 0 8 2 0 5 1 7 3-4 0-6 1-7 4-1-3-3-4-7-4 2-2 5-3 7-3-2-3-2-5 0-8z" />
+      </svg>
+      <span className="h-px w-8" style={{ background: color, opacity: 0.45 }} />
+    </div>
+  );
+}
+
 export default function BarberiaHomePage() {
   const { slug } = useParams<{ slug: string }>();
   const [shop, setShop] = useState<Shop | null>(null);
@@ -34,6 +46,7 @@ export default function BarberiaHomePage() {
   const [horarios, setHorarios] = useState<{ dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const t = temaRubro(shop?.rubro);
+  const rosa = shop?.rubro === "pestanas_unas";
 
   useEffect(() => {
     if (slug) localStorage.setItem("barberia_slug", slug);
@@ -68,8 +81,6 @@ export default function BarberiaHomePage() {
     return `${nombres[0]}–${nombres[nombres.length - 1]} ${ini} – ${fin}`;
   }, [horarios]);
 
-  const caja = { border: `1px solid ${t.text}` };
-
   return (
     <main className="min-h-screen pb-28" style={{ background: t.bg, color: t.text }}>
       <div className="max-w-md mx-auto px-5 pt-4">
@@ -77,12 +88,23 @@ export default function BarberiaHomePage() {
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
         {shop?.portada_url && (
-          <img src={shop.portada_url} alt="" className="w-full h-52 object-cover mb-6" style={{ borderRadius: 14 }} />
+          <div className="mb-6 overflow-hidden" style={{ borderRadius: rosa ? 22 : 8 }}>
+            <img src={shop.portada_url} alt="" className="w-full h-52 object-cover" />
+          </div>
         )}
 
-        <h1 className="text-center mb-4" style={{ fontFamily: "Georgia, Times, serif", fontSize: "42px", lineHeight: 1.05 }}>
+        <p className="text-center text-[11px] tracking-[0.22em] uppercase" style={{ color: t.muted }}>
+          {rosa ? "Estudio" : "Barbería"}
+        </p>
+        {rosa && <Ornamento color={t.btn} />}
+        <h1 className="text-center mb-2" style={{ fontFamily: "Georgia, Times, serif", fontSize: rosa ? "38px" : "42px", lineHeight: 1.1 }}>
           {t.cita}
         </h1>
+        {rosa && (
+          <p className="text-center text-sm mb-5" style={{ color: t.muted, fontFamily: "Georgia, Times, serif" }}>
+            Pestañas · Uñas · Belleza
+          </p>
+        )}
 
         {shop?.direccion && (
           <p className="text-center text-[15px] mb-1">
@@ -99,22 +121,34 @@ export default function BarberiaHomePage() {
         <Link
           href={`/reservar?b=${slug}`}
           className="block text-center py-3.5 text-[16px] mb-3"
-          style={{ ...caja, background: t.btn, color: t.btnText, borderRadius: 14, border: "none" }}
+          style={{
+            background: t.btn,
+            color: t.btnText,
+            borderRadius: rosa ? 999 : 8,
+            boxShadow: rosa ? "0 8px 20px rgba(183,110,121,.28)" : "none",
+          }}
         >
           Reservar
         </Link>
 
         <div className="grid grid-cols-2 gap-2 mb-3">
-          <Link href={`/tienda?b=${slug}`} className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ ...caja, borderRadius: 14 }}>
+          <Link href={`/tienda?b=${slug}`} className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <path d="M9 8V6a3 3 0 0 1 6 0v2M7 8h10l-1 13H8L7 8z" />
+            </svg>
             Productos
           </Link>
-          <Link href="/login" className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ ...caja, borderRadius: 14 }}>
+          <Link href="/login" className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <circle cx="12" cy="8" r="3.2" />
+              <path d="M5 19c1.4-3.2 3.8-5 7-5s5.6 1.8 7 5" />
+            </svg>
             {t.panel}
           </Link>
         </div>
 
         {resumenHorario && (
-          <div className="px-4 py-3.5 mb-8 flex items-center gap-3" style={{ background: t.card, borderRadius: 14 }}>
+          <div className="px-4 py-3.5 mb-8 flex items-center gap-3" style={{ background: t.card, borderRadius: rosa ? 22 : 8, boxShadow: rosa ? "0 6px 18px rgba(58,36,48,.06)" : "none" }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
               <circle cx="12" cy="12" r="8" />
               <path d="M12 8v4l3 2" />
@@ -133,7 +167,7 @@ export default function BarberiaHomePage() {
             </h2>
             <div className="grid grid-cols-2 gap-2">
               {fotos.map((f) => (
-                <img key={f.id} src={f.url} alt="" className="h-36 w-full object-cover" style={{ borderRadius: 14 }} />
+                <img key={f.id} src={f.url} alt="" className="h-36 w-full object-cover" style={{ borderRadius: rosa ? 18 : 8 }} />
               ))}
             </div>
           </section>
@@ -146,6 +180,10 @@ export default function BarberiaHomePage() {
           { href: `/reservar?b=${slug}`, label: "Reservar" },
           { href: `/tienda?b=${slug}`, label: "Tienda" },
         ]}
+        bg={rosa ? "#FBF6F8" : "#F5F0E8"}
+        line={t.line}
+        text={t.text}
+        muted={t.muted}
       />
     </main>
   );
