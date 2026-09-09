@@ -20,6 +20,7 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
   const [nombre, setNombre] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
   const [home, setHome] = useState("/");
+  const [rubro, setRubro] = useState("barberia");
 
   useEffect(() => {
     const load = async () => {
@@ -40,9 +41,10 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
         if (user) {
           const { data: u } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
           if (u?.barberia_id) {
-            const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug").eq("id", u.barberia_id).maybeSingle();
+            const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug, rubro").eq("id", u.barberia_id).maybeSingle();
             if (b?.nombre) setNombre(b.nombre);
             setLogo(b?.logo_url || null);
+            setRubro(b?.rubro || "barberia");
             setHome(b?.slug ? `/b/${b.slug}` : "/");
             return;
           }
@@ -51,9 +53,10 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
 
       slug = slug || "diano";
       if (typeof window !== "undefined") localStorage.setItem("barberia_slug", slug);
-      const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug").eq("slug", slug).maybeSingle();
+      const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug, rubro").eq("slug", slug).maybeSingle();
       if (b?.nombre) setNombre(b.nombre);
       setLogo(b?.logo_url || null);
+      setRubro(b?.rubro || "barberia");
       setHome(b?.slug ? `/b/${b.slug}` : "/");
     };
     void load();
@@ -82,11 +85,17 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
         </p>
         <div className="flex items-center justify-center gap-2 my-1.5">
           <span className="h-px w-10" style={{ background: "currentColor", opacity: 0.35 }} />
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
-            <circle cx="6" cy="7" r="3" />
-            <circle cx="18" cy="7" r="3" />
-            <path d="M8 9 12 14 16 9M12 14v7" />
-          </svg>
+          {rubro === "pestanas_unas" ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3">
+              <path d="M12 3c2 3 2 5 0 8 2 0 5 1 7 3-4 0-6 1-7 4-1-3-3-4-7-4 2-2 5-3 7-3-2-3-2-5 0-8z" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <circle cx="6" cy="7" r="3" />
+              <circle cx="18" cy="7" r="3" />
+              <path d="M8 9 12 14 16 9M12 14v7" />
+            </svg>
+          )}
           <span className="h-px w-10" style={{ background: "currentColor", opacity: 0.35 }} />
         </div>
         {resto ? (
