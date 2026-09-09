@@ -57,7 +57,7 @@ function Card({
       {inner}
     </Link>
   ) : (
-    <article className="card rise mb-3 h-[168px] overflow-hidden rounded-2xl" style={{ background: "#EFE8DC", animationDelay: delay }}>
+    <article className="card rise mb-3 h-[168px] overflow-hidden rounded-2xl" style={{ background: "#EFE8DC", animationDelay: delay, opacity: 0.92 }}>
       {inner}
     </article>
   );
@@ -115,6 +115,13 @@ export default function HomePage() {
           label="Explorar →"
           img="/pestanas.jpg"
           delay=".24s"
+        />
+        <Card
+          title="Peluquería canina"
+          text="Turnos para baño, corte y estética de mascotas."
+          label="Próximamente"
+          img="https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=800&q=80"
+          delay=".32s"
         />
 
         <footer className="mt-16 text-center text-[11px] leading-5 text-[#9a9388]">
