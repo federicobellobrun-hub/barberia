@@ -43,6 +43,14 @@ function horaUy(fechaHora: string) {
     timeZone: "America/Montevideo",
   });
 }
+function fechaCorta(fechaHora: string) {
+  return new Date(fechaHora).toLocaleDateString("es-UY", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "America/Montevideo",
+  });
+}
 function fechaUy(fechaHora: string) {
   return new Date(fechaHora).toLocaleDateString("es-UY", {
     weekday: "long",
@@ -60,6 +68,9 @@ function waNumber(telefono: string) {
 function abrirWhatsapp(telefono: string, texto: string) {
   window.open(`https://wa.me/${waNumber(telefono)}?text=${encodeURIComponent(texto)}`, "_blank");
 }
+function nroTurno(id: string) {
+  return id.replace(/-/g, "").slice(-6).toUpperCase();
+}
 
 async function avisoCambio(turnoId: string, tipo: "cancelado" | "movido") {
   await fetch("/api/whatsapp/cambio", {
@@ -74,19 +85,22 @@ export default function DashboardPage() {
   const [rol, setRol] = useState("");
   const [miBarberoId, setMiBarberoId] = useState<string | null>(null);
   const [fecha, setFecha] = useState(ymd(new Date()));
+  const [mes, setMes] = useState(() => ymd(new Date()).slice(0, 7));
   const [turnos, setTurnos] = useState<Turno[]>([]);
-  const [maniana, setManiana] = useState<Turno[]>([]);
+  const [diasConTurno, setDiasConTurno] = useState<string[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [filtroBarbero, setFiltroBarbero] = useState("todos");
   const [totalMes, setTotalMes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [abierto, setAbierto] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [nuevaFecha, setNuevaFecha] = useState("");
   const [nuevaHora, setNuevaHora] = useState("");
   const [nuevoBarbero, setNuevoBarbero] = useState("");
   const router = useRouter();
   const esBarbero = rol === "barbero";
+  const hoy = ymd(new Date());
 
   useEffect(() => {
     const loadUser = async () => {
@@ -98,11 +112,7 @@ export default function DashboardPage() {
         router.push("/login");
         return;
       }
-      const { data } = await supabase
-        .from("usuarios")
-        .select("nombre, rol, barbero_id")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
+      const { data } = await supabase.from("usuarios").select("nombre, rol, barbero_id").eq("auth_user_id", user.id).maybeSingle();
       if (data?.nombre) setNombre(data.nombre);
       setRol(data?.rol || "");
       if (data?.rol === "barbero" && data.barbero_id) {
@@ -120,12 +130,10 @@ export default function DashboardPage() {
       const supabase = createClient();
       const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
-      const diaManiana = addDays(ymd(new Date()), 1);
-      const mes = fecha.slice(0, 7);
-      const inicioMes = new Date(`${mes}-01T00:00:00-03:00`).toISOString();
-      const siguiente = new Date(`${mes}-01T00:00:00-03:00`);
+      const inicioMes = new Date(`${mes}-01T00:00:00-03:00`);
+      const siguiente = new Date(inicioMes);
       siguiente.setMonth(siguiente.getMonth() + 1);
-      const [turnosRes, manianaRes, pagosMesRes, barberosRes] = await Promise.all([
+      const [turnosRes, mesRes, pagosMesRes, barberosRes] = await Promise.all([
         supabase
           .from("turnos")
           .select("id, barberia_id, barbero_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo), barberos(nombre)")
@@ -133,37 +141,48 @@ export default function DashboardPage() {
           .lte("fecha_hora", hasta)
           .neq("estado", "cancelado")
           .order("fecha_hora"),
-        supabase
-          .from("turnos")
-          .select("id, barberia_id, barbero_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo), barberos(nombre)")
-          .gte("fecha_hora", new Date(`${diaManiana}T00:00:00-03:00`).toISOString())
-          .lte("fecha_hora", new Date(`${diaManiana}T23:59:59-03:00`).toISOString())
-          .neq("estado", "cancelado")
-          .order("fecha_hora"),
-        supabase.from("pagos").select("monto").gte("pagado_at", inicioMes).lt("pagado_at", siguiente.toISOString()),
+        supabase.from("turnos").select("fecha_hora, barbero_id").gte("fecha_hora", inicioMes.toISOString()).lt("fecha_hora", siguiente.toISOString()).neq("estado", "cancelado"),
+        supabase.from("pagos").select("monto").gte("pagado_at", inicioMes.toISOString()).lt("pagado_at", siguiente.toISOString()),
         supabase.from("barberos").select("id, nombre").eq("activo", true).order("nombre"),
       ]);
       if (turnosRes.error) setError(turnosRes.error.message);
       setTurnos((turnosRes.data as Turno[]) || []);
-      setManiana((manianaRes.data as Turno[]) || []);
       setBarberos((barberosRes.data as Barbero[]) || []);
       setTotalMes((pagosMesRes.data || []).reduce((acc: number, p: { monto: number }) => acc + Number(p.monto || 0), 0));
+      const filtro = esBarbero && miBarberoId ? miBarberoId : filtroBarbero;
+      const dias = Array.from(
+        new Set(
+          (mesRes.data || [])
+            .filter((t: { barbero_id: string | null }) => filtro === "todos" || t.barbero_id === filtro)
+            .map((t: { fecha_hora: string }) => ymd(new Date(t.fecha_hora)))
+        )
+      );
+      setDiasConTurno(dias);
       setLoading(false);
     };
     void load();
-  }, [fecha]);
+  }, [fecha, mes, filtroBarbero, esBarbero, miBarberoId]);
 
   const filtroActivo = esBarbero && miBarberoId ? miBarberoId : filtroBarbero;
   const turnosFiltrados = useMemo(
     () => (filtroActivo === "todos" ? turnos : turnos.filter((t) => t.barbero_id === filtroActivo)),
     [turnos, filtroActivo]
   );
-  const manianaFiltrada = useMemo(
-    () => (filtroActivo === "todos" ? maniana : maniana.filter((t) => t.barbero_id === filtroActivo)),
-    [maniana, filtroActivo]
-  );
-  const pendientes = useMemo(() => turnosFiltrados.filter((t) => t.estado === "pendiente"), [turnosFiltrados]);
   const totalDia = useMemo(() => turnosFiltrados.reduce((acc, t) => acc + Number(one(t.pagos)?.monto || 0), 0), [turnosFiltrados]);
+
+  const celdasMes = useMemo(() => {
+    const [y, m] = mes.split("-").map(Number);
+    const start = new Date(y, m - 1, 1).getDay();
+    const days = new Date(y, m, 0).getDate();
+    const cells: (string | null)[] = [];
+    for (let i = 0; i < start; i++) cells.push(null);
+    for (let d = 1; d <= days; d++) {
+      cells.push(`${mes}-${String(d).padStart(2, "0")}`);
+    }
+    return cells;
+  }, [mes]);
+
+  const mesLabel = new Date(`${mes}-01T12:00:00-03:00`).toLocaleDateString("es-UY", { month: "long", year: "numeric" });
 
   const cambiarEstado = async (id: string, estado: string) => {
     const supabase = createClient();
@@ -190,15 +209,15 @@ export default function DashboardPage() {
     if (!nuevaFecha || !nuevaHora) return;
     const supabase = createClient();
     const fechaHora = new Date(`${nuevaFecha}T${nuevaHora}:00-03:00`).toISOString();
-    const { error: e } = await supabase.from("turnos").update({
-      fecha_hora: fechaHora,
-      estado: "confirmado",
-      barbero_id: nuevoBarbero || turno.barbero_id,
-    }).eq("id", turno.id);
+    const { error: e } = await supabase
+      .from("turnos")
+      .update({ fecha_hora: fechaHora, estado: "confirmado", barbero_id: nuevoBarbero || turno.barbero_id })
+      .eq("id", turno.id);
     if (e) return setError(e.message);
     await avisoCambio(turno.id, "movido");
     setEditId(null);
     setFecha(nuevaFecha);
+    setMes(nuevaFecha.slice(0, 7));
   };
 
   const handleLogout = async () => {
@@ -206,134 +225,6 @@ export default function DashboardPage() {
     await supabase.auth.signOut();
     router.push("/login");
   };
-
-  const labelFecha = new Date(`${fecha}T12:00:00-03:00`).toLocaleDateString("es-UY", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-
-  const Card = ({ t, recordatorio = false }: { t: Turno; recordatorio?: boolean }) => {
-    const cliente = one(t.clientes);
-    const servicio = one(t.servicios);
-    const pago = one(t.pagos);
-    const barberoTurno = one(t.barberos);
-    return (
-      <article className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-        <div className="flex justify-between items-start">
-          <div>
-            <p className="text-xl font-semibold">{horaUy(t.fecha_hora)}</p>
-            <p className="font-medium mt-1">{cliente?.nombre || "Cliente"}</p>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              {servicio?.nombre} · ${servicio?.precio || 0}
-            </p>
-            {barberoTurno?.nombre && (
-              <p className="text-sm" style={{ color: "var(--muted)" }}>Barbero: {barberoTurno.nombre}</p>
-            )}
-            <p className="text-sm" style={{ color: "var(--muted)" }}>{cliente?.telefono}</p>
-          </div>
-          <span className="text-[11px] uppercase tracking-wider" style={{ color: "var(--muted)" }}>{t.estado}</span>
-        </div>
-        {cliente?.telefono && (
-          <div className="flex flex-wrap gap-2 mt-4">
-            {!recordatorio && (
-              <button
-                onClick={() => {
-                  void cambiarEstado(t.id, "confirmado");
-                  abrirWhatsapp(
-                    cliente.telefono,
-                    `Hola ${cliente.nombre}, te confirmamos el turno.\n\nServicio: ${servicio?.nombre}\nDía: ${fechaUy(t.fecha_hora)}\nHora: ${horaUy(t.fecha_hora)}`
-                  );
-                }}
-                className="text-xs px-4 py-2 rounded-full font-medium"
-                style={{ background: "#1c1712", color: "#f4efe6" }}
-              >
-                Confirmar y avisar
-              </button>
-            )}
-            <button
-              onClick={() =>
-                abrirWhatsapp(
-                  cliente.telefono,
-                  `Hola ${cliente.nombre}, te recordamos tu turno${recordatorio ? " de mañana" : ""}.\n\n${servicio?.nombre}\n${fechaUy(t.fecha_hora)} · ${horaUy(t.fecha_hora)}`
-                )
-              }
-              className="text-xs px-4 py-2 rounded-full"
-              style={{ background: "var(--bg)", border: "1px solid var(--line)" }}
-            >
-              {recordatorio ? "Enviar recordatorio" : "Recordatorio"}
-            </button>
-            {!recordatorio && (
-              <>
-                <button
-                  onClick={() => {
-                    setEditId(t.id);
-                    setNuevaFecha(ymd(new Date(t.fecha_hora)));
-                    setNuevaHora(horaUy(t.fecha_hora));
-                    setNuevoBarbero(t.barbero_id || "");
-                  }}
-                  className="text-xs px-4 py-2 rounded-full"
-                  style={{ background: "var(--bg)", border: "1px solid var(--line)" }}
-                >
-                  Mover
-                </button>
-                <button onClick={() => void cambiarEstado(t.id, "no_asistio")} className="text-xs px-4 py-2 rounded-full" style={{ background: "var(--bg)", border: "1px solid var(--line)" }}>
-                  No vino
-                </button>
-                <button
-                  onClick={() => {
-                    void cambiarEstado(t.id, "cancelado");
-                    void avisoCambio(t.id, "cancelado");
-                  }}
-                  className="text-xs px-4 py-2 rounded-full text-red-500"
-                >
-                  Cancelar
-                </button>
-              </>
-            )}
-          </div>
-        )}
-        {editId === t.id && (
-          <div className="grid grid-cols-2 gap-2 mt-3">
-            <input type="date" value={nuevaFecha} onChange={(e) => setNuevaFecha(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            <input type="time" value={nuevaHora} onChange={(e) => setNuevaHora(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            {!esBarbero && barberos.length > 0 && (
-              <select value={nuevoBarbero} onChange={(e) => setNuevoBarbero(e.target.value)} className="col-span-2 rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}>
-                <option value="">Barbero</option>
-                {barberos.map((b) => (
-                  <option key={b.id} value={b.id}>{b.nombre}</option>
-                ))}
-              </select>
-            )}
-            <button onClick={() => void moverTurno(t)} className="col-span-2 rounded-xl py-2 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
-              Guardar y avisar
-            </button>
-          </div>
-        )}
-        {!recordatorio &&
-          (pago ? (
-            <p className="text-sm mt-3" style={{ color: "var(--muted)" }}>Pagado · {pago.metodo} · ${pago.monto}</p>
-          ) : (
-            <div className="flex gap-2 mt-3">
-              <button onClick={() => void registrarPago(t, "efectivo")} className="text-xs px-4 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>Efectivo</button>
-              <button onClick={() => void registrarPago(t, "transferencia")} className="text-xs px-4 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>Transferencia</button>
-            </div>
-          ))}
-      </article>
-    );
-  };
-
-  const atajos = esBarbero
-    ? [
-        ["Nuevo", "/dashboard/nuevo", "M12 5v14M5 12h14"],
-        ["Más", "/dashboard/mas", "M5 8h14M5 12h14M5 16h10"],
-      ]
-    : [
-        ["Clientes", "/dashboard/clientes", "M12 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 19c1.5-3 4-5 7-5s5.5 2 7 5"],
-        ["Bloqueos", "/dashboard/bloqueos", "M7 11V8a5 5 0 0 1 10 0v3M6 11h12v10H6z"],
-        ["Catálogo", "/dashboard/catalogo", "M7 4h10l2 4H5l2-4zM6 8h12v12H6zM10 13h4"],
-        ["Más", "/dashboard/mas", "M5 8h14M5 12h14M5 16h10"],
-      ];
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--bg)", color: "var(--text)" }}>
@@ -345,20 +236,13 @@ export default function DashboardPage() {
             </button>
           }
         />
-        <p className="text-sm" style={{ color: "var(--muted)" }}>Hola, {nombre}</p>
-        <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-5">Agenda</h1>
-        <div className="grid grid-cols-2 gap-2 mb-6">
-          {atajos.map(([label, href, d]) => (
-            <Link key={href} href={href} className="rounded-2xl p-4 text-center text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-              <svg className="mx-auto mb-2" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                <path d={d} />
-              </svg>
-              {label}
-            </Link>
-          ))}
-        </div>
+        <p className="text-sm" style={{ color: "var(--muted)" }}>
+          Hola, {nombre}
+        </p>
+        <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-4">Agenda</h1>
+
         {!esBarbero && barberos.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
             <button onClick={() => setFiltroBarbero("todos")} className="shrink-0 rounded-full px-4 py-2 text-sm" style={{ background: filtroBarbero === "todos" ? "#1c1712" : "var(--card)", color: filtroBarbero === "todos" ? "#fff" : "var(--text)", border: "1px solid var(--line)" }}>
               Todos
             </button>
@@ -369,40 +253,180 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
-        <div className="grid grid-cols-2 gap-2 mb-6">
-          {[
-            ["Pendientes", pendientes.length],
-            ["Hoy", turnosFiltrados.length],
-            ...(esBarbero ? [] : [["Día", `$${totalDia}`], ["Mes", `$${totalMes}`]]),
-          ].map(([label, value]) => (
-            <div key={String(label)} className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-              <p className="text-xs" style={{ color: "var(--muted)" }}>{label}</p>
-              <p className="text-2xl font-semibold mt-1">{value}</p>
-            </div>
-          ))}
-        </div>
-        {manianaFiltrada.length > 0 && (
-          <section className="mb-8">
-            <h2 className="font-medium mb-3">Recordatorios de mañana</h2>
-            {manianaFiltrada.map((t) => (
-              <Card key={t.id} t={t} recordatorio />
-            ))}
-          </section>
-        )}
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={() => setFecha(addDays(fecha, -1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>‹</button>
-          <div className="text-center">
-            <p className="font-medium capitalize">{labelFecha}</p>
-            <button onClick={() => setFecha(ymd(new Date()))} className="text-xs" style={{ color: "var(--muted)" }}>Hoy</button>
+
+        <div className="p-4 mb-5" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 16 }}>
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={() => setMes((m) => { const d = new Date(`${m}-01T12:00:00-03:00`); d.setMonth(d.getMonth() - 1); return ymd(d).slice(0, 7); })}>‹</button>
+            <p className="text-sm font-medium capitalize">{mesLabel}</p>
+            <button onClick={() => setMes((m) => { const d = new Date(`${m}-01T12:00:00-03:00`); d.setMonth(d.getMonth() + 1); return ymd(d).slice(0, 7); })}>›</button>
           </div>
-          <button onClick={() => setFecha(addDays(fecha, 1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>›</button>
+          <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: "var(--muted)" }}>
+            {["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"].map((d) => (
+              <span key={d}>{d}</span>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
+            {celdasMes.map((value, i) => {
+              if (!value) return <span key={i} />;
+              const sel = fecha === value;
+              const conTurno = diasConTurno.includes(value);
+              const esHoy = value === hoy;
+              return (
+                <button
+                  key={value}
+                  onClick={() => setFecha(value)}
+                  className="h-8 w-8 mx-auto rounded-full"
+                  style={{
+                    background: sel ? "#1c1712" : conTurno ? "var(--bg)" : "transparent",
+                    color: sel ? "#f4efe6" : esHoy ? "#8B3A3A" : "var(--text)",
+                    border: conTurno && !sel ? "1px solid var(--line)" : "none",
+                    fontWeight: esHoy || sel ? 600 : 400,
+                  }}
+                >
+                  {Number(value.slice(8))}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        {!esBarbero && (
+          <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>
+            Día ${totalDia} · Mes ${totalMes}
+          </p>
+        )}
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
         {loading && <p style={{ color: "var(--muted)" }}>Cargando...</p>}
         {!loading && turnosFiltrados.length === 0 && <p style={{ color: "var(--muted)" }}>No hay turnos este día.</p>}
-        {turnosFiltrados.map((t) => (
-          <Card key={t.id} t={t} />
-        ))}
+
+        {turnosFiltrados.map((t) => {
+          const cliente = one(t.clientes);
+          const servicio = one(t.servicios);
+          const pago = one(t.pagos);
+          const profesional = one(t.barberos);
+          const extra = abierto === t.id;
+          return (
+            <article key={t.id} className="mb-3 overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 8 }}>
+              <div className="flex">
+                <div className="w-2 shrink-0" style={{ background: "#1c1712" }} />
+                <div className="flex-1 p-3">
+                  <div className="flex justify-between items-start gap-2">
+                    <p className="font-semibold">
+                      {horaUy(t.fecha_hora)} - {fechaCorta(t.fecha_hora)}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--muted)" }}>
+                      Nº {nroTurno(t.id)}
+                    </p>
+                  </div>
+                  <p className="text-sm mt-1">
+                    <span className="font-medium">Servicio:</span> {servicio?.nombre}
+                    {servicio?.precio ? ` $${servicio.precio}` : ""}
+                  </p>
+                  {profesional?.nombre && (
+                    <p className="text-sm">
+                      <span className="font-medium">Profesional:</span> {profesional.nombre}
+                    </p>
+                  )}
+                  <p className="text-sm capitalize">
+                    <span className="font-medium">Estado:</span> {t.estado.replace("_", " ")}
+                  </p>
+                  <div className="flex justify-between items-end">
+                    <p className="text-sm">
+                      <span className="font-medium">Nombre:</span> {cliente?.nombre || "Cliente"}
+                    </p>
+                    <button type="button" className="text-xs" style={{ color: "var(--muted)" }} onClick={() => setAbierto(extra ? null : t.id)}>
+                      {extra ? "(− info)" : "(+ info)"}
+                    </button>
+                  </div>
+
+                  {extra && (
+                    <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--line)" }}>
+                      {cliente?.telefono && <p className="text-sm mb-2">{cliente.telefono}</p>}
+                      <div className="flex flex-wrap gap-2">
+                        {t.estado === "pendiente" && cliente?.telefono && (
+                          <button
+                            onClick={() => {
+                              void cambiarEstado(t.id, "confirmado");
+                              abrirWhatsapp(cliente.telefono, `Hola ${cliente.nombre}, te confirmamos el turno.\n\nServicio: ${servicio?.nombre}\nDía: ${fechaUy(t.fecha_hora)}\nHora: ${horaUy(t.fecha_hora)}`);
+                            }}
+                            className="text-xs px-3 py-2 rounded-full"
+                            style={{ background: "#1c1712", color: "#f4efe6" }}
+                          >
+                            Confirmar y avisar
+                          </button>
+                        )}
+                        {cliente?.telefono && (
+                          <button
+                            onClick={() => abrirWhatsapp(cliente.telefono, `Hola ${cliente.nombre}, te recordamos tu turno.\n\n${servicio?.nombre}\n${fechaUy(t.fecha_hora)} · ${horaUy(t.fecha_hora)}`)}
+                            className="text-xs px-3 py-2 rounded-full"
+                            style={{ border: "1px solid var(--line)" }}
+                          >
+                            Recordatorio
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setEditId(t.id);
+                            setNuevaFecha(ymd(new Date(t.fecha_hora)));
+                            setNuevaHora(horaUy(t.fecha_hora));
+                            setNuevoBarbero(t.barbero_id || "");
+                          }}
+                          className="text-xs px-3 py-2 rounded-full"
+                          style={{ border: "1px solid var(--line)" }}
+                        >
+                          Mover
+                        </button>
+                        <button onClick={() => void cambiarEstado(t.id, "no_asistio")} className="text-xs px-3 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>
+                          No vino
+                        </button>
+                        <button
+                          onClick={() => {
+                            void cambiarEstado(t.id, "cancelado");
+                            void avisoCambio(t.id, "cancelado");
+                          }}
+                          className="text-xs px-3 py-2 rounded-full text-red-500"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                      {editId === t.id && (
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                          <input type="date" value={nuevaFecha} onChange={(e) => setNuevaFecha(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+                          <input type="time" value={nuevaHora} onChange={(e) => setNuevaHora(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+                          {!esBarbero && barberos.length > 0 && (
+                            <select value={nuevoBarbero} onChange={(e) => setNuevoBarbero(e.target.value)} className="col-span-2 rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}>
+                              <option value="">Profesional</option>
+                              {barberos.map((b) => (
+                                <option key={b.id} value={b.id}>{b.nombre}</option>
+                              ))}
+                            </select>
+                          )}
+                          <button onClick={() => void moverTurno(t)} className="col-span-2 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
+                            Guardar y avisar
+                          </button>
+                        </div>
+                      )}
+                      {pago ? (
+                        <p className="text-sm mt-3" style={{ color: "var(--muted)" }}>
+                          Pagado · {pago.metodo} · ${pago.monto}
+                        </p>
+                      ) : (
+                        <div className="flex gap-2 mt-3">
+                          <button onClick={() => void registrarPago(t, "efectivo")} className="text-xs px-3 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>
+                            Efectivo
+                          </button>
+                          <button onClick={() => void registrarPago(t, "transferencia")} className="text-xs px-3 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>
+                            Transferencia
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
       <BottomNav
         items={
