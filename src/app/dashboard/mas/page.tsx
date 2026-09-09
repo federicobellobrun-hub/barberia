@@ -4,27 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 
-const dueño = [
-  { href: "/dashboard", t: "Agenda" },
-  { href: "/dashboard/nuevo", t: "Nuevo turno" },
-  { href: "/dashboard/clientes", t: "Clientes" },
-  { href: "/dashboard/catalogo", t: "Catálogo" },
-  { href: "/dashboard/productos", t: "Productos" },
-  { href: "/dashboard/bloqueos", t: "Bloqueos" },
-  { href: "/dashboard/galeria", t: "Galería" },
-  { href: "/dashboard/horarios", t: "Horarios" },
-  { href: "/dashboard/caja", t: "Caja" },
-  { href: "/dashboard/config", t: "Configuración" },
-  { href: "/dashboard/barberos", t: "Barberos" },
-];
-
-const barbero = [
-  { href: "/dashboard", t: "Agenda" },
-  { href: "/dashboard/nuevo", t: "Nuevo turno" },
-];
+type Item = { href: string; t: string };
 
 export default function MasPage() {
-  const [items, setItems] = useState<{ href: string; t: string }[] | null>(null);
+  const [items, setItems] = useState<Item[] | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -35,12 +18,42 @@ export default function MasPage() {
       if (!data.user) return;
       const { data: yo } = await supabase
         .from("usuarios")
-        .select("rol")
+        .select("rol, barberia_id")
         .eq("auth_user_id", data.user.id)
         .maybeSingle();
-      if (yo?.rol === "barbero") setItems(barbero);
-      else if (yo?.rol === "superadmin") setItems([...dueño, { href: "/panel", t: "Panel dueño" }]);
-      else setItems(dueño);
+
+      let rubro = "barberia";
+      if (yo?.barberia_id) {
+        const { data: shop } = await supabase.from("barberias").select("rubro").eq("id", yo.barberia_id).maybeSingle();
+        rubro = shop?.rubro || "barberia";
+      }
+
+      const equipo = rubro === "pestanas_unas" ? "Equipo" : "Barberos";
+
+      const dueño: Item[] = [
+        { href: "/dashboard", t: "Agenda" },
+        { href: "/dashboard/nuevo", t: "Nuevo turno" },
+        { href: "/dashboard/clientes", t: "Clientes" },
+        { href: "/dashboard/catalogo", t: "Catálogo" },
+        { href: "/dashboard/productos", t: "Productos" },
+        { href: "/dashboard/bloqueos", t: "Bloqueos" },
+        { href: "/dashboard/galeria", t: "Galería" },
+        { href: "/dashboard/horarios", t: "Horarios" },
+        { href: "/dashboard/caja", t: "Caja" },
+        { href: "/dashboard/config", t: "Configuración" },
+        { href: "/dashboard/barberos", t: equipo },
+      ];
+
+      if (yo?.rol === "barbero") {
+        setItems([
+          { href: "/dashboard", t: "Agenda" },
+          { href: "/dashboard/nuevo", t: "Nuevo turno" },
+        ]);
+      } else if (yo?.rol === "superadmin") {
+        setItems([...dueño, { href: "/panel", t: "Panel dueño" }]);
+      } else {
+        setItems(dueño);
+      }
     });
   }, []);
 
