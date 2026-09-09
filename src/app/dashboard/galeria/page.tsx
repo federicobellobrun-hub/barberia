@@ -11,44 +11,60 @@ type Foto = { id: string; url: string; mostrar_inicio: boolean | null };
 export default function GaleriaPage() {
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const router = useRouter();
 
-  const load = async () => {
+  const load = async (shopId: string) => {
     const supabase = createClient();
-    const { data, error } = await supabase
+    const { data, error: e } = await supabase
       .from("fotos")
       .select("id, url, mostrar_inicio")
+      .eq("barberia_id", shopId)
       .order("created_at", { ascending: false });
-    if (error) setError(error.message);
+    if (e) setError(e.message);
     setFotos(data || []);
   };
 
   useEffect(() => {
     const init = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      await load();
+      const { data: yo } = await supabase
+        .from("usuarios")
+        .select("barberia_id, rol")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+      if (!yo?.barberia_id) {
+        setError("Este usuario no tiene local");
+        return;
+      }
+      setBarberiaId(yo.barberia_id);
+      await load(yo.barberia_id);
     };
-    init();
+    void init();
   }, [router]);
 
   const toggle = async (f: Foto) => {
+    if (!barberiaId) return;
     const supabase = createClient();
-    const { error } = await supabase
+    const { error: e } = await supabase
       .from("fotos")
       .update({ mostrar_inicio: !f.mostrar_inicio })
-      .eq("id", f.id);
-    if (error) setError(error.message);
-    else await load();
+      .eq("id", f.id)
+      .eq("barberia_id", barberiaId);
+    if (e) setError(e.message);
+    else await load(barberiaId);
   };
 
   const borrar = async (id: string) => {
-    if (!confirm("¿Borrar esta foto?")) return;
+    if (!barberiaId || !confirm("¿Borrar esta foto?")) return;
     const supabase = createClient();
-    const { error } = await supabase.from("fotos").delete().eq("id", id);
-    if (error) setError(error.message);
-    else await load();
+    const { error: e } = await supabase.from("fotos").delete().eq("id", id).eq("barberia_id", barberiaId);
+    if (e) setError(e.message);
+    else await load(barberiaId);
   };
 
   return (
@@ -60,9 +76,14 @@ export default function GaleriaPage() {
         </header>
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Galería</h1>
         <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>
-          Fotos que se ven en la pantalla principal
+          Fotos de este local en la pantalla principal
         </p>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        {fotos.length === 0 && !error && (
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            Este local todavía no tiene fotos.
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           {fotos.map((f) => (
@@ -72,7 +93,10 @@ export default function GaleriaPage() {
                 <button
                   onClick={() => toggle(f)}
                   className="w-full rounded-xl py-2 text-xs"
-                  style={{ background: f.mostrar_inicio === false ? "var(--bg)" : "#1d1d1f", color: f.mostrar_inicio === false ? "var(--text)" : "#fff" }}
+                  style={{
+                    background: f.mostrar_inicio === false ? "var(--bg)" : "#1d1d1f",
+                    color: f.mostrar_inicio === false ? "var(--text)" : "#fff",
+                  }}
                 >
                   {f.mostrar_inicio === false ? "Oculta" : "En inicio"}
                 </button>
