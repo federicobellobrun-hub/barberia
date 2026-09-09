@@ -10,8 +10,11 @@ export const metadata: Metadata = {
   description: "Reservas para barberías, pestañas y uñas",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.svg",
-    apple: "/favicon.svg",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
+    apple: "/favicon.png",
   },
   appleWebApp: {
     capable: true,
