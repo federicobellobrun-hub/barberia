@@ -90,7 +90,7 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
             {principal.slice(0, 2).toUpperCase()}
           </span>
         )}
-        <p className="tracking-[0.28em] uppercase" style={{ fontFamily: "Georgia, Times, serif", fontSize: "34px", lineHeight: 1 }}>
+        <p className="tracking-[0.28em] uppercase" style={{ fontFamily: "Georgia, Times, serif", fontSize: "44px", lineHeight: 1 }}>
           {principal}
         </p>
         <div className="flex items-center justify-center gap-2 my-1.5">
