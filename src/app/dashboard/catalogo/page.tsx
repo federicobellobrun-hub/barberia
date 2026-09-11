@@ -13,6 +13,8 @@ type Servicio = {
   precio: number;
   activo: boolean;
   imagen_url: string | null;
+  categoria: string | null;
+  sena: number | null;
 };
 type Producto = {
   id: string;
@@ -30,8 +32,10 @@ export default function CatalogoPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sNombre, setSNombre] = useState("");
+  const [sCategoria, setSCategoria] = useState("");
   const [sDuracion, setSDuracion] = useState("30");
   const [sPrecio, setSPrecio] = useState("");
+  const [sSena, setSSena] = useState("0");
   const [pNombre, setPNombre] = useState("");
   const [pPrecio, setPPrecio] = useState("");
   const [pDesc, setPDesc] = useState("");
@@ -41,44 +45,50 @@ export default function CatalogoPage() {
   const load = async (id: string) => {
     const supabase = createClient();
     const [s, p] = await Promise.all([
-      supabase.from("servicios").select("id, nombre, duracion_minutos, precio, activo, imagen_url").eq("barberia_id", id).order("orden"),
+      supabase.from("servicios").select("id, nombre, duracion_minutos, precio, activo, imagen_url, categoria, sena").eq("barberia_id", id).order("orden"),
       supabase.from("productos").select("id, nombre, precio, descripcion, activo, stock, imagen_url").eq("barberia_id", id).order("nombre"),
     ]);
     if (s.error) setError(s.error.message);
     if (p.error) setError(p.error.message);
-    setServicios(s.data || []);
+    setServicios((s.data as Servicio[]) || []);
     setProductos(p.data || []);
   };
 
   useEffect(() => {
     const init = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).single();
-      if (!data?.barberia_id) return setError("Este usuario no tiene barbería");
+      const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
+      if (!data?.barberia_id) return setError("Este usuario no tiene local");
       setBarberiaId(data.barberia_id);
       await load(data.barberia_id);
     };
-    init();
+    void init();
   }, [router]);
 
   const addServicio = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!barberiaId) return;
     const supabase = createClient();
-    const { error } = await supabase.from("servicios").insert({
+    const { error: e1 } = await supabase.from("servicios").insert({
       barberia_id: barberiaId,
       nombre: sNombre,
+      categoria: sCategoria.trim() || null,
       duracion_minutos: Number(sDuracion),
       precio: Number(sPrecio),
+      sena: Number(sSena) || 0,
       activo: true,
       orden: servicios.length + 1,
     });
-    if (error) return setError(error.message);
+    if (e1) return setError(e1.message);
     setSNombre("");
+    setSCategoria("");
     setSDuracion("30");
     setSPrecio("");
+    setSSena("0");
     await load(barberiaId);
   };
 
@@ -86,7 +96,7 @@ export default function CatalogoPage() {
     e.preventDefault();
     if (!barberiaId) return;
     const supabase = createClient();
-    const { error } = await supabase.from("productos").insert({
+    const { error: e1 } = await supabase.from("productos").insert({
       barberia_id: barberiaId,
       nombre: pNombre,
       precio: Number(pPrecio),
@@ -94,7 +104,7 @@ export default function CatalogoPage() {
       stock: Number(pStock),
       activo: true,
     });
-    if (error) return setError(error.message);
+    if (e1) return setError(e1.message);
     setPNombre("");
     setPPrecio("");
     setPDesc("");
@@ -104,25 +114,27 @@ export default function CatalogoPage() {
 
   const updateServicio = async (s: Servicio) => {
     const supabase = createClient();
-    const { error } = await supabase.from("servicios").update({
-      nombre: s.nombre,
-      duracion_minutos: s.duracion_minutos,
-      precio: s.precio,
-      activo: s.activo,
-    }).eq("id", s.id);
-    if (error) setError(error.message);
+    const { error: e1 } = await supabase
+      .from("servicios")
+      .update({
+        nombre: s.nombre,
+        categoria: s.categoria,
+        duracion_minutos: s.duracion_minutos,
+        precio: s.precio,
+        sena: s.sena || 0,
+        activo: s.activo,
+      })
+      .eq("id", s.id);
+    if (e1) setError(e1.message);
   };
 
   const updateProducto = async (p: Producto) => {
     const supabase = createClient();
-    const { error } = await supabase.from("productos").update({
-      nombre: p.nombre,
-      precio: p.precio,
-      descripcion: p.descripcion,
-      stock: p.stock,
-      activo: p.activo,
-    }).eq("id", p.id);
-    if (error) setError(error.message);
+    const { error: e1 } = await supabase
+      .from("productos")
+      .update({ nombre: p.nombre, precio: p.precio, descripcion: p.descripcion, stock: p.stock, activo: p.activo })
+      .eq("id", p.id);
+    if (e1) setError(e1.message);
   };
 
   const subirFotoServicio = async (servicioId: string, file: File) => {
@@ -132,8 +144,8 @@ export default function CatalogoPage() {
     const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
     if (upErr) return setError(upErr.message);
     const { data } = supabase.storage.from("fotos").getPublicUrl(path);
-    const { error } = await supabase.from("servicios").update({ imagen_url: data.publicUrl }).eq("id", servicioId);
-    if (error) setError(error.message);
+    const { error: e1 } = await supabase.from("servicios").update({ imagen_url: data.publicUrl }).eq("id", servicioId);
+    if (e1) setError(e1.message);
     else await load(barberiaId);
   };
 
@@ -144,61 +156,71 @@ export default function CatalogoPage() {
     const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
     if (upErr) return setError(upErr.message);
     const { data } = supabase.storage.from("fotos").getPublicUrl(path);
-    const { error } = await supabase.from("productos").update({ imagen_url: data.publicUrl }).eq("id", productoId);
-    if (error) setError(error.message);
+    const { error: e1 } = await supabase.from("productos").update({ imagen_url: data.publicUrl }).eq("id", productoId);
+    if (e1) setError(e1.message);
     else await load(barberiaId);
   };
 
   const ocultarServicio = async (id: string, activo: boolean) => {
     if (!barberiaId) return;
     const supabase = createClient();
-    const { error } = await supabase.from("servicios").update({ activo }).eq("id", id);
-    if (error) setError(error.message);
+    const { error: e1 } = await supabase.from("servicios").update({ activo }).eq("id", id);
+    if (e1) setError(e1.message);
     else await load(barberiaId);
   };
 
   const delProducto = async (id: string) => {
     if (!barberiaId) return;
     const supabase = createClient();
-    const { error } = await supabase.from("productos").delete().eq("id", id);
-    if (error) setError(error.message);
+    const { error: e1 } = await supabase.from("productos").delete().eq("id", id);
+    if (e1) setError(e1.message);
     else await load(barberiaId);
   };
+
+  const campo = "w-full rounded-xl px-3 py-3";
+  const estilo = { background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" };
 
   return (
     <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader left={<Link href="/dashboard">‹</Link>} />
+        <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Catálogo</h1>
-        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Servicios y productos de esta barbería</p>
+        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>
+          Servicios, categorías y seña
+        </p>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
         <h2 className="font-medium mb-3">Servicios</h2>
         <form onSubmit={addServicio} className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <input required value={sNombre} onChange={(e) => setSNombre(e.target.value)} placeholder="Nombre. Ej: Corte fade" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <div className="grid grid-cols-2 gap-2">
-            <input required value={sDuracion} onChange={(e) => setSDuracion(e.target.value)} placeholder="Minutos" className="rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            <input required value={sPrecio} onChange={(e) => setSPrecio(e.target.value)} placeholder="Precio" className="rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input required value={sNombre} onChange={(e) => setSNombre(e.target.value)} placeholder="Nombre. Ej: Lifting" className={campo} style={estilo} />
+          <input value={sCategoria} onChange={(e) => setSCategoria(e.target.value)} placeholder="Categoría. Ej: Pestañas" className={campo} style={estilo} />
+          <div className="grid grid-cols-3 gap-2">
+            <input required value={sDuracion} onChange={(e) => setSDuracion(e.target.value)} placeholder="Min" className="rounded-xl px-3 py-3" style={estilo} />
+            <input required value={sPrecio} onChange={(e) => setSPrecio(e.target.value)} placeholder="Precio" className="rounded-xl px-3 py-3" style={estilo} />
+            <input value={sSena} onChange={(e) => setSSena(e.target.value)} placeholder="Seña" className="rounded-xl px-3 py-3" style={estilo} />
           </div>
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Agregar servicio</button>
+          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            Agregar servicio
+          </button>
         </form>
 
         {servicios.map((s) => (
           <div key={s.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)", opacity: s.activo ? 1 : 0.55 }}>
             {s.imagen_url && <img src={s.imagen_url} alt="" className="h-28 w-full object-cover rounded-xl" />}
-            <input type="file" accept="image/*" onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) subirFotoServicio(s.id, file);
-            }} />
-            <input value={s.nombre} onChange={(e) => setServicios((prev) => prev.map((x) => x.id === s.id ? { ...x, nombre: e.target.value } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            <div className="grid grid-cols-2 gap-2">
-              <input type="number" value={s.duracion_minutos} onChange={(e) => setServicios((prev) => prev.map((x) => x.id === s.id ? { ...x, duracion_minutos: Number(e.target.value) } : x))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-              <input type="number" value={s.precio} onChange={(e) => setServicios((prev) => prev.map((x) => x.id === s.id ? { ...x, precio: Number(e.target.value) } : x))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+            <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subirFotoServicio(s.id, file); }} />
+            <input value={s.nombre} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, nombre: e.target.value } : x)))} className={campo} style={estilo} />
+            <input value={s.categoria || ""} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, categoria: e.target.value } : x)))} placeholder="Categoría" className={campo} style={estilo} />
+            <div className="grid grid-cols-3 gap-2">
+              <input type="number" value={s.duracion_minutos} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, duracion_minutos: Number(e.target.value) } : x)))} className="rounded-xl px-3 py-2" style={estilo} />
+              <input type="number" value={s.precio} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, precio: Number(e.target.value) } : x)))} className="rounded-xl px-3 py-2" style={estilo} />
+              <input type="number" value={s.sena || 0} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, sena: Number(e.target.value) } : x)))} className="rounded-xl px-3 py-2" style={estilo} />
             </div>
-            {!s.activo && <p className="text-xs" style={{ color: "var(--muted)" }}>Oculto en reservas</p>}
+            <p className="text-xs" style={{ color: "var(--muted)" }}>Minutos · Precio · Seña</p>
             <div className="flex gap-2">
-              <button type="button" onClick={() => updateServicio(s)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
-              <button type="button" onClick={() => ocultarServicio(s.id, !s.activo)} className="px-4 rounded-xl text-sm">
+              <button type="button" onClick={() => void updateServicio(s)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
+                Guardar
+              </button>
+              <button type="button" onClick={() => void ocultarServicio(s.id, !s.activo)} className="px-4 rounded-xl text-sm">
                 {s.activo ? "Ocultar" : "Mostrar"}
               </button>
             </div>
@@ -207,26 +229,29 @@ export default function CatalogoPage() {
 
         <h2 className="font-medium mt-8 mb-3">Productos</h2>
         <form onSubmit={addProducto} className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <input required value={pNombre} onChange={(e) => setPNombre(e.target.value)} placeholder="Ej: Cera capilar" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input required value={pPrecio} onChange={(e) => setPPrecio(e.target.value)} placeholder="Precio" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input value={pDesc} onChange={(e) => setPDesc(e.target.value)} placeholder="Descripción" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input value={pStock} onChange={(e) => setPStock(e.target.value)} placeholder="Stock" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Agregar producto</button>
+          <input required value={pNombre} onChange={(e) => setPNombre(e.target.value)} placeholder="Ej: Cera capilar" className={campo} style={estilo} />
+          <input required value={pPrecio} onChange={(e) => setPPrecio(e.target.value)} placeholder="Precio" className={campo} style={estilo} />
+          <input value={pDesc} onChange={(e) => setPDesc(e.target.value)} placeholder="Descripción" className={campo} style={estilo} />
+          <input value={pStock} onChange={(e) => setPStock(e.target.value)} placeholder="Stock" className={campo} style={estilo} />
+          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            Agregar producto
+          </button>
         </form>
 
         {productos.map((p) => (
           <div key={p.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             {p.imagen_url && <img src={p.imagen_url} alt="" className="h-32 w-full object-cover rounded-xl" />}
-            <input value={p.nombre} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, nombre: e.target.value } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            <input type="number" value={p.precio} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, precio: Number(e.target.value) } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            <input type="number" value={p.stock ?? 0} onChange={(e) => setProductos((prev) => prev.map((x) => x.id === p.id ? { ...x, stock: Number(e.target.value) } : x))} className="w-full rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            <input type="file" accept="image/*" onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) subirFotoProducto(p.id, file);
-            }} />
+            <input value={p.nombre} onChange={(e) => setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, nombre: e.target.value } : x)))} className={campo} style={estilo} />
+            <input type="number" value={p.precio} onChange={(e) => setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, precio: Number(e.target.value) } : x)))} className={campo} style={estilo} />
+            <input type="number" value={p.stock ?? 0} onChange={(e) => setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, stock: Number(e.target.value) } : x)))} className={campo} style={estilo} />
+            <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subirFotoProducto(p.id, file); }} />
             <div className="flex gap-2">
-              <button type="button" onClick={() => updateProducto(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
-              <button type="button" onClick={() => delProducto(p.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
+              <button type="button" onClick={() => void updateProducto(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
+                Guardar
+              </button>
+              <button type="button" onClick={() => void delProducto(p.id)} className="px-4 rounded-xl text-sm text-red-500">
+                Borrar
+              </button>
             </div>
           </div>
         ))}
