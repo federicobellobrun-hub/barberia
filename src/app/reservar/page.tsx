@@ -49,8 +49,7 @@ function slugDeHost() {
   const host = window.location.hostname.replace(/^www\./, "");
   if (host === "reservoapps.com" || host === "localhost") return null;
   if (!host.endsWith(".reservoapps.com")) return null;
-  const sub = host.replace(/\.reservoapps\.com$/, "");
-  return sub || null;
+  return host.replace(/\.reservoapps\.com$/, "") || null;
 }
 function waNumber(telefono: string) {
   const solo = telefono.replace(/\D/g, "");
@@ -77,7 +76,9 @@ function ReservarPage() {
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [categoria, setCategoria] = useState<string | null>(null);
   const [servicio, setServicio] = useState<Servicio | null>(null);
+  const [metodoSena, setMetodoSena] = useState<"cuenta" | "mp" | null>(null);
   const [barbero, setBarbero] = useState<Barbero | null>(null);
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
@@ -147,7 +148,7 @@ function ReservarPage() {
     return propios.length ? propios : horariosLocal;
   }, [barbero, horariosLocal, horariosBarbero]);
 
-  const grupos = useMemo(() => {
+  const categorias = useMemo(() => {
     const map = new Map<string, Servicio[]>();
     for (const s of servicios) {
       const k = s.categoria?.trim() || "Servicios";
@@ -155,6 +156,9 @@ function ReservarPage() {
     }
     return Array.from(map.entries());
   }, [servicios]);
+
+  const listaCat = categoria ? categorias.find(([n]) => n === categoria)?.[1] || [] : [];
+  const pideSena = Boolean(pago?.pedido_sena && servicio && Number(servicio.sena || 0) > 0);
 
   const celdasMes = useMemo(() => {
     const year = mes.getFullYear();
@@ -197,16 +201,15 @@ function ReservarPage() {
   }, [servicio, barbero, fecha, horarios, bloqueos, turnos]);
 
   const textoSena = () => {
-    if (!servicio || !pago) return "";
-    const sena = Number(servicio.sena || 0);
-    if (!pago.pedido_sena || sena <= 0) return "";
-    let msg = `Hola, reservé ${servicio.nombre} el ${fecha} a las ${hora}. Seña $${sena}.`;
-    if (pago.datos_cuenta) msg += `\n\nCuenta:\n${pago.datos_cuenta}`;
-    if (pago.mercado_pago_url) msg += `\n\nMercado Pago:\n${pago.mercado_pago_url}`;
+    if (!servicio) return "";
+    let msg = `Hola, soy ${nombre || "cliente"}. Reservé ${servicio.nombre} el ${fecha} a las ${hora}.`;
+    if (pideSena) msg += ` Seña $${servicio.sena}.`;
+    if (metodoSena === "cuenta" && pago?.datos_cuenta) msg += `\n\nVoy a transferir:\n${pago.datos_cuenta}`;
+    if (metodoSena === "mp" && pago?.mercado_pago_url) msg += `\n\nPago por Mercado Pago.`;
     return msg;
   };
 
-  const abrirSena = () => {
+  const abrirWhatsapp = () => {
     const tel = pago?.whatsapp_pedidos;
     if (!tel) return;
     window.open(`https://wa.me/${waNumber(tel)}?text=${encodeURIComponent(textoSena())}`, "_blank");
@@ -216,6 +219,7 @@ function ReservarPage() {
     e.preventDefault();
     if (!servicio || !fecha || !hora) return;
     if (barberos.length > 0 && !barbero) return setError(rosa ? "Elegí una profesional" : "Elegí un barbero");
+    if (pideSena && !metodoSena) return setError("Elegí cómo pagar la seña");
     setEnviando(true);
     setError(null);
     try {
@@ -278,8 +282,6 @@ function ReservarPage() {
     />
   );
 
-  const pideSena = Boolean(pago?.pedido_sena && servicio && Number(servicio.sena || 0) > 0);
-
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center pb-28" style={{ background: t.bg, color: t.text }}>
@@ -291,24 +293,24 @@ function ReservarPage() {
 
   if (ok && servicio) {
     return (
-      <main className="min-h-screen px-6 py-20 text-center pb-28" style={{ background: t.bg, color: t.text }}>
+      <main className="min-h-screen px-6 py-16 text-center pb-28" style={{ background: t.bg, color: t.text }}>
         <h1 className="text-4xl tracking-tight" style={{ fontFamily: "Georgia, Times, serif" }}>Turno reservado</h1>
         <p className="mt-4">
           {servicio.nombre}
           {barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}
         </p>
         {pideSena && (
-          <div className="mt-6 text-left max-w-sm mx-auto p-4" style={{ background: t.card, borderRadius: 16 }}>
-            <p className="font-medium mb-2">Seña ${servicio.sena}</p>
-            {pago?.datos_cuenta && <p className="text-sm whitespace-pre-wrap mb-2">{pago.datos_cuenta}</p>}
-            {pago?.mercado_pago_url && (
-              <a href={pago.mercado_pago_url} target="_blank" rel="noreferrer" className="text-sm underline block mb-3">
-                Pagar con Mercado Pago
+          <div className="mt-6 text-left max-w-sm mx-auto p-4 space-y-3" style={{ background: t.card, borderRadius: 16 }}>
+            <p className="font-medium">Seña ${servicio.sena}</p>
+            {metodoSena === "cuenta" && pago?.datos_cuenta && <p className="text-sm whitespace-pre-wrap">{pago.datos_cuenta}</p>}
+            {metodoSena === "mp" && pago?.mercado_pago_url && (
+              <a href={pago.mercado_pago_url} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
+                Pagar en Mercado Pago
               </a>
             )}
             {pago?.whatsapp_pedidos && (
-              <button type="button" onClick={abrirSena} className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
-                Enviar seña por WhatsApp
+              <button type="button" onClick={abrirWhatsapp} className="w-full py-3 font-medium" style={{ background: metodoSena === "mp" ? t.card : t.btn, color: metodoSena === "mp" ? t.text : t.btnText, border: `1px solid ${t.line}`, borderRadius: radio }}>
+                Enviar datos por WhatsApp
               </button>
             )}
           </div>
@@ -324,46 +326,94 @@ function ReservarPage() {
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
         <h1 className="text-[34px] tracking-tight leading-9" style={{ fontFamily: "Georgia, Times, serif" }}>{t.cita}</h1>
-        <p className="mt-2 mb-5" style={{ color: t.muted }}>
-          Elegí servicio, {rosa ? "profesional" : "barbero"}, día y hora
-        </p>
+        <p className="mt-2 mb-5" style={{ color: t.muted }}>Elegí categoría y servicio</p>
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
-        {grupos.map(([cat, items]) => (
-          <div key={cat} className="mb-5">
-            <h2 className="font-medium mb-3">{cat}</h2>
-            <div className="grid grid-cols-3 gap-2 items-stretch">
-              {items.map((s) => {
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {categorias.map(([nombreCat, items]) => {
+            const activa = categoria === nombreCat;
+            return (
+              <button
+                key={nombreCat}
+                type="button"
+                onClick={() => {
+                  setCategoria(activa ? null : nombreCat);
+                  setServicio(null);
+                  setMetodoSena(null);
+                  setHora("");
+                }}
+                className="p-4 text-left"
+                style={{ background: t.card, border: activa ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
+              >
+                <p className="font-medium">{nombreCat}</p>
+                <p className="text-xs mt-1" style={{ color: t.muted }}>{items.length} servicios</p>
+              </button>
+            );
+          })}
+        </div>
+
+        {categoria && (
+          <div className="mb-4">
+            <h2 className="font-medium mb-3">{categoria}</h2>
+            <div className="space-y-2">
+              {listaCat.map((s) => {
                 const activo = servicio?.id === s.id;
                 return (
-                  <button key={s.id} type="button" onClick={() => { setServicio(s); setHora(""); }} className="text-left overflow-hidden flex flex-col h-full" style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16, color: t.text }}>
-                    {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-24 w-full object-cover shrink-0" /> : <div className="h-24 w-full shrink-0 flex items-center justify-center text-xl" style={{ background: t.bg }}>✂</div>}
-                    <div className="p-3 flex-1">
-                      <p className="text-sm font-medium leading-4 line-clamp-2">{s.nombre}</p>
-                      <p className="text-xs mt-1" style={{ color: t.muted }}>${s.precio}</p>
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setServicio(s);
+                      setMetodoSena(null);
+                      setHora("");
+                    }}
+                    className="w-full flex gap-3 text-left overflow-hidden"
+                    style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
+                  >
+                    {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center" style={{ background: t.bg }}>✂</div>}
+                    <div className="py-3 pr-3 min-w-0">
+                      <p className="font-medium">{s.nombre}</p>
+                      <p className="text-sm" style={{ color: t.muted }}>${s.precio} · {s.duracion_minutos} min</p>
                     </div>
                   </button>
                 );
               })}
             </div>
           </div>
-        ))}
+        )}
 
-        {pideSena && (
-          <div className="mb-4 p-4 text-sm" style={{ background: t.card, borderRadius: 16 }}>
-            <p className="font-medium">Este servicio pide seña ${servicio?.sena}</p>
-            {pago?.datos_cuenta && <p className="mt-2 whitespace-pre-wrap">{pago.datos_cuenta}</p>}
-            {pago?.mercado_pago_url && (
-              <a href={pago.mercado_pago_url} target="_blank" rel="noreferrer" className="underline mt-2 inline-block">
-                Mercado Pago
-              </a>
+        {servicio && (
+          <div className="mb-5 p-4" style={{ background: t.card, borderRadius: 16, border: `1px solid ${t.line}` }}>
+            {servicio.imagen_url && <img src={servicio.imagen_url} alt="" className="h-36 w-full object-cover rounded-xl mb-3" />}
+            <p className="text-lg font-medium">{servicio.nombre}</p>
+            <p className="text-sm mt-1" style={{ color: t.muted }}>{servicio.duracion_minutos} min · ${servicio.precio}</p>
+            {pideSena ? (
+              <>
+                <p className="mt-3 font-medium">Requiere seña ${servicio.sena}</p>
+                <p className="text-sm mb-3" style={{ color: t.muted }}>¿Cómo preferís pagarla?</p>
+                {pago?.datos_cuenta && (
+                  <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
+                    Transferencia / cuenta
+                  </button>
+                )}
+                {pago?.mercado_pago_url && (
+                  <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
+                    Mercado Pago
+                  </button>
+                )}
+                {!pago?.datos_cuenta && !pago?.mercado_pago_url && (
+                  <p className="text-sm">El local todavía no cargó cuenta ni link de pago.</p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm mt-2" style={{ color: t.muted }}>Sin seña</p>
             )}
           </div>
         )}
 
-        {barberos.length > 0 && (
+        {servicio && (!pideSena || metodoSena) && barberos.length > 0 && (
           <>
-            <h2 className="font-medium mb-3 mt-2">{rosa ? "Elegí profesional" : "Elegí barbero"}</h2>
+            <h2 className="font-medium mb-3">{rosa ? "Elegí profesional" : "Elegí barbero"}</h2>
             <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
               {barberos.map((b) => {
                 const activoSel = barbero?.id === b.id;
@@ -378,33 +428,37 @@ function ReservarPage() {
           </>
         )}
 
-        <h2 className="font-medium mb-3">Elegí día y hora</h2>
-        <div className="p-4 mb-3" style={{ background: t.card, borderRadius: rosa ? 22 : 16 }}>
-          <div className="flex items-center justify-between mb-3">
-            <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>‹</button>
-            <p className="text-sm font-medium capitalize">{mesLabel}</p>
-            <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
-          </div>
-          <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>
-            {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
-              <span key={i}>{d}</span>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
-            {celdasMes.map((value, i) => {
-              if (!value) return <span key={i} />;
-              const activoDia = fecha === value;
-              const pasado = value < hoy;
-              return (
-                <button key={value} type="button" disabled={pasado} onClick={() => { setFecha(value); setHora(""); setEsperaOk(false); }} className="h-8 w-8 mx-auto rounded-full" style={{ background: activoDia ? t.btn : "transparent", color: activoDia ? t.btnText : pasado ? t.line : t.text }}>
-                  {Number(value.slice(8))}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {servicio && (!pideSena || metodoSena) && (
+          <>
+            <h2 className="font-medium mb-3">Elegí día y hora</h2>
+            <div className="p-4 mb-3" style={{ background: t.card, borderRadius: rosa ? 22 : 16 }}>
+              <div className="flex items-center justify-between mb-3">
+                <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>‹</button>
+                <p className="text-sm font-medium capitalize">{mesLabel}</p>
+                <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
+              </div>
+              <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>
+                {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
+                  <span key={i}>{d}</span>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
+                {celdasMes.map((value, i) => {
+                  if (!value) return <span key={i} />;
+                  const activoDia = fecha === value;
+                  const pasado = value < hoy;
+                  return (
+                    <button key={value} type="button" disabled={pasado} onClick={() => { setFecha(value); setHora(""); setEsperaOk(false); }} className="h-8 w-8 mx-auto rounded-full" style={{ background: activoDia ? t.btn : "transparent", color: activoDia ? t.btnText : pasado ? t.line : t.text }}>
+                      {Number(value.slice(8))}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
 
-        {fecha && (
+        {servicio && (!pideSena || metodoSena) && fecha && (
           <div className="mb-6">
             <div className="flex gap-2 overflow-x-auto pb-2">
               {horariosDelDia.map((h) => (
@@ -416,9 +470,7 @@ function ReservarPage() {
             {horariosDelDia.length === 0 && (
               <div className="mt-3">
                 <p className="text-sm mb-3">No hay horarios ese día.</p>
-                {esperaOk ? (
-                  <p className="text-sm">Quedaste en lista de espera.</p>
-                ) : (
+                {esperaOk ? <p className="text-sm">Quedaste en lista de espera.</p> : (
                   <form onSubmit={anotarEspera} className="space-y-2">
                     <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
                     <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
@@ -430,7 +482,7 @@ function ReservarPage() {
           </div>
         )}
 
-        {servicio && fecha && hora && (
+        {servicio && (!pideSena || metodoSena) && fecha && hora && (
           <form onSubmit={guardar} className="space-y-3 mb-4">
             <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
             <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
