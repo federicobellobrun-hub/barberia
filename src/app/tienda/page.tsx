@@ -6,16 +6,9 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import BottomNav from "@/components/BottomNav";
-import { temaPack } from "@/lib/rubro";
+import { temaPack, aplicarTema } from "@/lib/rubro";
 
-type Producto = {
-  id: string;
-  nombre: string;
-  precio: number;
-  descripcion: string | null;
-  stock: number;
-  imagen_url: string | null;
-};
+type Producto = { id: string; nombre: string; precio: number; descripcion: string | null; stock: number; imagen_url: string | null };
 type Item = Producto & { cantidad: number };
 
 function waNumber(telefono: string) {
@@ -24,7 +17,6 @@ function waNumber(telefono: string) {
   if (solo.startsWith("0")) return `598${solo.slice(1)}`;
   return `598${solo}`;
 }
-
 function slugDeHost() {
   if (typeof window === "undefined") return null;
   const host = window.location.hostname.replace(/^www\./, "");
@@ -36,42 +28,33 @@ function slugDeHost() {
 function TiendaPage() {
   const search = useSearchParams();
   const slug = search.get("b") || slugDeHost() || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
-
   const [productos, setProductos] = useState<Producto[]>([]);
   const [carrito, setCarrito] = useState<Item[]>([]);
   const [whatsapp, setWhatsapp] = useState("");
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [rubro, setRubro] = useState("barberia");
-  const [estilo, setEstilo] = useState("auto");
+  const [rubro, setRubro] = useState(() => (typeof window === "undefined" ? "barberia" : localStorage.getItem("rubro_" + slug) || "barberia"));
+  const [estilo, setEstilo] = useState(() => (typeof window === "undefined" ? "auto" : localStorage.getItem("estilo_" + slug) || "auto"));
   const t = temaPack(estilo, rubro);
   const rosa = t.pack === "rosa";
   const radio = rosa ? 999 : 16;
+
+  useEffect(() => { aplicarTema(t); }, [estilo, rubro]);
 
   useEffect(() => {
     if (slug && slug !== "reservoapps.com") localStorage.setItem("barberia_slug", slug);
     const load = async () => {
       const supabase = createClient();
-      const { data: shop, error: shopErr } = await supabase
-        .from("barberias")
-        .select("id, whatsapp_pedidos, rubro, estilo")
-        .eq("slug", slug)
-        .maybeSingle();
-      if (shopErr || !shop) {
-        setError("No se encontró el local");
-        return;
-      }
+      const { data: shop, error: shopErr } = await supabase.from("barberias").select("id, whatsapp_pedidos, rubro, estilo").eq("slug", slug).maybeSingle();
+      if (shopErr || !shop) return setError("No se encontró el local");
       setWhatsapp(shop.whatsapp_pedidos || "");
       setRubro(shop.rubro || "barberia");
       setEstilo(shop.estilo || "auto");
       localStorage.setItem("rubro_" + slug, shop.rubro || "barberia");
-      const { data, error: e } = await supabase
-        .from("productos")
-        .select("id, nombre, precio, descripcion, stock, imagen_url")
-        .eq("barberia_id", shop.id)
-        .eq("activo", true)
-        .order("nombre");
+      localStorage.setItem("estilo_" + slug, shop.estilo || "auto");
+      aplicarTema(temaPack(shop.estilo || "auto", shop.rubro || "barberia"));
+      const { data, error: e } = await supabase.from("productos").select("id, nombre, precio, descripcion, stock, imagen_url").eq("barberia_id", shop.id).eq("activo", true).order("nombre");
       if (e) setError(e.message);
       setProductos(data || []);
     };
@@ -79,27 +62,17 @@ function TiendaPage() {
   }, [slug]);
 
   const total = useMemo(() => carrito.reduce((acc, i) => acc + Number(i.precio) * i.cantidad, 0), [carrito]);
-
-  const agregar = (p: Producto) => {
-    setCarrito((prev) => {
-      const found = prev.find((i) => i.id === p.id);
-      if (found) return prev.map((i) => (i.id === p.id ? { ...i, cantidad: i.cantidad + 1 } : i));
-      return [...prev, { ...p, cantidad: 1 }];
-    });
-  };
-
-  const quitar = (id: string) => {
-    setCarrito((prev) => prev.flatMap((i) => (i.id !== id ? [i] : i.cantidad <= 1 ? [] : [{ ...i, cantidad: i.cantidad - 1 }])));
-  };
-
+  const agregar = (p: Producto) => setCarrito((prev) => {
+    const found = prev.find((i) => i.id === p.id);
+    if (found) return prev.map((i) => (i.id === p.id ? { ...i, cantidad: i.cantidad + 1 } : i));
+    return [...prev, { ...p, cantidad: 1 }];
+  });
+  const quitar = (id: string) => setCarrito((prev) => prev.flatMap((i) => (i.id !== id ? [i] : i.cantidad <= 1 ? [] : [{ ...i, cantidad: i.cantidad - 1 }])));
   const pedir = () => {
     if (!whatsapp) return setError("Este local no cargó WhatsApp en Configuración");
     if (!nombre || !telefono || carrito.length === 0) return;
     const lineas = carrito.map((i) => `• ${i.cantidad} x ${i.nombre} ($${i.precio})`).join("\n");
-    window.open(
-      `https://wa.me/${waNumber(whatsapp)}?text=${encodeURIComponent(`Hola, soy ${nombre}. Quiero este pedido:\n\n${lineas}\n\nTotal: $${total}\nWhatsApp: ${telefono}`)}`,
-      "_blank"
-    );
+    window.open(`https://wa.me/${waNumber(whatsapp)}?text=${encodeURIComponent(`Hola, soy ${nombre}. Quiero este pedido:\n\n${lineas}\n\nTotal: $${total}\nWhatsApp: ${telefono}`)}`, "_blank");
   };
 
   return (
@@ -138,25 +111,11 @@ function TiendaPage() {
           </section>
         )}
       </div>
-      <BottomNav
-        items={[
-          { href: `/b/${slug}`, label: "Inicio" },
-          { href: `/reservar?b=${slug}`, label: "Reservar" },
-          { href: `/tienda?b=${slug}`, label: "Tienda", active: true },
-        ]}
-        bg={t.bg}
-        line={t.line}
-        text={t.text}
-        muted={t.muted}
-      />
+      <BottomNav items={[{ href: `/b/${slug}`, label: "Inicio" }, { href: `/reservar?b=${slug}`, label: "Reservar" }, { href: `/tienda?b=${slug}`, label: "Tienda", active: true }]} bg={t.bg} line={t.line} text={t.text} muted={t.muted} />
     </main>
   );
 }
 
 export default function TiendaPageWrapper() {
-  return (
-    <Suspense fallback={<main className="min-h-screen flex items-center justify-center">Cargando...</main>}>
-      <TiendaPage />
-    </Suspense>
-  );
+  return <Suspense fallback={<main className="min-h-screen" style={{ background: "#FDF7F9" }} />}><TiendaPage /></Suspense>;
 }
