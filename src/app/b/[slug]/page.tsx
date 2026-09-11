@@ -114,21 +114,38 @@ export default function BarberiaHomePage() {
             Cómo llegar →
           </a>
         )}
-        <Link href={`/reservar?b=${slug}`} className="block text-center py-3.5 text-[16px] mb-3" style={{ background: t.btn, color: t.btnText, borderRadius: rosa ? 999 : 8, boxShadow: rosa ? "0 8px 20px rgba(183,110,121,.28)" : "none" }}>
+        <Link
+          href={`/reservar?b=${slug}`}
+          className="block text-center py-3.5 text-[16px] mb-3"
+          style={{ background: t.btn, color: t.btnText, borderRadius: rosa ? 999 : 8, boxShadow: rosa ? "0 8px 20px rgba(183,110,121,.28)" : "none" }}
+        >
           Reservar
         </Link>
         <div className="grid grid-cols-2 gap-2 mb-3">
-          <Link href={`/tienda?b=${slug}`} className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
+          <Link href={`/tienda?b=${slug}`} className="py-3 text-center text-sm flex flex-col items-center justify-center gap-1" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M4 8h16l-1 11H5L4 8zM9 8V6a3 3 0 0 1 6 0v2" />
+            </svg>
             Productos
           </Link>
-          <Link href="/login" className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
+          <Link href="/login" className="py-3 text-center text-sm flex flex-col items-center justify-center gap-1" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="5" y="11" width="14" height="10" rx="2" />
+              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+            </svg>
             {t.panel}
           </Link>
         </div>
         {resumenHorario && (
-          <div className="px-4 py-3.5 mb-8" style={{ background: t.card, borderRadius: rosa ? 22 : 8 }}>
-            <p className="text-[10px] tracking-[0.18em] uppercase" style={{ color: t.muted }}>Horario</p>
-            <p className="text-[15px]">{resumenHorario}</p>
+          <div className="px-4 py-3.5 mb-8 flex items-center gap-3" style={{ background: t.card, borderRadius: rosa ? 22 : 8 }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <circle cx="12" cy="12" r="8" />
+              <path d="M12 8v4l3 2" />
+            </svg>
+            <div>
+              <p className="text-[10px] tracking-[0.18em] uppercase" style={{ color: t.muted }}>Horario</p>
+              <p className="text-[15px]">{resumenHorario}</p>
+            </div>
           </div>
         )}
         {fotos.length > 0 && (
