@@ -16,50 +16,33 @@ type Servicio = {
   categoria: string | null;
   sena: number | null;
 };
-type Producto = {
-  id: string;
-  nombre: string;
-  precio: number;
-  descripcion: string | null;
-  activo: boolean;
-  stock: number;
-  imagen_url: string | null;
-};
 
 export default function CatalogoPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
-  const [productos, setProductos] = useState<Producto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sNombre, setSNombre] = useState("");
   const [sCategoria, setSCategoria] = useState("");
   const [sDuracion, setSDuracion] = useState("30");
   const [sPrecio, setSPrecio] = useState("");
   const [sSena, setSSena] = useState("0");
-  const [pNombre, setPNombre] = useState("");
-  const [pPrecio, setPPrecio] = useState("");
-  const [pDesc, setPDesc] = useState("");
-  const [pStock, setPStock] = useState("0");
   const router = useRouter();
 
   const load = async (id: string) => {
     const supabase = createClient();
-    const [s, p] = await Promise.all([
-      supabase.from("servicios").select("id, nombre, duracion_minutos, precio, activo, imagen_url, categoria, sena").eq("barberia_id", id).order("orden"),
-      supabase.from("productos").select("id, nombre, precio, descripcion, activo, stock, imagen_url").eq("barberia_id", id).order("nombre"),
-    ]);
-    if (s.error) setError(s.error.message);
-    if (p.error) setError(p.error.message);
-    setServicios((s.data as Servicio[]) || []);
-    setProductos(p.data || []);
+    const { data, error: e } = await supabase
+      .from("servicios")
+      .select("id, nombre, duracion_minutos, precio, activo, imagen_url, categoria, sena")
+      .eq("barberia_id", id)
+      .order("orden");
+    if (e) setError(e.message);
+    setServicios((data as Servicio[]) || []);
   };
 
   useEffect(() => {
     const init = async () => {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
       const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
       if (!data?.barberia_id) return setError("Este usuario no tiene local");
@@ -92,48 +75,16 @@ export default function CatalogoPage() {
     await load(barberiaId);
   };
 
-  const addProducto = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!barberiaId) return;
-    const supabase = createClient();
-    const { error: e1 } = await supabase.from("productos").insert({
-      barberia_id: barberiaId,
-      nombre: pNombre,
-      precio: Number(pPrecio),
-      descripcion: pDesc || null,
-      stock: Number(pStock),
-      activo: true,
-    });
-    if (e1) return setError(e1.message);
-    setPNombre("");
-    setPPrecio("");
-    setPDesc("");
-    setPStock("0");
-    await load(barberiaId);
-  };
-
   const updateServicio = async (s: Servicio) => {
     const supabase = createClient();
-    const { error: e1 } = await supabase
-      .from("servicios")
-      .update({
-        nombre: s.nombre,
-        categoria: s.categoria,
-        duracion_minutos: s.duracion_minutos,
-        precio: s.precio,
-        sena: s.sena || 0,
-        activo: s.activo,
-      })
-      .eq("id", s.id);
-    if (e1) setError(e1.message);
-  };
-
-  const updateProducto = async (p: Producto) => {
-    const supabase = createClient();
-    const { error: e1 } = await supabase
-      .from("productos")
-      .update({ nombre: p.nombre, precio: p.precio, descripcion: p.descripcion, stock: p.stock, activo: p.activo })
-      .eq("id", p.id);
+    const { error: e1 } = await supabase.from("servicios").update({
+      nombre: s.nombre,
+      categoria: s.categoria,
+      duracion_minutos: s.duracion_minutos,
+      precio: s.precio,
+      sena: s.sena || 0,
+      activo: s.activo,
+    }).eq("id", s.id);
     if (e1) setError(e1.message);
   };
 
@@ -149,30 +100,10 @@ export default function CatalogoPage() {
     else await load(barberiaId);
   };
 
-  const subirFotoProducto = async (productoId: string, file: File) => {
-    if (!barberiaId) return;
-    const supabase = createClient();
-    const path = `${barberiaId}/productos/${productoId}-${Date.now()}-${file.name}`;
-    const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
-    if (upErr) return setError(upErr.message);
-    const { data } = supabase.storage.from("fotos").getPublicUrl(path);
-    const { error: e1 } = await supabase.from("productos").update({ imagen_url: data.publicUrl }).eq("id", productoId);
-    if (e1) setError(e1.message);
-    else await load(barberiaId);
-  };
-
   const ocultarServicio = async (id: string, activo: boolean) => {
     if (!barberiaId) return;
     const supabase = createClient();
     const { error: e1 } = await supabase.from("servicios").update({ activo }).eq("id", id);
-    if (e1) setError(e1.message);
-    else await load(barberiaId);
-  };
-
-  const delProducto = async (id: string) => {
-    if (!barberiaId) return;
-    const supabase = createClient();
-    const { error: e1 } = await supabase.from("productos").delete().eq("id", id);
     if (e1) setError(e1.message);
     else await load(barberiaId);
   };
@@ -185,12 +116,9 @@ export default function CatalogoPage() {
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Catálogo</h1>
-        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>
-          Servicios, categorías y seña
-        </p>
+        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Servicios, categorías y seña</p>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
-        <h2 className="font-medium mb-3">Servicios</h2>
         <form onSubmit={addServicio} className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
           <input required value={sNombre} onChange={(e) => setSNombre(e.target.value)} placeholder="Nombre. Ej: Lifting" className={campo} style={estilo} />
           <input value={sCategoria} onChange={(e) => setSCategoria(e.target.value)} placeholder="Categoría. Ej: Pestañas" className={campo} style={estilo} />
@@ -199,9 +127,7 @@ export default function CatalogoPage() {
             <input required value={sPrecio} onChange={(e) => setSPrecio(e.target.value)} placeholder="Precio" className="rounded-xl px-3 py-3" style={estilo} />
             <input value={sSena} onChange={(e) => setSSena(e.target.value)} placeholder="Seña" className="rounded-xl px-3 py-3" style={estilo} />
           </div>
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
-            Agregar servicio
-          </button>
+          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Agregar servicio</button>
         </form>
 
         {servicios.map((s) => (
@@ -217,41 +143,8 @@ export default function CatalogoPage() {
             </div>
             <p className="text-xs" style={{ color: "var(--muted)" }}>Minutos · Precio · Seña</p>
             <div className="flex gap-2">
-              <button type="button" onClick={() => void updateServicio(s)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
-                Guardar
-              </button>
-              <button type="button" onClick={() => void ocultarServicio(s.id, !s.activo)} className="px-4 rounded-xl text-sm">
-                {s.activo ? "Ocultar" : "Mostrar"}
-              </button>
-            </div>
-          </div>
-        ))}
-
-        <h2 className="font-medium mt-8 mb-3">Productos</h2>
-        <form onSubmit={addProducto} className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <input required value={pNombre} onChange={(e) => setPNombre(e.target.value)} placeholder="Ej: Cera capilar" className={campo} style={estilo} />
-          <input required value={pPrecio} onChange={(e) => setPPrecio(e.target.value)} placeholder="Precio" className={campo} style={estilo} />
-          <input value={pDesc} onChange={(e) => setPDesc(e.target.value)} placeholder="Descripción" className={campo} style={estilo} />
-          <input value={pStock} onChange={(e) => setPStock(e.target.value)} placeholder="Stock" className={campo} style={estilo} />
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
-            Agregar producto
-          </button>
-        </form>
-
-        {productos.map((p) => (
-          <div key={p.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            {p.imagen_url && <img src={p.imagen_url} alt="" className="h-32 w-full object-cover rounded-xl" />}
-            <input value={p.nombre} onChange={(e) => setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, nombre: e.target.value } : x)))} className={campo} style={estilo} />
-            <input type="number" value={p.precio} onChange={(e) => setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, precio: Number(e.target.value) } : x)))} className={campo} style={estilo} />
-            <input type="number" value={p.stock ?? 0} onChange={(e) => setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, stock: Number(e.target.value) } : x)))} className={campo} style={estilo} />
-            <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subirFotoProducto(p.id, file); }} />
-            <div className="flex gap-2">
-              <button type="button" onClick={() => void updateProducto(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
-                Guardar
-              </button>
-              <button type="button" onClick={() => void delProducto(p.id)} className="px-4 rounded-xl text-sm text-red-500">
-                Borrar
-              </button>
+              <button type="button" onClick={() => void updateServicio(s)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
+              <button type="button" onClick={() => void ocultarServicio(s.id, !s.activo)} className="px-4 rounded-xl text-sm">{s.activo ? "Ocultar" : "Mostrar"}</button>
             </div>
           </div>
         ))}
