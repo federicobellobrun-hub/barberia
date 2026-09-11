@@ -42,12 +42,7 @@ async function sendTemplate(to: string, name: string, params: string[]) {
       : {
           name,
           language: { code: "es_UY" },
-          components: [
-            {
-              type: "body",
-              parameters: params.map((text) => ({ type: "text", text })),
-            },
-          ],
+          components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }],
         },
   };
 
@@ -62,7 +57,7 @@ async function sendTemplate(to: string, name: string, params: string[]) {
 }
 
 export async function POST(req: Request) {
-  const { turnoId } = await req.json();
+  const { turnoId, soloCliente } = await req.json();
   if (!turnoId) return NextResponse.json({ error: "Falta turnoId" }, { status: 400 });
 
   const supabase = admin();
@@ -96,7 +91,7 @@ export async function POST(req: Request) {
     });
   }
 
-  if (shop.whatsapp_pedidos) {
+  if (!soloCliente && shop.whatsapp_pedidos) {
     resultados.push({
       a: "barbero",
       ...(await sendTemplate(waNumber(shop.whatsapp_pedidos), aviso, [cliente?.nombre || "cliente", fecha, hora, local])),
