@@ -1,8 +1,21 @@
 export type Rubro = "barberia" | "pestanas_unas";
+export type Pack = "auto" | "barberia" | "rosa" | "oscuro" | "arena" | "clinico";
 
-export function temaRubro(rubro?: string | null) {
-  if (rubro === "pestanas_unas") {
+export const PACKS: { id: Pack; nombre: string }[] = [
+  { id: "auto", nombre: "Según el rubro" },
+  { id: "barberia", nombre: "Barbería vintage" },
+  { id: "rosa", nombre: "Estudio rosa" },
+  { id: "oscuro", nombre: "Oscuro" },
+  { id: "arena", nombre: "Arena" },
+  { id: "clinico", nombre: "Clínico" },
+];
+
+export function temaPack(pack?: string | null, rubro?: string | null) {
+  const elegido = !pack || pack === "auto" ? (rubro === "pestanas_unas" ? "rosa" : "barberia") : pack;
+
+  if (elegido === "rosa") {
     return {
+      pack: "rosa",
       bg: "linear-gradient(180deg, #FDF7F9 0%, #F6E6EE 100%)",
       card: "#FFFFFF",
       text: "#3A2430",
@@ -15,7 +28,53 @@ export function temaRubro(rubro?: string | null) {
       galeria: "Trabajos",
     };
   }
+  if (elegido === "oscuro") {
+    return {
+      pack: "oscuro",
+      bg: "#121212",
+      card: "#1C1C1C",
+      text: "#F4EFE6",
+      muted: "#9A948A",
+      line: "#2A2A2A",
+      btn: "#F4EFE6",
+      btnText: "#121212",
+      cita: "Reservá tu turno",
+      panel: "Panel",
+      galeria: "Trabajos",
+    };
+  }
+  if (elegido === "arena") {
+    return {
+      pack: "arena",
+      bg: "#EDE4D4",
+      card: "#F7F1E6",
+      text: "#3F2E1E",
+      muted: "#8A7358",
+      line: "#D9CBB3",
+      btn: "#6B4F32",
+      btnText: "#F7F1E6",
+      cita: "Reservá tu turno",
+      panel: "Panel",
+      galeria: "Trabajos",
+    };
+  }
+  if (elegido === "clinico") {
+    return {
+      pack: "clinico",
+      bg: "#F4F7F8",
+      card: "#FFFFFF",
+      text: "#1B2A32",
+      muted: "#6B7C86",
+      line: "#D5DEE3",
+      btn: "#2F6F7E",
+      btnText: "#FFFFFF",
+      cita: "Reservá tu cita",
+      panel: "Panel",
+      galeria: "Trabajos",
+    };
+  }
   return {
+    pack: "barberia",
     bg: "#F5F0E8",
     card: "#EFE8DC",
     text: "#1C1712",
@@ -27,4 +86,8 @@ export function temaRubro(rubro?: string | null) {
     panel: "Panel del barbero",
     galeria: "Cortes",
   };
+}
+
+export function temaRubro(rubro?: string | null) {
+  return temaPack("auto", rubro);
 }
