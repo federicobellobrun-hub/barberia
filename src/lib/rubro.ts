@@ -38,7 +38,9 @@ export function temaPack(pack?: string | null, rubro?: string | null) {
 
 export function temaRubro(rubro?: string | null) {
   return temaPack("auto", rubro);
-}export function aplicarTema(t: ReturnType<typeof temaPack>) {
+}
+
+export function aplicarTema(t: ReturnType<typeof temaPack>) {
   if (typeof document === "undefined") return;
   const r = document.documentElement;
   const bg = t.bg.startsWith("linear") ? "#FDF7F9" : t.bg;
