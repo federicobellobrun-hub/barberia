@@ -18,7 +18,6 @@ type Shop = {
   rubro: string | null;
   estilo: string | null;
 };
-type Resena = { id: string; nombre: string | null; puntaje: number; comentario: string | null };
 
 function Pin() {
   return (
@@ -46,8 +45,10 @@ export default function BarberiaHomePage() {
   const [shop, setShop] = useState<Shop | null>(null);
   const [fotos, setFotos] = useState<{ id: string; url: string }[]>([]);
   const [horarios, setHorarios] = useState<{ dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean }[]>([]);
-  const [resenas, setResenas] = useState<Resena[]>([]);
+  const [promedio, setPromedio] = useState(0);
+  const [totalResenas, setTotalResenas] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [rubro, setRubro] = useState(() => {
     if (typeof window === "undefined") return "barberia";
     return localStorage.getItem("rubro_" + slug) || "barberia";
@@ -71,12 +72,12 @@ export default function BarberiaHomePage() {
         .maybeSingle();
       if (e || !b) {
         setError("No se encontró la barbería");
+        setLoading(false);
         return;
       }
-      const shopData = b as Shop;
-      setShop(shopData);
-      const r = shopData.rubro || "barberia";
-      const pack = shopData.estilo || "auto";
+      setShop(b as Shop);
+      const r = (b as Shop).rubro || "barberia";
+      const pack = (b as Shop).estilo || "auto";
       setRubro(r);
       setEstilo(pack);
       localStorage.setItem("rubro_" + slug, r);
@@ -84,11 +85,14 @@ export default function BarberiaHomePage() {
       const [f, h, n] = await Promise.all([
         supabase.from("fotos").select("id, url").eq("barberia_id", b.id).eq("mostrar_inicio", true).order("created_at", { ascending: false }).limit(6),
         supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin, activo").eq("barberia_id", b.id).order("dia_semana"),
-        supabase.from("resenas").select("id, nombre, puntaje, comentario").eq("barberia_id", b.id).eq("visible", true).order("created_at", { ascending: false }).limit(6),
+        supabase.from("resenas").select("puntaje").eq("barberia_id", b.id).eq("visible", true),
       ]);
       setFotos(f.data || []);
       setHorarios(h.data || []);
-      setResenas((n.data as Resena[]) || []);
+      const lista = n.data || [];
+      setTotalResenas(lista.length);
+      setPromedio(lista.length ? lista.reduce((a, x) => a + Number(x.puntaje), 0) / lista.length : 0);
+      setLoading(false);
     };
     void load();
   }, [slug]);
@@ -102,7 +106,13 @@ export default function BarberiaHomePage() {
     return `${nombres[0]}–${nombres[nombres.length - 1]} ${ini} – ${fin}`;
   }, [horarios]);
 
-  const promedio = resenas.length ? resenas.reduce((a, r) => a + r.puntaje, 0) / resenas.length : 0;
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "#111111", color: "#F4EFE6" }}>
+        <p className="text-xs tracking-[0.28em] uppercase">Reservo</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen pb-28" style={{ background: t.bg, color: t.text }}>
@@ -121,6 +131,11 @@ export default function BarberiaHomePage() {
         <h1 className="text-center mb-2" style={{ fontFamily: "Georgia, Times, serif", fontSize: rosa ? "38px" : "42px", lineHeight: 1.1 }}>
           {t.cita}
         </h1>
+        {totalResenas > 0 && (
+          <Link href={`/resena?b=${slug}`} className="block text-center text-sm mb-3" style={{ color: t.muted }}>
+            {"★".repeat(Math.round(promedio))} {promedio.toFixed(1)} · {totalResenas} reseñas
+          </Link>
+        )}
         {shop?.direccion && (
           <p className="text-center text-[15px] mb-1">
             <Pin />
@@ -164,18 +179,6 @@ export default function BarberiaHomePage() {
               <p className="text-[15px]">{resumenHorario}</p>
             </div>
           </div>
-        )}
-        {resenas.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-center text-xs tracking-[0.16em] uppercase mb-2" style={{ color: t.muted }}>Reseñas</h2>
-            <p className="text-center mb-4">{"★".repeat(Math.round(promedio))} · {promedio.toFixed(1)}</p>
-            {resenas.map((r) => (
-              <div key={r.id} className="p-4 mb-2" style={{ background: t.card, borderRadius: rosa ? 18 : 12 }}>
-                <p className="text-sm font-medium">{r.nombre || "Cliente"} · {"★".repeat(r.puntaje)}</p>
-                {r.comentario && <p className="text-sm mt-1" style={{ color: t.muted }}>{r.comentario}</p>}
-              </div>
-            ))}
-          </section>
         )}
         {fotos.length > 0 && (
           <section>
