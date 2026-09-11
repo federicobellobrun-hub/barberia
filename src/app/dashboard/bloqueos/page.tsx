@@ -14,6 +14,22 @@ type Bloqueo = {
   todo_el_dia: boolean | null;
 };
 
+function aIsoFecha(valor: string) {
+  const v = valor.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const m = v.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (!m) return null;
+  return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+}
+
+function aHora(valor: string) {
+  const v = valor.trim();
+  if (!v) return "";
+  const m = v.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return `${m[1].padStart(2, "0")}:${m[2]}`;
+}
+
 export default function BloqueosPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
@@ -54,22 +70,35 @@ export default function BloqueosPage() {
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barberiaId || !fechaInicio) return;
-    const conHora = Boolean(horaInicio && horaFin);
-    if ((horaInicio && !horaFin) || (!horaInicio && horaFin)) {
-      setError("Completá hora desde y hasta, o dejá las dos vacías para el día entero.");
+    if (!barberiaId) return;
+    const desdeDia = aIsoFecha(fechaInicio);
+    if (!desdeDia) {
+      setError("Fecha desde: usá 11/09/2026");
       return;
     }
+    const hastaDia = fechaFin.trim() ? aIsoFecha(fechaFin) : desdeDia;
+    if (!hastaDia) {
+      setError("Fecha hasta: usá 11/09/2026");
+      return;
+    }
+    const h1 = aHora(horaInicio);
+    const h2 = aHora(horaFin);
+    if (h1 === null || h2 === null) {
+      setError("Hora: usá 14:00");
+      return;
+    }
+    if ((h1 && !h2) || (!h1 && h2)) {
+      setError("Completá las dos horas o dejá las dos vacías.");
+      return;
+    }
+    const conHora = Boolean(h1 && h2);
     setSaving(true);
     setError(null);
     const supabase = createClient();
-    const desde = conHora ? `${fechaInicio}T${horaInicio}:00-03:00` : `${fechaInicio}T00:00:00-03:00`;
-    const hastaDia = fechaFin || fechaInicio;
-    const hasta = conHora ? `${hastaDia}T${horaFin}:00-03:00` : `${hastaDia}T23:59:59-03:00`;
     const { error: e1 } = await supabase.from("bloqueos").insert({
       barberia_id: barberiaId,
-      fecha_inicio: desde,
-      fecha_fin: hasta,
+      fecha_inicio: conHora ? `${desdeDia}T${h1}:00-03:00` : `${desdeDia}T00:00:00-03:00`,
+      fecha_fin: conHora ? `${hastaDia}T${h2}:00-03:00` : `${hastaDia}T23:59:59-03:00`,
       todo_el_dia: !conHora,
       motivo: motivo.trim() || (conHora ? "Horario bloqueado" : "Día bloqueado"),
     });
@@ -92,22 +121,18 @@ export default function BloqueosPage() {
 
   const box: React.CSSProperties = {
     width: "100%",
-    maxWidth: "100%",
-    minWidth: 0,
     boxSizing: "border-box",
     background: "#EFE8DC",
     border: "1px solid #ddd4c8",
     color: "#1C1712",
-    colorScheme: "light",
     fontSize: 16,
-    height: 52,
-    padding: "0 12px",
-    display: "block",
+    height: 48,
+    padding: "0 14px",
   };
 
   return (
     <main className="min-h-screen pb-24" style={{ background: "#F5F0E8", color: "#1C1712" }}>
-      <div className="max-w-md mx-auto px-4 pt-4" style={{ overflowX: "hidden" }}>
+      <div className="max-w-md mx-auto px-5 pt-4">
         <header className="flex items-center justify-between mb-6">
           <Link href="/dashboard/mas">‹</Link>
           <ThemeToggle />
@@ -117,40 +142,16 @@ export default function BloqueosPage() {
           Día entero o solo un rango de horas
         </p>
 
-        <form
-          onSubmit={guardar}
-          className="rounded-2xl p-4 mb-6 space-y-3"
-          style={{ background: "#fff", border: "1px solid #ddd4c8", overflow: "hidden" }}
-        >
+        <form onSubmit={guardar} className="rounded-2xl p-4 mb-6 space-y-3" style={{ background: "#fff", border: "1px solid #ddd4c8" }}>
           {error && <p className="text-red-500 text-sm break-words">{error}</p>}
-
-          <label className="block text-xs" style={{ color: "#7a7268" }}>
-            Desde {fechaInicio ? `· ${fechaInicio}` : ""}
-            <input type="date" required value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} style={box} className="mt-1 rounded-xl" />
-          </label>
-          <label className="block text-xs" style={{ color: "#7a7268" }}>
-            Hasta (opcional) {fechaFin ? `· ${fechaFin}` : ""}
-            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} style={box} className="mt-1 rounded-xl" />
-          </label>
-          <label className="block text-xs" style={{ color: "#7a7268" }}>
-            Hora desde {horaInicio ? `· ${horaInicio}` : ""}
-            <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} style={box} className="mt-1 rounded-xl" />
-          </label>
-          <label className="block text-xs" style={{ color: "#7a7268" }}>
-            Hora hasta {horaFin ? `· ${horaFin}` : ""}
-            <input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} style={box} className="mt-1 rounded-xl" />
-          </label>
-
+          <input value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} placeholder="Desde. Ej: 11/09/2026" inputMode="numeric" className="rounded-xl" style={box} />
+          <input value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} placeholder="Hasta (opcional)" inputMode="numeric" className="rounded-xl" style={box} />
+          <input value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} placeholder="Hora desde. Ej: 14:00" inputMode="numeric" className="rounded-xl" style={box} />
+          <input value={horaFin} onChange={(e) => setHoraFin(e.target.value)} placeholder="Hora hasta. Ej: 16:00" inputMode="numeric" className="rounded-xl" style={box} />
           <p className="text-xs" style={{ color: "#7a7268" }}>
             Sin horas = bloquea el día entero
           </p>
-          <input
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            placeholder="Feriado, almuerzo, vacaciones..."
-            className="rounded-xl"
-            style={{ ...box, height: 52 }}
-          />
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Feriado, almuerzo, vacaciones..." className="rounded-xl" style={box} />
           <button disabled={saving} className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1C1712", color: "#F5F0E8" }}>
             {saving ? "Guardando..." : "Bloquear"}
           </button>
@@ -168,9 +169,7 @@ export default function BloqueosPage() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium break-words">{dia}</p>
                 <p className="text-sm">{rangoHora}</p>
-                <p className="text-sm break-words" style={{ color: "#7a7268" }}>
-                  {b.motivo}
-                </p>
+                <p className="text-sm break-words" style={{ color: "#7a7268" }}>{b.motivo}</p>
               </div>
               <button type="button" onClick={() => void eliminar(b.id)} className="text-sm text-red-500 shrink-0">
                 Quitar
