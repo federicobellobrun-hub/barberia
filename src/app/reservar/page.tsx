@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import BottomNav from "@/components/BottomNav";
-import { temaRubro } from "@/lib/rubro";
+import { temaPack } from "@/lib/rubro";
 
 type Servicio = {
   id: string;
@@ -69,10 +69,8 @@ function ReservarPage() {
   const slug = search.get("b") || slugDeHost() || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
 
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
-  const [rubro, setRubro] = useState(() => {
-    if (typeof window === "undefined") return "barberia";
-    return localStorage.getItem("rubro_" + slug) || "barberia";
-  });
+  const [rubro, setRubro] = useState("barberia");
+  const [estilo, setEstilo] = useState("auto");
   const [pago, setPago] = useState<PagoShop | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
@@ -96,8 +94,8 @@ function ReservarPage() {
   const [esperaOk, setEsperaOk] = useState(false);
   const [mes, setMes] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
-  const t = temaRubro(rubro);
-  const rosa = rubro === "pestanas_unas";
+  const t = temaPack(estilo, rubro);
+  const rosa = t.pack === "rosa";
   const radio = rosa ? 999 : 16;
   const mpLink = pago?.mercado_pago_url ? linkHttps(pago.mercado_pago_url) : "";
 
@@ -108,11 +106,12 @@ function ReservarPage() {
         const supabase = createClient();
         const { data: shop, error: shopErr } = await supabase
           .from("barberias")
-          .select("id, rubro, whatsapp_pedidos, datos_cuenta, mercado_pago_url, pedido_sena")
+          .select("id, rubro, estilo, whatsapp_pedidos, datos_cuenta, mercado_pago_url, pedido_sena")
           .eq("slug", slug)
           .maybeSingle();
         if (shopErr || !shop) throw new Error("No se encontró el local");
         setBarberiaId(shop.id);
+        setEstilo(shop.estilo || "auto");
         setPago({
           whatsapp_pedidos: shop.whatsapp_pedidos,
           datos_cuenta: shop.datos_cuenta,
@@ -283,7 +282,7 @@ function ReservarPage() {
         { href: `/reservar?b=${slug}`, label: "Reservar", active: true },
         { href: `/tienda?b=${slug}`, label: "Tienda" },
       ]}
-      bg={rosa ? "#FBF6F8" : "#F5F0E8"}
+      bg={t.bg}
       line={t.line}
       text={t.text}
       muted={t.muted}
@@ -312,19 +311,13 @@ function ReservarPage() {
         {pideSena && (
           <div className="mt-6 text-left max-w-sm mx-auto p-4 space-y-3" style={{ background: t.card, borderRadius: 16 }}>
             <p className="font-medium">Seña ${servicio.sena}</p>
-            <p className="text-sm" style={{ color: t.muted }}>
-              El turno no queda confirmado hasta que reciban la seña y lo confirmen en la agenda.
-            </p>
+            <p className="text-sm" style={{ color: t.muted }}>El turno no queda confirmado hasta que reciban la seña y lo confirmen en la agenda.</p>
             {metodoSena === "cuenta" && pago?.datos_cuenta && <p className="text-sm whitespace-pre-wrap">{pago.datos_cuenta}</p>}
             {metodoSena === "mp" && mpLink && (
-              <a href={mpLink} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
-                Pagar seña en Mercado Pago
-              </a>
+              <a href={mpLink} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>Pagar seña en Mercado Pago</a>
             )}
             {pago?.whatsapp_pedidos && (
-              <button type="button" onClick={abrirWhatsapp} className="w-full py-3 font-medium" style={{ background: t.card, color: t.text, border: `1px solid ${t.line}`, borderRadius: radio }}>
-                Enviar comprobante por WhatsApp
-              </button>
+              <button type="button" onClick={abrirWhatsapp} className="w-full py-3 font-medium" style={{ background: t.card, color: t.text, border: `1px solid ${t.line}`, borderRadius: radio }}>Enviar comprobante por WhatsApp</button>
             )}
           </div>
         )}
@@ -384,12 +377,8 @@ function ReservarPage() {
               <>
                 <p className="mt-3 font-medium">Requiere seña ${servicio.sena}</p>
                 <p className="text-sm mb-3" style={{ color: t.muted }}>¿Cómo preferís pagarla?</p>
-                {pago?.datos_cuenta && (
-                  <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Transferencia / cuenta</button>
-                )}
-                {mpLink && (
-                  <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Mercado Pago</button>
-                )}
+                {pago?.datos_cuenta && <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Transferencia / cuenta</button>}
+                {mpLink && <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Mercado Pago</button>}
               </>
             ) : (
               <p className="text-sm mt-2" style={{ color: t.muted }}>Sin seña</p>
