@@ -155,16 +155,19 @@ function ReservarPage() {
     return propios.length ? propios : horariosLocal;
   }, [barbero, horariosLocal, horariosBarbero]);
 
+  const hayCategorias = useMemo(() => servicios.some((s) => Boolean(s.categoria?.trim())), [servicios]);
+
   const categorias = useMemo(() => {
+    if (!hayCategorias) return [["Servicios", servicios]] as [string, Servicio[]][];
     const map = new Map<string, Servicio[]>();
     for (const s of servicios) {
       const k = s.categoria?.trim() || "Servicios";
       map.set(k, [...(map.get(k) || []), s]);
     }
     return Array.from(map.entries());
-  }, [servicios]);
+  }, [servicios, hayCategorias]);
 
-  const listaCat = categoria ? categorias.find(([n]) => n === categoria)?.[1] || [] : [];
+  const listaCat = hayCategorias ? categorias.find(([n]) => n === categoria)?.[1] || [] : servicios;
   const pideSena = Boolean(pago?.pedido_sena && servicio && Number(servicio.sena || 0) > 0);
 
   const celdasMes = useMemo(() => {
@@ -289,6 +292,19 @@ function ReservarPage() {
     />
   );
 
+  const TarjetaServicio = ({ s }: { s: Servicio }) => {
+    const activo = servicio?.id === s.id;
+    return (
+      <button type="button" onClick={() => { setServicio(s); setMetodoSena(null); setHora(""); }} className="w-full flex gap-3 text-left overflow-hidden" style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
+        {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center" style={{ background: t.bg }}>✂</div>}
+        <div className="py-3 pr-3 min-w-0">
+          <p className="font-medium">{s.nombre}</p>
+          <p className="text-sm" style={{ color: t.muted }}>${s.precio} · {s.duracion_minutos} min</p>
+        </div>
+      </button>
+    );
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center pb-28" style={{ background: t.bg, color: t.text }}>
@@ -301,24 +317,15 @@ function ReservarPage() {
   if (ok && servicio) {
     return (
       <main className="min-h-screen px-6 py-16 text-center pb-28" style={{ background: t.bg, color: t.text }}>
-        <h1 className="text-4xl tracking-tight" style={{ fontFamily: "Georgia, Times, serif" }}>
-          {pideSena ? "Reserva pedida" : "Turno reservado"}
-        </h1>
-        <p className="mt-4">
-          {servicio.nombre}
-          {barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}
-        </p>
+        <h1 className="text-4xl tracking-tight" style={{ fontFamily: "Georgia, Times, serif" }}>{pideSena ? "Reserva pedida" : "Turno reservado"}</h1>
+        <p className="mt-4">{servicio.nombre}{barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}</p>
         {pideSena && (
           <div className="mt-6 text-left max-w-sm mx-auto p-4 space-y-3" style={{ background: t.card, borderRadius: 16 }}>
             <p className="font-medium">Seña ${servicio.sena}</p>
             <p className="text-sm" style={{ color: t.muted }}>El turno no queda confirmado hasta que reciban la seña y lo confirmen en la agenda.</p>
             {metodoSena === "cuenta" && pago?.datos_cuenta && <p className="text-sm whitespace-pre-wrap">{pago.datos_cuenta}</p>}
-            {metodoSena === "mp" && mpLink && (
-              <a href={mpLink} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>Pagar seña en Mercado Pago</a>
-            )}
-            {pago?.whatsapp_pedidos && (
-              <button type="button" onClick={abrirWhatsapp} className="w-full py-3 font-medium" style={{ background: t.card, color: t.text, border: `1px solid ${t.line}`, borderRadius: radio }}>Enviar comprobante por WhatsApp</button>
-            )}
+            {metodoSena === "mp" && mpLink && <a href={mpLink} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>Pagar seña en Mercado Pago</a>}
+            {pago?.whatsapp_pedidos && <button type="button" onClick={abrirWhatsapp} className="w-full py-3 font-medium" style={{ background: t.card, color: t.text, border: `1px solid ${t.line}`, borderRadius: radio }}>Enviar comprobante por WhatsApp</button>}
           </div>
         )}
         <Link href={`/b/${slug}`} className="inline-block mt-8">Volver</Link>
@@ -332,41 +339,36 @@ function ReservarPage() {
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
         <h1 className="text-[34px] tracking-tight leading-9" style={{ fontFamily: "Georgia, Times, serif" }}>{t.cita}</h1>
-        <p className="mt-2 mb-5" style={{ color: t.muted }}>Elegí categoría y servicio</p>
+        <p className="mt-2 mb-5" style={{ color: t.muted }}>{hayCategorias ? "Elegí categoría y servicio" : "Elegí servicio"}</p>
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
-        <div className="relative overflow-hidden mb-4">
-          <div className="flex" style={{ width: "200%", transform: vista === "servicios" ? "translateX(-50%)" : "translateX(0)", transition: "transform 320ms ease" }}>
-            <div className="w-1/2 pr-1">
-              <div className="grid grid-cols-2 gap-2">
-                {categorias.map(([nombreCat, items]) => (
-                  <button key={nombreCat} type="button" onClick={() => { setCategoria(nombreCat); setServicio(null); setMetodoSena(null); setHora(""); setVista("servicios"); }} className="p-4 text-left" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
-                    <p className="font-medium">{nombreCat}</p>
-                    <p className="text-xs mt-1" style={{ color: t.muted }}>{items.length} servicios</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="w-1/2 pl-1">
-              <button type="button" onClick={() => { setVista("categorias"); setServicio(null); setMetodoSena(null); }} className="text-sm mb-3" style={{ color: t.muted }}>‹ Categorías</button>
-              <h2 className="font-medium mb-3">{categoria}</h2>
-              <div className="space-y-2">
-                {listaCat.map((s) => {
-                  const activo = servicio?.id === s.id;
-                  return (
-                    <button key={s.id} type="button" onClick={() => { setServicio(s); setMetodoSena(null); setHora(""); }} className="w-full flex gap-3 text-left overflow-hidden" style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
-                      {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center" style={{ background: t.bg }}>✂</div>}
-                      <div className="py-3 pr-3 min-w-0">
-                        <p className="font-medium">{s.nombre}</p>
-                        <p className="text-sm" style={{ color: t.muted }}>${s.precio} · {s.duracion_minutos} min</p>
-                      </div>
+        {!hayCategorias ? (
+          <div className="space-y-2 mb-4">
+            {servicios.map((s) => <TarjetaServicio key={s.id} s={s} />)}
+          </div>
+        ) : (
+          <div className="relative overflow-hidden mb-4">
+            <div className="flex" style={{ width: "200%", transform: vista === "servicios" ? "translateX(-50%)" : "translateX(0)", transition: "transform 320ms ease" }}>
+              <div className="w-1/2 pr-1">
+                <div className="grid grid-cols-2 gap-2">
+                  {categorias.map(([nombreCat, items]) => (
+                    <button key={nombreCat} type="button" onClick={() => { setCategoria(nombreCat); setServicio(null); setMetodoSena(null); setHora(""); setVista("servicios"); }} className="p-4 text-left" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
+                      <p className="font-medium">{nombreCat}</p>
+                      <p className="text-xs mt-1" style={{ color: t.muted }}>{items.length} servicios</p>
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
+              </div>
+              <div className="w-1/2 pl-1">
+                <button type="button" onClick={() => { setVista("categorias"); setServicio(null); setMetodoSena(null); }} className="text-sm mb-3" style={{ color: t.muted }}>‹ Categorías</button>
+                <h2 className="font-medium mb-3">{categoria}</h2>
+                <div className="space-y-2">
+                  {listaCat.map((s) => <TarjetaServicio key={s.id} s={s} />)}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {servicio && (
           <div className="mb-5 p-4" style={{ background: t.card, borderRadius: 16, border: `1px solid ${t.line}` }}>
