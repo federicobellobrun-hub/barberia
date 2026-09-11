@@ -38,4 +38,13 @@ export function temaPack(pack?: string | null, rubro?: string | null) {
 
 export function temaRubro(rubro?: string | null) {
   return temaPack("auto", rubro);
+}export function aplicarTema(t: ReturnType<typeof temaPack>) {
+  if (typeof document === "undefined") return;
+  const r = document.documentElement;
+  const bg = t.bg.startsWith("linear") ? "#FDF7F9" : t.bg;
+  r.style.setProperty("--bg", bg);
+  r.style.setProperty("--card", t.card);
+  r.style.setProperty("--text", t.text);
+  r.style.setProperty("--muted", t.muted);
+  r.style.setProperty("--line", t.line);
 }
