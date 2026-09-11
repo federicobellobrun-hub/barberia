@@ -15,6 +15,9 @@ export default function ConfigPage() {
   const [direccion, setDireccion] = useState("");
   const [maps, setMaps] = useState("");
   const [fidelizacion, setFidelizacion] = useState(true);
+  const [cuenta, setCuenta] = useState("");
+  const [mpUrl, setMpUrl] = useState("");
+  const [pedirSena, setPedirSena] = useState(false);
   const [logo, setLogo] = useState<string | null>(null);
   const [portada, setPortada] = useState<string | null>(null);
   const [ok, setOk] = useState("");
@@ -35,7 +38,7 @@ export default function ConfigPage() {
       }
       const { data } = await supabase
         .from("barberias")
-        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion")
+        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena")
         .eq("id", u.barberia_id)
         .maybeSingle();
       if (!data) {
@@ -52,6 +55,9 @@ export default function ConfigPage() {
       setMaps(data.maps_url || "");
       setPortada(data.portada_url || null);
       setFidelizacion(data.fidelizacion !== false);
+      setCuenta(data.datos_cuenta || "");
+      setMpUrl(data.mercado_pago_url || "");
+      setPedirSena(data.pedido_sena === true);
     };
     void load();
   }, [router]);
@@ -70,6 +76,9 @@ export default function ConfigPage() {
         direccion,
         maps_url: maps,
         fidelizacion,
+        datos_cuenta: cuenta,
+        mercado_pago_url: mpUrl,
+        pedido_sena: pedirSena,
       })
       .eq("id", id);
     if (e1) setError(e1.message);
@@ -95,6 +104,9 @@ export default function ConfigPage() {
     }
   };
 
+  const campo = "w-full rounded-2xl px-4 py-3";
+  const estilo = { background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" };
+
   return (
     <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
@@ -105,37 +117,27 @@ export default function ConfigPage() {
           {ok && <p className="text-sm">{ok}</p>}
           {logo && <img src={logo} alt="Logo" className="h-20 w-20 object-contain rounded-full mx-auto" />}
           <p className="text-sm">Logo</p>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void subir(file, "logo");
-            }}
-          />
+          <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subir(file, "logo"); }} />
           {portada && <img src={portada} alt="Portada" className="h-32 w-full object-cover rounded-2xl" />}
           <p className="text-sm">Foto de portada</p>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void subir(file, "portada");
-            }}
-          />
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del local" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp. Ej: 099123456" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Dirección" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input value={maps} onChange={(e) => setMaps(e.target.value)} placeholder="Link de Google Maps" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="enlace. Ej: puntabarber" className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <p className="text-xs" style={{ color: "var(--muted)" }}>
-            Link público: /b/{slug || "..."}
-          </p>
-          <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje de confirmación" rows={4} className="w-full rounded-2xl px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subir(file, "portada"); }} />
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del local" className={campo} style={estilo} />
+          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp. Ej: 099123456" className={campo} style={estilo} />
+          <input value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Dirección" className={campo} style={estilo} />
+          <input value={maps} onChange={(e) => setMaps(e.target.value)} placeholder="Link de Google Maps" className={campo} style={estilo} />
+          <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="enlace. Ej: vale-studio" className={campo} style={estilo} />
+          <p className="text-xs" style={{ color: "var(--muted)" }}>Link público: /b/{slug || "..."}</p>
+          <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje de confirmación" rows={4} className={campo} style={estilo} />
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={fidelizacion} onChange={(e) => setFidelizacion(e.target.checked)} />
             Cortesía cada 10 cortes
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={pedirSena} onChange={(e) => setPedirSena(e.target.checked)} />
+            Pedir seña al reservar
+          </label>
+          <textarea value={cuenta} onChange={(e) => setCuenta(e.target.value)} placeholder="Datos de cuenta bancaria" rows={3} className={campo} style={estilo} />
+          <input value={mpUrl} onChange={(e) => setMpUrl(e.target.value)} placeholder="Link de Mercado Pago" className={campo} style={estilo} />
           <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
             Guardar
           </button>
