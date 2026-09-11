@@ -90,41 +90,52 @@ export default function BloqueosPage() {
     await load(barberiaId);
   };
 
-  const campo = "w-full max-w-full rounded-xl px-3 py-3";
+  const inputStyle = {
+    background: "#EFE8DC",
+    border: "1px solid #ddd4c8",
+    color: "#1C1712",
+    colorScheme: "light" as const,
+    fontSize: 16,
+    minHeight: 48,
+  };
 
   return (
-    <main className="min-h-screen pb-24 overflow-x-hidden" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="max-w-md mx-auto px-5 pt-4 overflow-x-hidden">
+    <main className="min-h-screen pb-24" style={{ background: "#F5F0E8", color: "#1C1712" }}>
+      <div className="max-w-md mx-auto px-5 pt-4">
         <header className="flex items-center justify-between mb-6">
           <Link href="/dashboard/mas">‹</Link>
           <ThemeToggle />
         </header>
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Bloqueos</h1>
-        <p className="text-sm mb-5" style={{ color: "var(--muted)" }}>
+        <p className="text-sm mb-5" style={{ color: "#7a7268" }}>
           Día entero o solo un rango de horas
         </p>
 
-        <form onSubmit={guardar} className="rounded-2xl p-4 mb-6 space-y-3 overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+        <form onSubmit={guardar} className="rounded-2xl p-4 mb-6 space-y-3" style={{ background: "#fff", border: "1px solid #ddd4c8" }}>
           {error && <p className="text-red-500 text-sm break-words">{error}</p>}
-          <p className="text-xs" style={{ color: "var(--muted)" }}>Desde</p>
-          <input type="date" required value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className={campo} style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <p className="text-xs" style={{ color: "var(--muted)" }}>Hasta (opcional)</p>
-          <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className={campo} style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <label className="block text-xs" style={{ color: "#7a7268" }}>
+            Desde
+            <input type="date" required value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="mt-1 w-full rounded-xl px-3" style={inputStyle} />
+          </label>
+          <label className="block text-xs" style={{ color: "#7a7268" }}>
+            Hasta (opcional)
+            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="mt-1 w-full rounded-xl px-3" style={inputStyle} />
+          </label>
           <div className="grid grid-cols-2 gap-2">
-            <div className="min-w-0">
-              <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>Hora desde</p>
-              <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className={campo} style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>Hora hasta</p>
-              <input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} className={campo} style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-            </div>
+            <label className="block text-xs min-w-0" style={{ color: "#7a7268" }}>
+              Hora desde
+              <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className="mt-1 w-full rounded-xl px-3" style={inputStyle} />
+            </label>
+            <label className="block text-xs min-w-0" style={{ color: "#7a7268" }}>
+              Hora hasta
+              <input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} className="mt-1 w-full rounded-xl px-3" style={inputStyle} />
+            </label>
           </div>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>
+          <p className="text-xs" style={{ color: "#7a7268" }}>
             Sin horas = bloquea el día entero
           </p>
-          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Feriado, almuerzo, vacaciones..." className={campo} style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <button disabled={saving} className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Feriado, almuerzo, vacaciones..." className="w-full rounded-xl px-3" style={inputStyle} />
+          <button disabled={saving} className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1C1712", color: "#F5F0E8" }}>
             {saving ? "Guardando..." : "Bloquear"}
           </button>
         </form>
@@ -137,17 +148,11 @@ export default function BloqueosPage() {
             ? "Todo el día"
             : `${desde.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })} – ${hasta.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}`;
           return (
-            <div
-              key={b.id}
-              className="rounded-2xl p-4 mb-3 flex justify-between gap-3 overflow-hidden"
-              style={{ background: "var(--card)", border: "1px solid var(--line)" }}
-            >
+            <div key={b.id} className="rounded-2xl p-4 mb-3 flex justify-between gap-3" style={{ background: "#fff", border: "1px solid #ddd4c8" }}>
               <div className="min-w-0 flex-1">
                 <p className="font-medium break-words">{dia}</p>
                 <p className="text-sm">{rangoHora}</p>
-                <p className="text-sm break-words" style={{ color: "var(--muted)" }}>
-                  {b.motivo}
-                </p>
+                <p className="text-sm break-words" style={{ color: "#7a7268" }}>{b.motivo}</p>
               </div>
               <button type="button" onClick={() => void eliminar(b.id)} className="text-sm text-red-500 shrink-0">
                 Quitar
