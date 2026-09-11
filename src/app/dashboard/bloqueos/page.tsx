@@ -90,18 +90,24 @@ export default function BloqueosPage() {
     await load(barberiaId);
   };
 
-  const inputStyle = {
+  const box: React.CSSProperties = {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    boxSizing: "border-box",
     background: "#EFE8DC",
     border: "1px solid #ddd4c8",
     color: "#1C1712",
-    colorScheme: "light" as const,
+    colorScheme: "light",
     fontSize: 16,
-    minHeight: 48,
+    height: 52,
+    padding: "0 12px",
+    display: "block",
   };
 
   return (
     <main className="min-h-screen pb-24" style={{ background: "#F5F0E8", color: "#1C1712" }}>
-      <div className="max-w-md mx-auto px-5 pt-4">
+      <div className="max-w-md mx-auto px-4 pt-4" style={{ overflowX: "hidden" }}>
         <header className="flex items-center justify-between mb-6">
           <Link href="/dashboard/mas">‹</Link>
           <ThemeToggle />
@@ -111,30 +117,40 @@ export default function BloqueosPage() {
           Día entero o solo un rango de horas
         </p>
 
-        <form onSubmit={guardar} className="rounded-2xl p-4 mb-6 space-y-3" style={{ background: "#fff", border: "1px solid #ddd4c8" }}>
+        <form
+          onSubmit={guardar}
+          className="rounded-2xl p-4 mb-6 space-y-3"
+          style={{ background: "#fff", border: "1px solid #ddd4c8", overflow: "hidden" }}
+        >
           {error && <p className="text-red-500 text-sm break-words">{error}</p>}
+
           <label className="block text-xs" style={{ color: "#7a7268" }}>
-            Desde
-            <input type="date" required value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="mt-1 w-full rounded-xl px-3" style={inputStyle} />
+            Desde {fechaInicio ? `· ${fechaInicio}` : ""}
+            <input type="date" required value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} style={box} className="mt-1 rounded-xl" />
           </label>
           <label className="block text-xs" style={{ color: "#7a7268" }}>
-            Hasta (opcional)
-            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="mt-1 w-full rounded-xl px-3" style={inputStyle} />
+            Hasta (opcional) {fechaFin ? `· ${fechaFin}` : ""}
+            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} style={box} className="mt-1 rounded-xl" />
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block text-xs min-w-0" style={{ color: "#7a7268" }}>
-              Hora desde
-              <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className="mt-1 w-full rounded-xl px-3" style={inputStyle} />
-            </label>
-            <label className="block text-xs min-w-0" style={{ color: "#7a7268" }}>
-              Hora hasta
-              <input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} className="mt-1 w-full rounded-xl px-3" style={inputStyle} />
-            </label>
-          </div>
+          <label className="block text-xs" style={{ color: "#7a7268" }}>
+            Hora desde {horaInicio ? `· ${horaInicio}` : ""}
+            <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} style={box} className="mt-1 rounded-xl" />
+          </label>
+          <label className="block text-xs" style={{ color: "#7a7268" }}>
+            Hora hasta {horaFin ? `· ${horaFin}` : ""}
+            <input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} style={box} className="mt-1 rounded-xl" />
+          </label>
+
           <p className="text-xs" style={{ color: "#7a7268" }}>
             Sin horas = bloquea el día entero
           </p>
-          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Feriado, almuerzo, vacaciones..." className="w-full rounded-xl px-3" style={inputStyle} />
+          <input
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            placeholder="Feriado, almuerzo, vacaciones..."
+            className="rounded-xl"
+            style={{ ...box, height: 52 }}
+          />
           <button disabled={saving} className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1C1712", color: "#F5F0E8" }}>
             {saving ? "Guardando..." : "Bloquear"}
           </button>
@@ -152,7 +168,9 @@ export default function BloqueosPage() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium break-words">{dia}</p>
                 <p className="text-sm">{rangoHora}</p>
-                <p className="text-sm break-words" style={{ color: "#7a7268" }}>{b.motivo}</p>
+                <p className="text-sm break-words" style={{ color: "#7a7268" }}>
+                  {b.motivo}
+                </p>
               </div>
               <button type="button" onClick={() => void eliminar(b.id)} className="text-sm text-red-500 shrink-0">
                 Quitar
