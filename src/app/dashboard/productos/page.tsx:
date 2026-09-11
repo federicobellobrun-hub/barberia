@@ -1,1 +1,12 @@
+"use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function ProductosPanel() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/dashboard/catalogo");
+  }, [router]);
+  return <main className="min-h-screen flex items-center justify-center">Cargando catálogo...</main>;
+}
