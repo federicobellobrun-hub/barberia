@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-export default function TiendaSlug() {
+export default function TiendaPorSlug() {
   const { slug } = useParams<{ slug: string }>();
   const router = useRouter();
   useEffect(() => {
