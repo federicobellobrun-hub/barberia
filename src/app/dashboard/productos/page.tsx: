@@ -18,6 +18,7 @@ type Producto = {
 
 export default function ProductosPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
+  const [rubro, setRubro] = useState("barberia");
   const [productos, setProductos] = useState<Producto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pNombre, setPNombre] = useState("");
@@ -25,6 +26,7 @@ export default function ProductosPage() {
   const [pDesc, setPDesc] = useState("");
   const [pStock, setPStock] = useState("0");
   const router = useRouter();
+  const rosa = rubro === "pestanas_unas";
 
   const load = async (id: string) => {
     const supabase = createClient();
@@ -40,11 +42,15 @@ export default function ProductosPage() {
   useEffect(() => {
     const init = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
       const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
       if (!data?.barberia_id) return setError("Este usuario no tiene local");
       setBarberiaId(data.barberia_id);
+      const { data: shop } = await supabase.from("barberias").select("rubro").eq("id", data.barberia_id).maybeSingle();
+      setRubro(shop?.rubro || "barberia");
       await load(data.barberia_id);
     };
     void init();
@@ -72,13 +78,16 @@ export default function ProductosPage() {
 
   const updateProducto = async (p: Producto) => {
     const supabase = createClient();
-    const { error: e1 } = await supabase.from("productos").update({
-      nombre: p.nombre,
-      precio: p.precio,
-      descripcion: p.descripcion,
-      stock: p.stock,
-      activo: p.activo,
-    }).eq("id", p.id);
+    const { error: e1 } = await supabase
+      .from("productos")
+      .update({
+        nombre: p.nombre,
+        precio: p.precio,
+        descripcion: p.descripcion,
+        stock: p.stock,
+        activo: p.activo,
+      })
+      .eq("id", p.id);
     if (e1) setError(e1.message);
   };
 
@@ -110,15 +119,19 @@ export default function ProductosPage() {
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Productos</h1>
-        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Stock de la tienda</p>
+        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>
+          Stock de la tienda
+        </p>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
         <form onSubmit={addProducto} className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <input required value={pNombre} onChange={(e) => setPNombre(e.target.value)} placeholder="Ej: Cera capilar" className={campo} style={estilo} />
+          <input required value={pNombre} onChange={(e) => setPNombre(e.target.value)} placeholder={rosa ? "Ej: Serum pestañas" : "Ej: Cera capilar"} className={campo} style={estilo} />
           <input required value={pPrecio} onChange={(e) => setPPrecio(e.target.value)} placeholder="Precio" className={campo} style={estilo} />
           <input value={pDesc} onChange={(e) => setPDesc(e.target.value)} placeholder="Descripción" className={campo} style={estilo} />
           <input value={pStock} onChange={(e) => setPStock(e.target.value)} placeholder="Stock" className={campo} style={estilo} />
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Agregar producto</button>
+          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            Agregar producto
+          </button>
         </form>
 
         {productos.map((p) => (
