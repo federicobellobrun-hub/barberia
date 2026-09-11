@@ -296,7 +296,7 @@ function ReservarPage() {
     const activo = servicio?.id === s.id;
     return (
       <button type="button" onClick={() => { setServicio(s); setMetodoSena(null); setHora(""); }} className="w-full flex gap-3 text-left overflow-hidden" style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
-        {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center" style={{ background: t.bg }}>✂</div>}
+        {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center" style={{ background: t.bg }}>{t.icono}</div>}
         <div className="py-3 pr-3 min-w-0">
           <p className="font-medium">{s.nombre}</p>
           <p className="text-sm" style={{ color: t.muted }}>${s.precio} · {s.duracion_minutos} min</p>
