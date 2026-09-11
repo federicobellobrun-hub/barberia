@@ -6,7 +6,13 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import ThemeToggle from "@/components/ThemeToggle";
 
-type Bloqueo = { id: string; fecha_inicio: string; fecha_fin: string; motivo: string | null; todo_el_dia: boolean | null };
+type Bloqueo = {
+  id: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  motivo: string | null;
+  todo_el_dia: boolean | null;
+};
 
 export default function BloqueosPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
@@ -84,9 +90,11 @@ export default function BloqueosPage() {
     await load(barberiaId);
   };
 
+  const campo = "w-full max-w-full rounded-xl px-3 py-3";
+
   return (
-    <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="max-w-md mx-auto px-5 pt-4">
+    <main className="min-h-screen pb-24 overflow-x-hidden" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <div className="max-w-md mx-auto px-5 pt-4 overflow-x-hidden">
         <header className="flex items-center justify-between mb-6">
           <Link href="/dashboard/mas">‹</Link>
           <ThemeToggle />
@@ -96,26 +104,26 @@ export default function BloqueosPage() {
           Día entero o solo un rango de horas
         </p>
 
-        <form onSubmit={guardar} className="rounded-2xl p-4 mb-6 space-y-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+        <form onSubmit={guardar} className="rounded-2xl p-4 mb-6 space-y-3 overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          {error && <p className="text-red-500 text-sm break-words">{error}</p>}
           <p className="text-xs" style={{ color: "var(--muted)" }}>Desde</p>
-          <input type="date" required value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input type="date" required value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className={campo} style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <p className="text-xs" style={{ color: "var(--muted)" }}>Hasta (opcional)</p>
-          <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className={campo} style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <div className="grid grid-cols-2 gap-2">
-            <div>
+            <div className="min-w-0">
               <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>Hora desde</p>
-              <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+              <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className={campo} style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>Hora hasta</p>
-              <input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+              <input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} className={campo} style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             </div>
           </div>
           <p className="text-xs" style={{ color: "var(--muted)" }}>
             Sin horas = bloquea el día entero
           </p>
-          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Feriado, almuerzo, vacaciones..." className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Feriado, almuerzo, vacaciones..." className={campo} style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
           <button disabled={saving} className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
             {saving ? "Guardando..." : "Bloquear"}
           </button>
@@ -129,13 +137,19 @@ export default function BloqueosPage() {
             ? "Todo el día"
             : `${desde.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })} – ${hasta.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}`;
           return (
-            <div key={b.id} className="rounded-2xl p-4 mb-3 flex justify-between gap-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-              <div>
-                <p className="font-medium">{dia}</p>
+            <div
+              key={b.id}
+              className="rounded-2xl p-4 mb-3 flex justify-between gap-3 overflow-hidden"
+              style={{ background: "var(--card)", border: "1px solid var(--line)" }}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="font-medium break-words">{dia}</p>
                 <p className="text-sm">{rangoHora}</p>
-                <p className="text-sm" style={{ color: "var(--muted)" }}>{b.motivo}</p>
+                <p className="text-sm break-words" style={{ color: "var(--muted)" }}>
+                  {b.motivo}
+                </p>
               </div>
-              <button onClick={() => void eliminar(b.id)} className="text-sm text-red-500">
+              <button type="button" onClick={() => void eliminar(b.id)} className="text-sm text-red-500 shrink-0">
                 Quitar
               </button>
             </div>
