@@ -79,6 +79,9 @@ export async function POST(req: Request) {
   const fecha = fechaUy(t.fecha_hora);
   const hora = horaUy(t.fecha_hora);
   const local = shop.nombre || "la barbería";
+  const telLocal = shop.whatsapp_pedidos
+    ? waNumber(String(shop.whatsapp_pedidos)).replace(/^598/, "0")
+    : "el local";
   const conf = process.env.WHATSAPP_TEMPLATE_CONFIRMACION || process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "hello_world";
   const aviso = process.env.WHATSAPP_TEMPLATE_AVISO_BARBERO || process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "hello_world";
 
@@ -87,14 +90,25 @@ export async function POST(req: Request) {
   if (cliente?.telefono) {
     resultados.push({
       a: "cliente",
-      ...(await sendTemplate(waNumber(cliente.telefono), conf, [cliente.nombre || "cliente", fecha, hora, local])),
+      ...(await sendTemplate(waNumber(cliente.telefono), conf, [
+        cliente.nombre || "cliente",
+        fecha,
+        hora,
+        local,
+        telLocal,
+      ])),
     });
   }
 
   if (!soloCliente && shop.whatsapp_pedidos) {
     resultados.push({
       a: "barbero",
-      ...(await sendTemplate(waNumber(shop.whatsapp_pedidos), aviso, [cliente?.nombre || "cliente", fecha, hora, local])),
+      ...(await sendTemplate(waNumber(shop.whatsapp_pedidos), aviso, [
+        cliente?.nombre || "cliente",
+        local,
+        fecha,
+        hora,
+      ])),
     });
   }
 
