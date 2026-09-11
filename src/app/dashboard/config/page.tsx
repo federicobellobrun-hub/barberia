@@ -145,7 +145,9 @@ export default function ConfigPage() {
           <p className="text-sm pt-2">Estilo visual</p>
           <select value={estilo} onChange={(e) => setEstilo(e.target.value)} className={campo} style={estiloInput}>
             {PACKS.map((p) => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
+              <option key={p.id} value={p.id}>
+                {p.icono} {p.nombre}
+              </option>
             ))}
           </select>
           <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
