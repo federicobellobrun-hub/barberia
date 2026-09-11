@@ -57,6 +57,12 @@ function waNumber(telefono: string) {
   if (solo.startsWith("0")) return `598${solo.slice(1)}`;
   return `598${solo}`;
 }
+function linkHttps(url: string) {
+  const u = url.trim();
+  if (!u) return "";
+  if (/^https?:\/\//i.test(u)) return u;
+  return `https://${u}`;
+}
 
 function ReservarPage() {
   const search = useSearchParams();
@@ -77,6 +83,7 @@ function ReservarPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [categoria, setCategoria] = useState<string | null>(null);
+  const [vista, setVista] = useState<"categorias" | "servicios">("categorias");
   const [servicio, setServicio] = useState<Servicio | null>(null);
   const [metodoSena, setMetodoSena] = useState<"cuenta" | "mp" | null>(null);
   const [barbero, setBarbero] = useState<Barbero | null>(null);
@@ -92,6 +99,7 @@ function ReservarPage() {
   const t = temaRubro(rubro);
   const rosa = rubro === "pestanas_unas";
   const radio = rosa ? 999 : 16;
+  const mpLink = pago?.mercado_pago_url ? linkHttps(pago.mercado_pago_url) : "";
 
   useEffect(() => {
     if (slug && slug !== "reservoapps.com") localStorage.setItem("barberia_slug", slug);
@@ -205,7 +213,7 @@ function ReservarPage() {
     let msg = `Hola, soy ${nombre || "cliente"}. Reservé ${servicio.nombre} el ${fecha} a las ${hora}.`;
     if (pideSena) msg += ` Seña $${servicio.sena}.`;
     if (metodoSena === "cuenta" && pago?.datos_cuenta) msg += `\n\nVoy a transferir:\n${pago.datos_cuenta}`;
-    if (metodoSena === "mp" && pago?.mercado_pago_url) msg += `\n\nPago por Mercado Pago.`;
+    if (metodoSena === "mp" && mpLink) msg += `\n\nPago por Mercado Pago:\n${mpLink}`;
     return msg;
   };
 
@@ -303,8 +311,8 @@ function ReservarPage() {
           <div className="mt-6 text-left max-w-sm mx-auto p-4 space-y-3" style={{ background: t.card, borderRadius: 16 }}>
             <p className="font-medium">Seña ${servicio.sena}</p>
             {metodoSena === "cuenta" && pago?.datos_cuenta && <p className="text-sm whitespace-pre-wrap">{pago.datos_cuenta}</p>}
-            {metodoSena === "mp" && pago?.mercado_pago_url && (
-              <a href={pago.mercado_pago_url} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
+            {metodoSena === "mp" && mpLink && (
+              <a href={mpLink} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
                 Pagar en Mercado Pago
               </a>
             )}
@@ -329,58 +337,78 @@ function ReservarPage() {
         <p className="mt-2 mb-5" style={{ color: t.muted }}>Elegí categoría y servicio</p>
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {categorias.map(([nombreCat, items]) => {
-            const activa = categoria === nombreCat;
-            return (
-              <button
-                key={nombreCat}
-                type="button"
-                onClick={() => {
-                  setCategoria(activa ? null : nombreCat);
-                  setServicio(null);
-                  setMetodoSena(null);
-                  setHora("");
-                }}
-                className="p-4 text-left"
-                style={{ background: t.card, border: activa ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
-              >
-                <p className="font-medium">{nombreCat}</p>
-                <p className="text-xs mt-1" style={{ color: t.muted }}>{items.length} servicios</p>
-              </button>
-            );
-          })}
-        </div>
-
-        {categoria && (
-          <div className="mb-4">
-            <h2 className="font-medium mb-3">{categoria}</h2>
-            <div className="space-y-2">
-              {listaCat.map((s) => {
-                const activo = servicio?.id === s.id;
-                return (
+        <div className="relative overflow-hidden mb-4">
+          <div
+            className="flex"
+            style={{
+              width: "200%",
+              transform: vista === "servicios" ? "translateX(-50%)" : "translateX(0)",
+              transition: "transform 320ms ease",
+            }}
+          >
+            <div className="w-1/2 pr-1">
+              <div className="grid grid-cols-2 gap-2">
+                {categorias.map(([nombreCat, items]) => (
                   <button
-                    key={s.id}
+                    key={nombreCat}
                     type="button"
                     onClick={() => {
-                      setServicio(s);
+                      setCategoria(nombreCat);
+                      setServicio(null);
                       setMetodoSena(null);
                       setHora("");
+                      setVista("servicios");
                     }}
-                    className="w-full flex gap-3 text-left overflow-hidden"
-                    style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
+                    className="p-4 text-left"
+                    style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
                   >
-                    {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center" style={{ background: t.bg }}>✂</div>}
-                    <div className="py-3 pr-3 min-w-0">
-                      <p className="font-medium">{s.nombre}</p>
-                      <p className="text-sm" style={{ color: t.muted }}>${s.precio} · {s.duracion_minutos} min</p>
-                    </div>
+                    <p className="font-medium">{nombreCat}</p>
+                    <p className="text-xs mt-1" style={{ color: t.muted }}>{items.length} servicios</p>
                   </button>
-                );
-              })}
+                ))}
+              </div>
+            </div>
+            <div className="w-1/2 pl-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setVista("categorias");
+                  setServicio(null);
+                  setMetodoSena(null);
+                }}
+                className="text-sm mb-3"
+                style={{ color: t.muted }}
+              >
+                ‹ Categorías
+              </button>
+              <h2 className="font-medium mb-3">{categoria}</h2>
+              <div className="space-y-2">
+                {listaCat.map((s) => {
+                  const activo = servicio?.id === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setServicio(s);
+                        setMetodoSena(null);
+                        setHora("");
+                      }}
+                      className="w-full flex gap-3 text-left overflow-hidden"
+                      style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
+                    >
+                      {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center" style={{ background: t.bg }}>✂</div>}
+                      <div className="py-3 pr-3 min-w-0">
+                        <p className="font-medium">{s.nombre}</p>
+                        <p className="text-sm" style={{ color: t.muted }}>${s.precio} · {s.duracion_minutos} min</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        )}
+        </div>
 
         {servicio && (
           <div className="mb-5 p-4" style={{ background: t.card, borderRadius: 16, border: `1px solid ${t.line}` }}>
@@ -396,13 +424,10 @@ function ReservarPage() {
                     Transferencia / cuenta
                   </button>
                 )}
-                {pago?.mercado_pago_url && (
+                {mpLink && (
                   <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
                     Mercado Pago
                   </button>
-                )}
-                {!pago?.datos_cuenta && !pago?.mercado_pago_url && (
-                  <p className="text-sm">El local todavía no cargó cuenta ni link de pago.</p>
                 )}
               </>
             ) : (
@@ -438,9 +463,7 @@ function ReservarPage() {
                 <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
               </div>
               <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>
-                {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
-                  <span key={i}>{d}</span>
-                ))}
+                {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => <span key={i}>{d}</span>)}
               </div>
               <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
                 {celdasMes.map((value, i) => {
@@ -462,9 +485,7 @@ function ReservarPage() {
           <div className="mb-6">
             <div className="flex gap-2 overflow-x-auto pb-2">
               {horariosDelDia.map((h) => (
-                <button key={h} type="button" onClick={() => setHora(h)} className="shrink-0 px-3 py-2 text-sm font-medium" style={{ background: hora === h ? t.btn : t.card, color: hora === h ? t.btnText : t.text, borderRadius: radio }}>
-                  {h}
-                </button>
+                <button key={h} type="button" onClick={() => setHora(h)} className="shrink-0 px-3 py-2 text-sm font-medium" style={{ background: hora === h ? t.btn : t.card, color: hora === h ? t.btnText : t.text, borderRadius: radio }}>{h}</button>
               ))}
             </div>
             {horariosDelDia.length === 0 && (
