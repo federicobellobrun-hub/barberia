@@ -66,19 +66,11 @@ function linkHttps(url: string) {
 
 function ReservarPage() {
   const search = useSearchParams();
-  const slug =
-    search.get("b") ||
-    slugDeHost() ||
-    (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) ||
-    "diano";
+  const slug = search.get("b") || slugDeHost() || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
 
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
-  const [rubro, setRubro] = useState(() =>
-    typeof window === "undefined" ? "barberia" : localStorage.getItem("rubro_" + slug) || "barberia"
-  );
-  const [estilo, setEstilo] = useState(() =>
-    typeof window === "undefined" ? "auto" : localStorage.getItem("estilo_" + slug) || "auto"
-  );
+  const [rubro, setRubro] = useState(() => (typeof window === "undefined" ? "barberia" : localStorage.getItem("rubro_" + slug) || "barberia"));
+  const [estilo, setEstilo] = useState(() => (typeof window === "undefined" ? "auto" : localStorage.getItem("estilo_" + slug) || "auto"));
   const [pago, setPago] = useState<PagoShop | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
@@ -255,7 +247,14 @@ function ReservarPage() {
         p_barbero_id: barbero?.id || null,
       });
       if (rpcError) throw new Error(rpcError.message);
-      const { data: creado } = await supabase.from("turnos").select("id").eq("barberia_id", servicio.barberia_id).eq("fecha_hora", fechaHora).order("id", { ascending: false }).limit(1).maybeSingle();
+      const { data: creado } = await supabase
+        .from("turnos")
+        .select("id")
+        .eq("barberia_id", servicio.barberia_id)
+        .eq("fecha_hora", fechaHora)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
       if (creado?.id && !pideSena) {
         await fetch("/api/whatsapp/reserva", {
           method: "POST",
@@ -305,43 +304,134 @@ function ReservarPage() {
   const TarjetaServicio = ({ s }: { s: Servicio }) => {
     const activo = servicio?.id === s.id;
     return (
-      <button type="button" onClick={() => { setServicio(s); setMetodoSena(null); setHora(""); }} className="w-full flex gap-3 text-left overflow-hidden" style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
-        {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center text-xl" style={{ background: t.bg, color: t.btn }}>{t.icono}</div>}
+      <button
+        type="button"
+        onClick={() => {
+          setServicio(s);
+          setMetodoSena(null);
+          setHora("");
+        }}
+        className="w-full flex gap-3 text-left overflow-hidden"
+        style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
+      >
+        {s.imagen_url ? (
+          <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" />
+        ) : (
+          <div className="h-20 w-20 shrink-0 flex items-center justify-center text-xl" style={{ background: t.bg, color: t.btn }}>
+            {t.icono}
+          </div>
+        )}
         <div className="py-3 pr-3 min-w-0">
           <p className="font-medium">{s.nombre}</p>
-          <p className="text-sm" style={{ color: t.muted }}>${s.precio} · {s.duracion_minutos} min</p>
+          <p className="text-sm" style={{ color: t.muted }}>
+            ${s.precio} · {s.duracion_minutos} min
+          </p>
         </div>
       </button>
     );
   };
 
+  if (ok && servicio) {
+    return (
+      <main className="min-h-screen px-6 py-16 text-center pb-28" style={{ background: t.bg, color: t.text }}>
+        <h1 className="text-4xl tracking-tight" style={{ fontFamily: "Georgia, Times, serif" }}>
+          {pideSena ? "Reserva pedida" : "Turno reservado"}
+        </h1>
+        <p className="mt-4">
+          {servicio.nombre}
+          {barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}
+        </p>
+        {pideSena && (
+          <div className="mt-6 text-left max-w-sm mx-auto p-4 space-y-3" style={{ background: t.card, borderRadius: 16 }}>
+            <p className="font-medium">Seña ${servicio.sena}</p>
+            <p className="text-sm" style={{ color: t.muted }}>
+              El turno no queda confirmado hasta que reciban la seña y lo confirmen en la agenda.
+            </p>
+            {metodoSena === "cuenta" && pago?.datos_cuenta && <p className="text-sm whitespace-pre-wrap">{pago.datos_cuenta}</p>}
+            {metodoSena === "mp" && mpLink && (
+              <a href={mpLink} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
+                Pagar seña en Mercado Pago
+              </a>
+            )}
+            {pago?.whatsapp_pedidos && (
+              <button type="button" onClick={abrirWhatsapp} className="w-full py-3 font-medium" style={{ background: t.card, color: t.text, border: `1px solid ${t.line}`, borderRadius: radio }}>
+                Enviar comprobante por WhatsApp
+              </button>
+            )}
+          </div>
+        )}
+        <Link href={`/b/${slug}`} className="inline-block mt-8">
+          Volver
+        </Link>
+        {nav}
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen pb-28" style={{ background: t.bg, color: t.text }}>
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader />
-        <h1 className="text-[34px] tracking-tight leading-9" style={{ fontFamily: "Georgia, Times, serif" }}>{t.cita}</h1>
-        <p className="mt-2 mb-5" style={{ color: t.muted }}>{hayCategorias ? "Elegí categoría y servicio" : "Elegí servicio"}</p>
+        <h1 className="text-[34px] tracking-tight leading-9" style={{ fontFamily: "Georgia, Times, serif" }}>
+          {t.cita}
+        </h1>
+        <p className="mt-2 mb-5" style={{ color: t.muted }}>
+          {hayCategorias ? "Elegí categoría y servicio" : "Elegí servicio"}
+        </p>
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
         {!hayCategorias ? (
-          <div className="space-y-2 mb-4">{servicios.map((s) => <TarjetaServicio key={s.id} s={s} />)}</div>
+          <div className="space-y-2 mb-4">
+            {servicios.map((s) => (
+              <TarjetaServicio key={s.id} s={s} />
+            ))}
+          </div>
         ) : (
           <div className="relative overflow-hidden mb-4">
             <div className="flex" style={{ width: "200%", transform: vista === "servicios" ? "translateX(-50%)" : "translateX(0)", transition: "transform 320ms ease" }}>
               <div className="w-1/2 pr-1">
                 <div className="grid grid-cols-2 gap-2">
                   {categorias.map(([nombreCat, items]) => (
-                    <button key={nombreCat} type="button" onClick={() => { setCategoria(nombreCat); setServicio(null); setMetodoSena(null); setHora(""); setVista("servicios"); }} className="p-4 text-left" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
+                    <button
+                      key={nombreCat}
+                      type="button"
+                      onClick={() => {
+                        setCategoria(nombreCat);
+                        setServicio(null);
+                        setMetodoSena(null);
+                        setHora("");
+                        setVista("servicios");
+                      }}
+                      className="p-4 text-left"
+                      style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
+                    >
                       <p className="font-medium">{nombreCat}</p>
-                      <p className="text-xs mt-1" style={{ color: t.muted }}>{items.length} servicios</p>
+                      <p className="text-xs mt-1" style={{ color: t.muted }}>
+                        {items.length} servicios
+                      </p>
                     </button>
                   ))}
                 </div>
               </div>
               <div className="w-1/2 pl-1">
-                <button type="button" onClick={() => { setVista("categorias"); setServicio(null); setMetodoSena(null); }} className="text-sm mb-3" style={{ color: t.muted }}>‹ Categorías</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVista("categorias");
+                    setServicio(null);
+                    setMetodoSena(null);
+                  }}
+                  className="text-sm mb-3"
+                  style={{ color: t.muted }}
+                >
+                  ‹ Categorías
+                </button>
                 <h2 className="font-medium mb-3">{categoria}</h2>
-                <div className="space-y-2">{listaCat.map((s) => <TarjetaServicio key={s.id} s={s} />)}</div>
+                <div className="space-y-2">
+                  {listaCat.map((s) => (
+                    <TarjetaServicio key={s.id} s={s} />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -351,15 +441,27 @@ function ReservarPage() {
           <div className="mb-5 p-4" style={{ background: t.card, borderRadius: 16, border: `1px solid ${t.line}` }}>
             {servicio.imagen_url && <img src={servicio.imagen_url} alt="" className="h-36 w-full object-cover rounded-xl mb-3" />}
             <p className="text-lg font-medium">{servicio.nombre}</p>
-            <p className="text-sm mt-1" style={{ color: t.muted }}>{servicio.duracion_minutos} min · ${servicio.precio}</p>
+            <p className="text-sm mt-1" style={{ color: t.muted }}>
+              {servicio.duracion_minutos} min · ${servicio.precio}
+            </p>
             {pideSena ? (
               <>
                 <p className="mt-3 font-medium">Requiere seña ${servicio.sena}</p>
-                {pago?.datos_cuenta && <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2 mt-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Transferencia / cuenta</button>}
-                {mpLink && <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Mercado Pago</button>}
+                {pago?.datos_cuenta && (
+                  <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2 mt-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
+                    Transferencia / cuenta
+                  </button>
+                )}
+                {mpLink && (
+                  <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
+                    Mercado Pago
+                  </button>
+                )}
               </>
             ) : (
-              <p className="text-sm mt-2" style={{ color: t.muted }}>Sin seña</p>
+              <p className="text-sm mt-2" style={{ color: t.muted }}>
+                Sin seña
+              </p>
             )}
           </div>
         )}
@@ -369,8 +471,23 @@ function ReservarPage() {
             <h2 className="font-medium mb-3">{rosa ? "Elegí profesional" : "Elegí barbero"}</h2>
             <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
               {barberos.map((b) => (
-                <button key={b.id} type="button" onClick={() => { setBarbero(b); setHora(""); }} className="shrink-0 p-3 w-28 text-center" style={{ background: t.card, border: barbero?.id === b.id ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
-                  {b.foto_url ? <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" /> : <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: t.bg }}>{b.nombre.slice(0, 1)}</div>}
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => {
+                    setBarbero(b);
+                    setHora("");
+                  }}
+                  className="shrink-0 p-3 w-28 text-center"
+                  style={{ background: t.card, border: barbero?.id === b.id ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
+                >
+                  {b.foto_url ? (
+                    <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" />
+                  ) : (
+                    <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: t.bg }}>
+                      {b.nombre.slice(0, 1)}
+                    </div>
+                  )}
                   <p className="text-sm font-medium leading-4">{b.nombre}</p>
                 </button>
               ))}
@@ -383,18 +500,37 @@ function ReservarPage() {
             <h2 className="font-medium mb-3">Elegí día y hora</h2>
             <div className="p-4 mb-3" style={{ background: t.card, borderRadius: rosa ? 22 : 16 }}>
               <div className="flex items-center justify-between mb-3">
-                <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>‹</button>
+                <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>
+                  ‹
+                </button>
                 <p className="text-sm font-medium capitalize">{mesLabel}</p>
-                <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
+                <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>
+                  ›
+                </button>
               </div>
-              <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>{["D", "L", "M", "M", "J", "V", "S"].map((d, i) => <span key={i}>{d}</span>)}</div>
+              <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>
+                {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
+                  <span key={i}>{d}</span>
+                ))}
+              </div>
               <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
                 {celdasMes.map((value, i) => {
                   if (!value) return <span key={i} />;
                   const activoDia = fecha === value;
                   const pasado = value < hoy;
                   return (
-                    <button key={value} type="button" disabled={pasado} onClick={() => { setFecha(value); setHora(""); setEsperaOk(false); }} className="h-8 w-8 mx-auto rounded-full" style={{ background: activoDia ? t.btn : "transparent", color: activoDia ? t.btnText : pasado ? t.line : t.text }}>
+                    <button
+                      key={value}
+                      type="button"
+                      disabled={pasado}
+                      onClick={() => {
+                        setFecha(value);
+                        setHora("");
+                        setEsperaOk(false);
+                      }}
+                      className="h-8 w-8 mx-auto rounded-full"
+                      style={{ background: activoDia ? t.btn : "transparent", color: activoDia ? t.btnText : pasado ? t.line : t.text }}
+                    >
                       {Number(value.slice(8))}
                     </button>
                   );
@@ -408,17 +544,23 @@ function ReservarPage() {
           <div className="mb-6">
             <div className="flex gap-2 overflow-x-auto pb-2">
               {horariosDelDia.map((h) => (
-                <button key={h} type="button" onClick={() => setHora(h)} className="shrink-0 px-3 py-2 text-sm font-medium" style={{ background: hora === h ? t.btn : t.card, color: hora === h ? t.btnText : t.text, borderRadius: radio }}>{h}</button>
+                <button key={h} type="button" onClick={() => setHora(h)} className="shrink-0 px-3 py-2 text-sm font-medium" style={{ background: hora === h ? t.btn : t.card, color: hora === h ? t.btnText : t.text, borderRadius: radio }}>
+                  {h}
+                </button>
               ))}
             </div>
             {horariosDelDia.length === 0 && (
               <div className="mt-3">
                 <p className="text-sm mb-3">No hay horarios ese día.</p>
-                {esperaOk ? <p className="text-sm">Quedaste en lista de espera.</p> : (
+                {esperaOk ? (
+                  <p className="text-sm">Quedaste en lista de espera.</p>
+                ) : (
                   <form onSubmit={anotarEspera} className="space-y-2">
                     <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
                     <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
-                    <button className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>Anotarme en lista de espera</button>
+                    <button className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
+                      Anotarme en lista de espera
+                    </button>
                   </form>
                 )}
               </div>
