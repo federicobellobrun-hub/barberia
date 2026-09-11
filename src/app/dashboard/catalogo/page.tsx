@@ -19,6 +19,7 @@ type Servicio = {
 
 export default function CatalogoPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
+  const [rubro, setRubro] = useState("barberia");
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sNombre, setSNombre] = useState("");
@@ -27,6 +28,7 @@ export default function CatalogoPage() {
   const [sPrecio, setSPrecio] = useState("");
   const [sSena, setSSena] = useState("0");
   const router = useRouter();
+  const rosa = rubro === "pestanas_unas";
 
   const load = async (id: string) => {
     const supabase = createClient();
@@ -42,11 +44,15 @@ export default function CatalogoPage() {
   useEffect(() => {
     const init = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
       const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
       if (!data?.barberia_id) return setError("Este usuario no tiene local");
       setBarberiaId(data.barberia_id);
+      const { data: shop } = await supabase.from("barberias").select("rubro").eq("id", data.barberia_id).maybeSingle();
+      setRubro(shop?.rubro || "barberia");
       await load(data.barberia_id);
     };
     void init();
@@ -77,14 +83,17 @@ export default function CatalogoPage() {
 
   const updateServicio = async (s: Servicio) => {
     const supabase = createClient();
-    const { error: e1 } = await supabase.from("servicios").update({
-      nombre: s.nombre,
-      categoria: s.categoria,
-      duracion_minutos: s.duracion_minutos,
-      precio: s.precio,
-      sena: s.sena || 0,
-      activo: s.activo,
-    }).eq("id", s.id);
+    const { error: e1 } = await supabase
+      .from("servicios")
+      .update({
+        nombre: s.nombre,
+        categoria: s.categoria,
+        duracion_minutos: s.duracion_minutos,
+        precio: s.precio,
+        sena: s.sena || 0,
+        activo: s.activo,
+      })
+      .eq("id", s.id);
     if (e1) setError(e1.message);
   };
 
@@ -116,18 +125,22 @@ export default function CatalogoPage() {
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Catálogo</h1>
-        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>Servicios, categorías y seña</p>
+        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>
+          Servicios, categorías y seña
+        </p>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
         <form onSubmit={addServicio} className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <input required value={sNombre} onChange={(e) => setSNombre(e.target.value)} placeholder="Nombre. Ej: Lifting" className={campo} style={estilo} />
-          <input value={sCategoria} onChange={(e) => setSCategoria(e.target.value)} placeholder="Categoría. Ej: Pestañas" className={campo} style={estilo} />
+          <input required value={sNombre} onChange={(e) => setSNombre(e.target.value)} placeholder={rosa ? "Nombre. Ej: Lifting" : "Nombre. Ej: Corte fade"} className={campo} style={estilo} />
+          <input value={sCategoria} onChange={(e) => setSCategoria(e.target.value)} placeholder={rosa ? "Categoría. Ej: Pestañas" : "Categoría. Ej: Cortes"} className={campo} style={estilo} />
           <div className="grid grid-cols-3 gap-2">
             <input required value={sDuracion} onChange={(e) => setSDuracion(e.target.value)} placeholder="Min" className="rounded-xl px-3 py-3" style={estilo} />
             <input required value={sPrecio} onChange={(e) => setSPrecio(e.target.value)} placeholder="Precio" className="rounded-xl px-3 py-3" style={estilo} />
             <input value={sSena} onChange={(e) => setSSena(e.target.value)} placeholder="Seña" className="rounded-xl px-3 py-3" style={estilo} />
           </div>
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Agregar servicio</button>
+          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            Agregar servicio
+          </button>
         </form>
 
         {servicios.map((s) => (
