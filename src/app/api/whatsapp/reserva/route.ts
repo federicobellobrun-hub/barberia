@@ -52,8 +52,8 @@ async function sendTemplate(to: string, name: string, params: string[]) {
     body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) return { ok: false, motivo: data?.error?.message || JSON.stringify(data) };
-  return { ok: true, to };
+  if (!res.ok) return { ok: false, motivo: data?.error?.message || JSON.stringify(data), plantilla: name, params };
+  return { ok: true, to, plantilla: name };
 }
 
 export async function POST(req: Request) {
@@ -82,8 +82,8 @@ export async function POST(req: Request) {
   const telLocal = shop.whatsapp_pedidos
     ? waNumber(String(shop.whatsapp_pedidos)).replace(/^598/, "0")
     : "el local";
-  const conf = process.env.WHATSAPP_TEMPLATE_CONFIRMACION || process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "hello_world";
-  const aviso = process.env.WHATSAPP_TEMPLATE_AVISO_BARBERO || process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "hello_world";
+  const conf = process.env.WHATSAPP_TEMPLATE_CONFIRMACION || "reserva_confirmada";
+  const aviso = process.env.WHATSAPP_TEMPLATE_AVISO_BARBERO || "aviso_barbero";
 
   const resultados = [];
 
@@ -92,10 +92,9 @@ export async function POST(req: Request) {
       a: "cliente",
       ...(await sendTemplate(waNumber(cliente.telefono), conf, [
         cliente.nombre || "cliente",
+        local,
         fecha,
         hora,
-        local,
-        telLocal,
       ])),
     });
   }
@@ -112,5 +111,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, shop, resultados });
+  return NextResponse.json({ ok: true, shop, plantillas: { conf, aviso }, resultados });
 }
