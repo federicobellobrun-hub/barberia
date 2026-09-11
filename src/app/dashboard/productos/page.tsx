@@ -110,7 +110,6 @@ export default function ProductosPage() {
           Solo artículos de la tienda · {productos.length} cargados
         </p>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-
         <form onSubmit={agregar} className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
           <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del producto" className={campo} style={estilo} />
           <input required value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="Precio" className={campo} style={estilo} />
@@ -120,13 +119,9 @@ export default function ProductosPage() {
             Agregar producto a la tienda
           </button>
         </form>
-
         {productos.length === 0 && !error && (
-          <p className="text-sm" style={{ color: "var(--muted)" }}>
-            Todavía no hay productos en este local.
-          </p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>Todavía no hay productos en este local.</p>
         )}
-
         {productos.map((p) => (
           <div key={p.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             {p.imagen_url && <img src={p.imagen_url} alt="" className="h-32 w-full object-cover rounded-xl" />}
@@ -135,12 +130,8 @@ export default function ProductosPage() {
             <input type="number" value={p.stock ?? 0} onChange={(e) => setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, stock: Number(e.target.value) } : x)))} className={campo} style={estilo} />
             <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void foto(p.id, file); }} />
             <div className="flex gap-2">
-              <button type="button" onClick={() => void guardar(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
-                Guardar
-              </button>
-              <button type="button" onClick={() => void borrar(p.id)} className="px-4 rounded-xl text-sm text-red-500">
-                Borrar
-              </button>
+              <button type="button" onClick={() => void guardar(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
+              <button type="button" onClick={() => void borrar(p.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
             </div>
           </div>
         ))}
