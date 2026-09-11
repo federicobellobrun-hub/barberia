@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import BottomNav from "@/components/BottomNav";
-import { temaPack } from "@/lib/rubro";
+import { temaPack, aplicarTema } from "@/lib/rubro";
 
 type Servicio = {
   id: string;
@@ -69,8 +69,8 @@ function ReservarPage() {
   const slug = search.get("b") || slugDeHost() || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
 
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
-  const [rubro, setRubro] = useState("barberia");
-  const [estilo, setEstilo] = useState("auto");
+  const [rubro, setRubro] = useState(() => (typeof window === "undefined" ? "barberia" : localStorage.getItem("rubro_" + slug) || "barberia"));
+  const [estilo, setEstilo] = useState(() => (typeof window === "undefined" ? "auto" : localStorage.getItem("estilo_" + slug) || "auto"));
   const [pago, setPago] = useState<PagoShop | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
@@ -78,7 +78,6 @@ function ReservarPage() {
   const [horariosBarbero, setHorariosBarbero] = useState<Horario[]>([]);
   const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
   const [turnos, setTurnos] = useState<Turno[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [categoria, setCategoria] = useState<string | null>(null);
   const [vista, setVista] = useState<"categorias" | "servicios">("categorias");
@@ -100,6 +99,10 @@ function ReservarPage() {
   const mpLink = pago?.mercado_pago_url ? linkHttps(pago.mercado_pago_url) : "";
 
   useEffect(() => {
+    aplicarTema(t);
+  }, [estilo, rubro]);
+
+  useEffect(() => {
     if (slug && slug !== "reservoapps.com") localStorage.setItem("barberia_slug", slug);
     const load = async () => {
       try {
@@ -111,16 +114,19 @@ function ReservarPage() {
           .maybeSingle();
         if (shopErr || !shop) throw new Error("No se encontró el local");
         setBarberiaId(shop.id);
-        setEstilo(shop.estilo || "auto");
+        const r = shop.rubro || "barberia";
+        const pack = shop.estilo || "auto";
+        setRubro(r);
+        setEstilo(pack);
+        localStorage.setItem("rubro_" + slug, r);
+        localStorage.setItem("estilo_" + slug, pack);
+        aplicarTema(temaPack(pack, r));
         setPago({
           whatsapp_pedidos: shop.whatsapp_pedidos,
           datos_cuenta: shop.datos_cuenta,
           mercado_pago_url: shop.mercado_pago_url,
           pedido_sena: shop.pedido_sena,
         });
-        const r = shop.rubro || "barberia";
-        setRubro(r);
-        localStorage.setItem("rubro_" + slug, r);
         const desde = new Date();
         const hasta = new Date();
         hasta.setDate(hasta.getDate() + 40);
@@ -142,8 +148,6 @@ function ReservarPage() {
         if ((barRes.data || []).length === 1) setBarbero(barRes.data![0]);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar");
-      } finally {
-        setLoading(false);
       }
     };
     void load();
@@ -156,7 +160,6 @@ function ReservarPage() {
   }, [barbero, horariosLocal, horariosBarbero]);
 
   const hayCategorias = useMemo(() => servicios.some((s) => Boolean(s.categoria?.trim())), [servicios]);
-
   const categorias = useMemo(() => {
     if (!hayCategorias) return [["Servicios", servicios]] as [string, Servicio[]][];
     const map = new Map<string, Servicio[]>();
@@ -166,7 +169,6 @@ function ReservarPage() {
     }
     return Array.from(map.entries());
   }, [servicios, hayCategorias]);
-
   const listaCat = hayCategorias ? categorias.find(([n]) => n === categoria)?.[1] || [] : servicios;
   const pideSena = Boolean(pago?.pedido_sena && servicio && Number(servicio.sena || 0) > 0);
 
@@ -193,8 +195,8 @@ function ReservarPage() {
     const end = toMinutes(horario.hora_fin);
     const dur = servicio.duracion_minutos;
     const slots: string[] = [];
-    for (let t = start; t + dur <= end; t += 30) {
-      const hhmm = fromMinutes(t);
+    for (let mins = start; mins + dur <= end; mins += 30) {
+      const hhmm = fromMinutes(mins);
       const slotStart = new Date(`${fecha}T${hhmm}:00-03:00`);
       const slotEnd = new Date(slotStart.getTime() + dur * 60000);
       const chocaBloqueo = bloqueos.some((b) => !b.todo_el_dia && new Date(b.fecha_inicio) < slotEnd && new Date(b.fecha_fin) > slotStart);
@@ -296,7 +298,7 @@ function ReservarPage() {
     const activo = servicio?.id === s.id;
     return (
       <button type="button" onClick={() => { setServicio(s); setMetodoSena(null); setHora(""); }} className="w-full flex gap-3 text-left overflow-hidden" style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
-        {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center" style={{ background: t.bg }}>{t.icono}</div>}
+        {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center text-xl" style={{ background: t.bg, color: t.btn }}>{t.icono}</div>}
         <div className="py-3 pr-3 min-w-0">
           <p className="font-medium">{s.nombre}</p>
           <p className="text-sm" style={{ color: t.muted }}>${s.precio} · {s.duracion_minutos} min</p>
@@ -304,15 +306,6 @@ function ReservarPage() {
       </button>
     );
   };
-
-  if (loading) {
-    return (
-      <main className="min-h-screen flex items-center justify-center pb-28" style={{ background: t.bg, color: t.text }}>
-        Cargando...
-        {nav}
-      </main>
-    );
-  }
 
   if (ok && servicio) {
     return (
@@ -343,9 +336,7 @@ function ReservarPage() {
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
         {!hayCategorias ? (
-          <div className="space-y-2 mb-4">
-            {servicios.map((s) => <TarjetaServicio key={s.id} s={s} />)}
-          </div>
+          <div className="space-y-2 mb-4">{servicios.map((s) => <TarjetaServicio key={s.id} s={s} />)}</div>
         ) : (
           <div className="relative overflow-hidden mb-4">
             <div className="flex" style={{ width: "200%", transform: vista === "servicios" ? "translateX(-50%)" : "translateX(0)", transition: "transform 320ms ease" }}>
@@ -362,9 +353,7 @@ function ReservarPage() {
               <div className="w-1/2 pl-1">
                 <button type="button" onClick={() => { setVista("categorias"); setServicio(null); setMetodoSena(null); }} className="text-sm mb-3" style={{ color: t.muted }}>‹ Categorías</button>
                 <h2 className="font-medium mb-3">{categoria}</h2>
-                <div className="space-y-2">
-                  {listaCat.map((s) => <TarjetaServicio key={s.id} s={s} />)}
-                </div>
+                <div className="space-y-2">{listaCat.map((s) => <TarjetaServicio key={s.id} s={s} />)}</div>
               </div>
             </div>
           </div>
@@ -378,8 +367,7 @@ function ReservarPage() {
             {pideSena ? (
               <>
                 <p className="mt-3 font-medium">Requiere seña ${servicio.sena}</p>
-                <p className="text-sm mb-3" style={{ color: t.muted }}>¿Cómo preferís pagarla?</p>
-                {pago?.datos_cuenta && <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Transferencia / cuenta</button>}
+                {pago?.datos_cuenta && <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2 mt-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Transferencia / cuenta</button>}
                 {mpLink && <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Mercado Pago</button>}
               </>
             ) : (
@@ -392,15 +380,12 @@ function ReservarPage() {
           <>
             <h2 className="font-medium mb-3">{rosa ? "Elegí profesional" : "Elegí barbero"}</h2>
             <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
-              {barberos.map((b) => {
-                const activoSel = barbero?.id === b.id;
-                return (
-                  <button key={b.id} type="button" onClick={() => { setBarbero(b); setHora(""); }} className="shrink-0 p-3 w-28 text-center" style={{ background: t.card, border: activoSel ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
-                    {b.foto_url ? <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" /> : <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: t.bg }}>{b.nombre.slice(0, 1)}</div>}
-                    <p className="text-sm font-medium leading-4">{b.nombre}</p>
-                  </button>
-                );
-              })}
+              {barberos.map((b) => (
+                <button key={b.id} type="button" onClick={() => { setBarbero(b); setHora(""); }} className="shrink-0 p-3 w-28 text-center" style={{ background: t.card, border: barbero?.id === b.id ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
+                  {b.foto_url ? <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" /> : <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: t.bg }}>{b.nombre.slice(0, 1)}</div>}
+                  <p className="text-sm font-medium leading-4">{b.nombre}</p>
+                </button>
+              ))}
             </div>
           </>
         )}
@@ -470,7 +455,7 @@ function ReservarPage() {
 
 export default function ReservarPageWrapper() {
   return (
-    <Suspense fallback={<main className="min-h-screen flex items-center justify-center">Cargando...</main>}>
+    <Suspense fallback={<main className="min-h-screen" style={{ background: "#FDF7F9" }} />}>
       <ReservarPage />
     </Suspense>
   );
