@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import BrandHeader from "@/components/BrandHeader";
 import BottomNav from "@/components/BottomNav";
 import { createClient } from "@/lib/supabase";
-import { temaRubro } from "@/lib/rubro";
+import { temaPack } from "@/lib/rubro";
 
 const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -16,6 +16,7 @@ type Shop = {
   maps_url: string | null;
   portada_url: string | null;
   rubro: string | null;
+  estilo: string | null;
 };
 
 function Pin() {
@@ -45,12 +46,9 @@ export default function BarberiaHomePage() {
   const [fotos, setFotos] = useState<{ id: string; url: string }[]>([]);
   const [horarios, setHorarios] = useState<{ dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [rubro, setRubro] = useState(() => {
-    if (typeof window === "undefined") return "barberia";
-    return localStorage.getItem("rubro_" + slug) || "barberia";
-  });
-  const t = temaRubro(shop?.rubro || rubro);
-  const rosa = (shop?.rubro || rubro) === "pestanas_unas";
+  const [rubro, setRubro] = useState("barberia");
+  const t = temaPack(shop?.estilo, shop?.rubro || rubro);
+  const rosa = t.pack === "rosa";
 
   useEffect(() => {
     if (slug) localStorage.setItem("barberia_slug", slug);
@@ -58,7 +56,7 @@ export default function BarberiaHomePage() {
       const supabase = createClient();
       const { data: b, error: e } = await supabase
         .from("barberias")
-        .select("id, direccion, maps_url, portada_url, rubro")
+        .select("id, direccion, maps_url, portada_url, rubro, estilo")
         .eq("slug", slug)
         .maybeSingle();
       if (e || !b) {
@@ -105,11 +103,6 @@ export default function BarberiaHomePage() {
         <h1 className="text-center mb-2" style={{ fontFamily: "Georgia, Times, serif", fontSize: rosa ? "38px" : "42px", lineHeight: 1.1 }}>
           {t.cita}
         </h1>
-        {rosa && (
-          <p className="text-center text-sm mb-5" style={{ color: t.muted, fontFamily: "Georgia, Times, serif" }}>
-            Pestañas · Uñas · Belleza
-          </p>
-        )}
         {shop?.direccion && (
           <p className="text-center text-[15px] mb-1">
             <Pin />
@@ -126,38 +119,21 @@ export default function BarberiaHomePage() {
         </Link>
         <div className="grid grid-cols-2 gap-2 mb-3">
           <Link href={`/tienda?b=${slug}`} className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <path d="M4 8h16l-1 11H5L4 8zM9 8V6a3 3 0 0 1 6 0v2" />
-            </svg>
             Productos
           </Link>
           <Link href="/login" className="py-3 text-center text-sm flex items-center justify-center gap-2" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <rect x="5" y="11" width="14" height="10" rx="2" />
-              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-            </svg>
             {t.panel}
           </Link>
         </div>
         {resumenHorario && (
-          <div className="px-4 py-3.5 mb-8 flex items-center gap-3" style={{ background: t.card, borderRadius: rosa ? 22 : 8 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <circle cx="12" cy="12" r="8" />
-              <path d="M12 8v4l3 2" />
-            </svg>
-            <div>
-              <p className="text-[10px] tracking-[0.18em] uppercase" style={{ color: t.muted }}>
-                Horario
-              </p>
-              <p className="text-[15px]">{resumenHorario}</p>
-            </div>
+          <div className="px-4 py-3.5 mb-8" style={{ background: t.card, borderRadius: rosa ? 22 : 8 }}>
+            <p className="text-[10px] tracking-[0.18em] uppercase" style={{ color: t.muted }}>Horario</p>
+            <p className="text-[15px]">{resumenHorario}</p>
           </div>
         )}
         {fotos.length > 0 && (
           <section>
-            <h2 className="text-center text-xs tracking-[0.16em] uppercase mb-3" style={{ color: t.muted }}>
-              {t.galeria}
-            </h2>
+            <h2 className="text-center text-xs tracking-[0.16em] uppercase mb-3" style={{ color: t.muted }}>{t.galeria}</h2>
             <div className="grid grid-cols-2 gap-2">
               {fotos.map((f) => (
                 <img key={f.id} src={f.url} alt="" className="h-36 w-full object-cover" style={{ borderRadius: rosa ? 18 : 8 }} />
@@ -172,7 +148,7 @@ export default function BarberiaHomePage() {
           { href: `/reservar?b=${slug}`, label: "Reservar" },
           { href: `/tienda?b=${slug}`, label: "Tienda" },
         ]}
-        bg={rosa ? "#FBF6F8" : "#F5F0E8"}
+        bg={t.bg}
         line={t.line}
         text={t.text}
         muted={t.muted}
