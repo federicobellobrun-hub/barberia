@@ -210,8 +210,8 @@ function ReservarPage() {
 
   const textoSena = () => {
     if (!servicio) return "";
-    let msg = `Hola, soy ${nombre || "cliente"}. Reservé ${servicio.nombre} el ${fecha} a las ${hora}.`;
-    if (pideSena) msg += ` Seña $${servicio.sena}.`;
+    let msg = `Hola, soy ${nombre || "cliente"}. Pedí ${servicio.nombre} el ${fecha} a las ${hora}.`;
+    if (pideSena) msg += ` Envío seña $${servicio.sena}.`;
     if (metodoSena === "cuenta" && pago?.datos_cuenta) msg += `\n\nVoy a transferir:\n${pago.datos_cuenta}`;
     if (metodoSena === "mp" && mpLink) msg += `\n\nPago por Mercado Pago:\n${mpLink}`;
     return msg;
@@ -244,7 +244,7 @@ function ReservarPage() {
       });
       if (rpcError) throw new Error(rpcError.message);
       const { data: creado } = await supabase.from("turnos").select("id").eq("barberia_id", servicio.barberia_id).eq("fecha_hora", fechaHora).order("id", { ascending: false }).limit(1).maybeSingle();
-      if (creado?.id) {
+      if (creado?.id && !pideSena) {
         await fetch("/api/whatsapp/reserva", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -302,7 +302,9 @@ function ReservarPage() {
   if (ok && servicio) {
     return (
       <main className="min-h-screen px-6 py-16 text-center pb-28" style={{ background: t.bg, color: t.text }}>
-        <h1 className="text-4xl tracking-tight" style={{ fontFamily: "Georgia, Times, serif" }}>Turno reservado</h1>
+        <h1 className="text-4xl tracking-tight" style={{ fontFamily: "Georgia, Times, serif" }}>
+          {pideSena ? "Reserva pedida" : "Turno reservado"}
+        </h1>
         <p className="mt-4">
           {servicio.nombre}
           {barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}
@@ -310,15 +312,18 @@ function ReservarPage() {
         {pideSena && (
           <div className="mt-6 text-left max-w-sm mx-auto p-4 space-y-3" style={{ background: t.card, borderRadius: 16 }}>
             <p className="font-medium">Seña ${servicio.sena}</p>
+            <p className="text-sm" style={{ color: t.muted }}>
+              El turno no queda confirmado hasta que reciban la seña y lo confirmen en la agenda.
+            </p>
             {metodoSena === "cuenta" && pago?.datos_cuenta && <p className="text-sm whitespace-pre-wrap">{pago.datos_cuenta}</p>}
             {metodoSena === "mp" && mpLink && (
               <a href={mpLink} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
-                Pagar en Mercado Pago
+                Pagar seña en Mercado Pago
               </a>
             )}
             {pago?.whatsapp_pedidos && (
-              <button type="button" onClick={abrirWhatsapp} className="w-full py-3 font-medium" style={{ background: metodoSena === "mp" ? t.card : t.btn, color: metodoSena === "mp" ? t.text : t.btnText, border: `1px solid ${t.line}`, borderRadius: radio }}>
-                Enviar datos por WhatsApp
+              <button type="button" onClick={abrirWhatsapp} className="w-full py-3 font-medium" style={{ background: t.card, color: t.text, border: `1px solid ${t.line}`, borderRadius: radio }}>
+                Enviar comprobante por WhatsApp
               </button>
             )}
           </div>
@@ -338,30 +343,11 @@ function ReservarPage() {
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
         <div className="relative overflow-hidden mb-4">
-          <div
-            className="flex"
-            style={{
-              width: "200%",
-              transform: vista === "servicios" ? "translateX(-50%)" : "translateX(0)",
-              transition: "transform 320ms ease",
-            }}
-          >
+          <div className="flex" style={{ width: "200%", transform: vista === "servicios" ? "translateX(-50%)" : "translateX(0)", transition: "transform 320ms ease" }}>
             <div className="w-1/2 pr-1">
               <div className="grid grid-cols-2 gap-2">
                 {categorias.map(([nombreCat, items]) => (
-                  <button
-                    key={nombreCat}
-                    type="button"
-                    onClick={() => {
-                      setCategoria(nombreCat);
-                      setServicio(null);
-                      setMetodoSena(null);
-                      setHora("");
-                      setVista("servicios");
-                    }}
-                    className="p-4 text-left"
-                    style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
-                  >
+                  <button key={nombreCat} type="button" onClick={() => { setCategoria(nombreCat); setServicio(null); setMetodoSena(null); setHora(""); setVista("servicios"); }} className="p-4 text-left" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
                     <p className="font-medium">{nombreCat}</p>
                     <p className="text-xs mt-1" style={{ color: t.muted }}>{items.length} servicios</p>
                   </button>
@@ -369,34 +355,13 @@ function ReservarPage() {
               </div>
             </div>
             <div className="w-1/2 pl-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setVista("categorias");
-                  setServicio(null);
-                  setMetodoSena(null);
-                }}
-                className="text-sm mb-3"
-                style={{ color: t.muted }}
-              >
-                ‹ Categorías
-              </button>
+              <button type="button" onClick={() => { setVista("categorias"); setServicio(null); setMetodoSena(null); }} className="text-sm mb-3" style={{ color: t.muted }}>‹ Categorías</button>
               <h2 className="font-medium mb-3">{categoria}</h2>
               <div className="space-y-2">
                 {listaCat.map((s) => {
                   const activo = servicio?.id === s.id;
                   return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => {
-                        setServicio(s);
-                        setMetodoSena(null);
-                        setHora("");
-                      }}
-                      className="w-full flex gap-3 text-left overflow-hidden"
-                      style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
-                    >
+                    <button key={s.id} type="button" onClick={() => { setServicio(s); setMetodoSena(null); setHora(""); }} className="w-full flex gap-3 text-left overflow-hidden" style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
                       {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" /> : <div className="h-20 w-20 shrink-0 flex items-center justify-center" style={{ background: t.bg }}>✂</div>}
                       <div className="py-3 pr-3 min-w-0">
                         <p className="font-medium">{s.nombre}</p>
@@ -420,14 +385,10 @@ function ReservarPage() {
                 <p className="mt-3 font-medium">Requiere seña ${servicio.sena}</p>
                 <p className="text-sm mb-3" style={{ color: t.muted }}>¿Cómo preferís pagarla?</p>
                 {pago?.datos_cuenta && (
-                  <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
-                    Transferencia / cuenta
-                  </button>
+                  <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Transferencia / cuenta</button>
                 )}
                 {mpLink && (
-                  <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
-                    Mercado Pago
-                  </button>
+                  <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>Mercado Pago</button>
                 )}
               </>
             ) : (
@@ -462,9 +423,7 @@ function ReservarPage() {
                 <p className="text-sm font-medium capitalize">{mesLabel}</p>
                 <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
               </div>
-              <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>
-                {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => <span key={i}>{d}</span>)}
-              </div>
+              <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>{["D", "L", "M", "M", "J", "V", "S"].map((d, i) => <span key={i}>{d}</span>)}</div>
               <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
                 {celdasMes.map((value, i) => {
                   if (!value) return <span key={i} />;
@@ -508,7 +467,7 @@ function ReservarPage() {
             <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
             <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
             <button disabled={enviando} className="w-full py-4 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
-              {enviando ? "Reservando..." : "Confirmar reserva"}
+              {enviando ? "Enviando..." : pideSena ? "Pedir reserva (queda pendiente de seña)" : "Confirmar reserva"}
             </button>
           </form>
         )}
