@@ -18,6 +18,7 @@ type Shop = {
   rubro: string | null;
   estilo: string | null;
 };
+type Resena = { id: string; nombre: string | null; puntaje: number; comentario: string | null };
 
 function Pin() {
   return (
@@ -45,9 +46,18 @@ export default function BarberiaHomePage() {
   const [shop, setShop] = useState<Shop | null>(null);
   const [fotos, setFotos] = useState<{ id: string; url: string }[]>([]);
   const [horarios, setHorarios] = useState<{ dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean }[]>([]);
+  const [resenas, setResenas] = useState<Resena[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [rubro, setRubro] = useState("barberia");
-  const t = temaPack(shop?.estilo, shop?.rubro || rubro);
+  const [rubro, setRubro] = useState(() => {
+    if (typeof window === "undefined") return "barberia";
+    return localStorage.getItem("rubro_" + slug) || "barberia";
+  });
+  const [estilo, setEstilo] = useState(() => {
+    if (typeof window === "undefined") return "auto";
+    return localStorage.getItem("estilo_" + slug) || "auto";
+  });
+
+  const t = temaPack(estilo, rubro);
   const rosa = t.pack === "rosa";
 
   useEffect(() => {
@@ -63,16 +73,22 @@ export default function BarberiaHomePage() {
         setError("No se encontró la barbería");
         return;
       }
-      setShop(b as Shop);
-      const r = (b as Shop).rubro || "barberia";
+      const shopData = b as Shop;
+      setShop(shopData);
+      const r = shopData.rubro || "barberia";
+      const pack = shopData.estilo || "auto";
       setRubro(r);
+      setEstilo(pack);
       localStorage.setItem("rubro_" + slug, r);
-      const [f, h] = await Promise.all([
+      localStorage.setItem("estilo_" + slug, pack);
+      const [f, h, n] = await Promise.all([
         supabase.from("fotos").select("id, url").eq("barberia_id", b.id).eq("mostrar_inicio", true).order("created_at", { ascending: false }).limit(6),
         supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin, activo").eq("barberia_id", b.id).order("dia_semana"),
+        supabase.from("resenas").select("id, nombre, puntaje, comentario").eq("barberia_id", b.id).eq("visible", true).order("created_at", { ascending: false }).limit(6),
       ]);
       setFotos(f.data || []);
       setHorarios(h.data || []);
+      setResenas((n.data as Resena[]) || []);
     };
     void load();
   }, [slug]);
@@ -85,6 +101,8 @@ export default function BarberiaHomePage() {
     const nombres = abiertos.map((h) => dias[h.dia_semana]);
     return `${nombres[0]}–${nombres[nombres.length - 1]} ${ini} – ${fin}`;
   }, [horarios]);
+
+  const promedio = resenas.length ? resenas.reduce((a, r) => a + r.puntaje, 0) / resenas.length : 0;
 
   return (
     <main className="min-h-screen pb-28" style={{ background: t.bg, color: t.text }}>
@@ -114,11 +132,7 @@ export default function BarberiaHomePage() {
             Cómo llegar →
           </a>
         )}
-        <Link
-          href={`/reservar?b=${slug}`}
-          className="block text-center py-3.5 text-[16px] mb-3"
-          style={{ background: t.btn, color: t.btnText, borderRadius: rosa ? 999 : 8, boxShadow: rosa ? "0 8px 20px rgba(183,110,121,.28)" : "none" }}
-        >
+        <Link href={`/reservar?b=${slug}`} className="block text-center py-3.5 text-[16px] mb-3" style={{ background: t.btn, color: t.btnText, borderRadius: rosa ? 999 : 8 }}>
           Reservar
         </Link>
         <div className="grid grid-cols-2 gap-2 mb-3">
@@ -136,6 +150,9 @@ export default function BarberiaHomePage() {
             {t.panel}
           </Link>
         </div>
+        <Link href={`/resena?b=${slug}`} className="block text-center py-3 mb-6 text-sm" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
+          Dejá tu reseña
+        </Link>
         {resumenHorario && (
           <div className="px-4 py-3.5 mb-8 flex items-center gap-3" style={{ background: t.card, borderRadius: rosa ? 22 : 8 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
@@ -147,6 +164,18 @@ export default function BarberiaHomePage() {
               <p className="text-[15px]">{resumenHorario}</p>
             </div>
           </div>
+        )}
+        {resenas.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-center text-xs tracking-[0.16em] uppercase mb-2" style={{ color: t.muted }}>Reseñas</h2>
+            <p className="text-center mb-4">{"★".repeat(Math.round(promedio))} · {promedio.toFixed(1)}</p>
+            {resenas.map((r) => (
+              <div key={r.id} className="p-4 mb-2" style={{ background: t.card, borderRadius: rosa ? 18 : 12 }}>
+                <p className="text-sm font-medium">{r.nombre || "Cliente"} · {"★".repeat(r.puntaje)}</p>
+                {r.comentario && <p className="text-sm mt-1" style={{ color: t.muted }}>{r.comentario}</p>}
+              </div>
+            ))}
+          </section>
         )}
         {fotos.length > 0 && (
           <section>
