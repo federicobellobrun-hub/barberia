@@ -39,6 +39,7 @@ export default function MasPage() {
         { href: "/dashboard/clientes", t: "Clientes", d: "M12 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 19c1.5-3 4-5 7-5s5.5 2 7 5" },
         { href: "/dashboard/catalogo", t: "Catálogo", d: "M7 4h10l2 4H5l2-4zM6 8h12v12H6z" },
         { href: "/dashboard/productos", t: "Productos", d: "M4 8h16l-1 11H5L4 8zM9 8V6a3 3 0 0 1 6 0v2" },
+        { href: "/dashboard/resenas", t: "Reseñas", d: "M12 3l2.2 6.6H21l-5.4 4 2.1 6.4L12 16.8 6.3 20l2.1-6.4L3 9.6h6.8z" },
         { href: "/dashboard/bloqueos", t: "Bloqueos", d: "M7 11V8a5 5 0 0 1 10 0v3M6 11h12v10H6z" },
         { href: "/dashboard/galeria", t: "Galería", d: "M4 6h16v12H4zM8 16l3-4 2 3 2-2 3 3" },
         { href: "/dashboard/horarios", t: "Horarios", d: "M12 7v5l3 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z" },
@@ -63,23 +64,14 @@ export default function MasPage() {
   return (
     <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
       <div className="mx-auto max-w-md px-5 py-8">
-        <Link href="/dashboard" className="text-sm text-[#7a7268]">
-          ← Agenda
-        </Link>
-        <h1 className="mt-4 text-3xl mb-6" style={{ fontFamily: "Georgia, Times, serif" }}>
-          Más
-        </h1>
+        <Link href="/dashboard" className="text-sm text-[#7a7268]">← Agenda</Link>
+        <h1 className="mt-4 text-3xl mb-6" style={{ fontFamily: "Georgia, Times, serif" }}>Más</h1>
         {!items ? (
           <p className="text-sm text-[#7a7268]">Cargando…</p>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {items.map((i) => (
-              <Link
-                key={i.t}
-                href={i.href}
-                className="rounded-2xl p-4 text-sm"
-                style={{ background: "#EFE8DC", border: "1px solid #ddd4c8" }}
-              >
+              <Link key={i.t} href={i.href} className="rounded-2xl p-4 text-sm" style={{ background: "#EFE8DC", border: "1px solid #ddd4c8" }}>
                 <Icon d={i.d} />
                 {i.t}
               </Link>
