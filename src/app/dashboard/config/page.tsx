@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
+import { PACKS } from "@/lib/rubro";
 
 export default function ConfigPage() {
   const [id, setId] = useState("");
@@ -18,6 +19,7 @@ export default function ConfigPage() {
   const [cuenta, setCuenta] = useState("");
   const [mpUrl, setMpUrl] = useState("");
   const [pedirSena, setPedirSena] = useState(false);
+  const [estilo, setEstilo] = useState("auto");
   const [logo, setLogo] = useState<string | null>(null);
   const [portada, setPortada] = useState<string | null>(null);
   const [ok, setOk] = useState("");
@@ -38,7 +40,7 @@ export default function ConfigPage() {
       }
       const { data } = await supabase
         .from("barberias")
-        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena")
+        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo")
         .eq("id", u.barberia_id)
         .maybeSingle();
       if (!data) {
@@ -58,6 +60,7 @@ export default function ConfigPage() {
       setCuenta(data.datos_cuenta || "");
       setMpUrl(data.mercado_pago_url || "");
       setPedirSena(data.pedido_sena === true);
+      setEstilo(data.estilo || "auto");
     };
     void load();
   }, [router]);
@@ -79,6 +82,7 @@ export default function ConfigPage() {
         datos_cuenta: cuenta,
         mercado_pago_url: mpUrl,
         pedido_sena: pedirSena,
+        estilo,
       })
       .eq("id", id);
     if (e1) setError(e1.message);
@@ -105,7 +109,7 @@ export default function ConfigPage() {
   };
 
   const campo = "w-full rounded-2xl px-4 py-3";
-  const estilo = { background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" };
+  const estiloInput = { background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" };
 
   return (
     <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
@@ -121,13 +125,13 @@ export default function ConfigPage() {
           {portada && <img src={portada} alt="Portada" className="h-32 w-full object-cover rounded-2xl" />}
           <p className="text-sm">Foto de portada</p>
           <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subir(file, "portada"); }} />
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del local" className={campo} style={estilo} />
-          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp. Ej: 099123456" className={campo} style={estilo} />
-          <input value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Dirección" className={campo} style={estilo} />
-          <input value={maps} onChange={(e) => setMaps(e.target.value)} placeholder="Link de Google Maps" className={campo} style={estilo} />
-          <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="enlace. Ej: vale-studio" className={campo} style={estilo} />
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del local" className={campo} style={estiloInput} />
+          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp. Ej: 099123456" className={campo} style={estiloInput} />
+          <input value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Dirección" className={campo} style={estiloInput} />
+          <input value={maps} onChange={(e) => setMaps(e.target.value)} placeholder="Link de Google Maps" className={campo} style={estiloInput} />
+          <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="enlace. Ej: vale-studio" className={campo} style={estiloInput} />
           <p className="text-xs" style={{ color: "var(--muted)" }}>Link público: /b/{slug || "..."}</p>
-          <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje de confirmación" rows={4} className={campo} style={estilo} />
+          <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje de confirmación" rows={4} className={campo} style={estiloInput} />
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={fidelizacion} onChange={(e) => setFidelizacion(e.target.checked)} />
             Cortesía cada 10 cortes
@@ -136,8 +140,14 @@ export default function ConfigPage() {
             <input type="checkbox" checked={pedirSena} onChange={(e) => setPedirSena(e.target.checked)} />
             Pedir seña al reservar
           </label>
-          <textarea value={cuenta} onChange={(e) => setCuenta(e.target.value)} placeholder="Datos de cuenta bancaria" rows={3} className={campo} style={estilo} />
-          <input value={mpUrl} onChange={(e) => setMpUrl(e.target.value)} placeholder="Link de Mercado Pago" className={campo} style={estilo} />
+          <textarea value={cuenta} onChange={(e) => setCuenta(e.target.value)} placeholder="Datos de cuenta bancaria" rows={3} className={campo} style={estiloInput} />
+          <input value={mpUrl} onChange={(e) => setMpUrl(e.target.value)} placeholder="https://link.mercadopago.com.uy/velestudio" className={campo} style={estiloInput} />
+          <p className="text-sm pt-2">Estilo visual</p>
+          <select value={estilo} onChange={(e) => setEstilo(e.target.value)} className={campo} style={estiloInput}>
+            {PACKS.map((p) => (
+              <option key={p.id} value={p.id}>{p.nombre}</option>
+            ))}
+          </select>
           <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
             Guardar
           </button>
