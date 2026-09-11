@@ -31,11 +31,6 @@ function one<T>(value: T | T[] | null): T | null {
 function ymd(date: Date) {
   return date.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
 }
-function addDays(value: string, days: number) {
-  const d = new Date(`${value}T12:00:00-03:00`);
-  d.setDate(d.getDate() + days);
-  return ymd(d);
-}
 function horaUy(fechaHora: string) {
   return new Date(fechaHora).toLocaleTimeString("es-UY", {
     hour: "2-digit",
@@ -176,9 +171,7 @@ export default function DashboardPage() {
     const days = new Date(y, m, 0).getDate();
     const cells: (string | null)[] = [];
     for (let i = 0; i < start; i++) cells.push(null);
-    for (let d = 1; d <= days; d++) {
-      cells.push(`${mes}-${String(d).padStart(2, "0")}`);
-    }
+    for (let d = 1; d <= days; d++) cells.push(`${mes}-${String(d).padStart(2, "0")}`);
     return cells;
   }, [mes]);
 
@@ -343,11 +336,24 @@ export default function DashboardPage() {
                     <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--line)" }}>
                       {cliente?.telefono && <p className="text-sm mb-2">{cliente.telefono}</p>}
                       <div className="flex flex-wrap gap-2">
-                        {t.estado === "pendiente" && cliente?.telefono && (
+                        {t.estado === "pendiente" && (
                           <button
                             onClick={() => {
-                              void cambiarEstado(t.id, "confirmado");
-                              abrirWhatsapp(cliente.telefono, `Hola ${cliente.nombre}, te confirmamos el turno.\n\nServicio: ${servicio?.nombre}\nDía: ${fechaUy(t.fecha_hora)}\nHora: ${horaUy(t.fecha_hora)}`);
+                              void (async () => {
+                                await cambiarEstado(t.id, "confirmado");
+                                const res = await fetch("/api/whatsapp/reserva", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ turnoId: t.id, soloCliente: true }),
+                                });
+                                const data = await res.json();
+                                if (data.skipped === "manual" && cliente?.telefono) {
+                                  abrirWhatsapp(
+                                    cliente.telefono,
+                                    `Hola ${cliente.nombre}, te confirmamos el turno.\n\nServicio: ${servicio?.nombre}\nDía: ${fechaUy(t.fecha_hora)}\nHora: ${horaUy(t.fecha_hora)}`
+                                  );
+                                }
+                              })();
                             }}
                             className="text-xs px-3 py-2 rounded-full"
                             style={{ background: "#1c1712", color: "#f4efe6" }}
@@ -357,7 +363,12 @@ export default function DashboardPage() {
                         )}
                         {cliente?.telefono && (
                           <button
-                            onClick={() => abrirWhatsapp(cliente.telefono, `Hola ${cliente.nombre}, te recordamos tu turno.\n\n${servicio?.nombre}\n${fechaUy(t.fecha_hora)} · ${horaUy(t.fecha_hora)}`)}
+                            onClick={() =>
+                              abrirWhatsapp(
+                                cliente.telefono,
+                                `Hola ${cliente.nombre}, te recordamos tu turno.\n\n${servicio?.nombre}\n${fechaUy(t.fecha_hora)} · ${horaUy(t.fecha_hora)}`
+                              )
+                            }
                             className="text-xs px-3 py-2 rounded-full"
                             style={{ border: "1px solid var(--line)" }}
                           >
