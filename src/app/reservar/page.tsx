@@ -66,11 +66,19 @@ function linkHttps(url: string) {
 
 function ReservarPage() {
   const search = useSearchParams();
-  const slug = search.get("b") || slugDeHost() || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
+  const slug =
+    search.get("b") ||
+    slugDeHost() ||
+    (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) ||
+    "diano";
 
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
-  const [rubro, setRubro] = useState(() => (typeof window === "undefined" ? "barberia" : localStorage.getItem("rubro_" + slug) || "barberia"));
-  const [estilo, setEstilo] = useState(() => (typeof window === "undefined" ? "auto" : localStorage.getItem("estilo_" + slug) || "auto"));
+  const [rubro, setRubro] = useState(() =>
+    typeof window === "undefined" ? "barberia" : localStorage.getItem("rubro_" + slug) || "barberia"
+  );
+  const [estilo, setEstilo] = useState(() =>
+    typeof window === "undefined" ? "auto" : localStorage.getItem("estilo_" + slug) || "auto"
+  );
   const [pago, setPago] = useState<PagoShop | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
@@ -306,26 +314,6 @@ function ReservarPage() {
       </button>
     );
   };
-
-  if (ok && servicio) {
-    return (
-      <main className="min-h-screen px-6 py-16 text-center pb-28" style={{ background: t.bg, color: t.text }}>
-        <h1 className="text-4xl tracking-tight" style={{ fontFamily: "Georgia, Times, serif" }}>{pideSena ? "Reserva pedida" : "Turno reservado"}</h1>
-        <p className="mt-4">{servicio.nombre}{barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}</p>
-        {pideSena && (
-          <div className="mt-6 text-left max-w-sm mx-auto p-4 space-y-3" style={{ background: t.card, borderRadius: 16 }}>
-            <p className="font-medium">Seña ${servicio.sena}</p>
-            <p className="text-sm" style={{ color: t.muted }}>El turno no queda confirmado hasta que reciban la seña y lo confirmen en la agenda.</p>
-            {metodoSena === "cuenta" && pago?.datos_cuenta && <p className="text-sm whitespace-pre-wrap">{pago.datos_cuenta}</p>}
-            {metodoSena === "mp" && mpLink && <a href={mpLink} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>Pagar seña en Mercado Pago</a>}
-            {pago?.whatsapp_pedidos && <button type="button" onClick={abrirWhatsapp} className="w-full py-3 font-medium" style={{ background: t.card, color: t.text, border: `1px solid ${t.line}`, borderRadius: radio }}>Enviar comprobante por WhatsApp</button>}
-          </div>
-        )}
-        <Link href={`/b/${slug}`} className="inline-block mt-8">Volver</Link>
-        {nav}
-      </main>
-    );
-  }
 
   return (
     <main className="min-h-screen pb-28" style={{ background: t.bg, color: t.text }}>
