@@ -16,11 +16,19 @@ type Servicio = {
   duracion_minutos: number;
   precio: number;
   imagen_url: string | null;
+  categoria: string | null;
+  sena: number | null;
 };
 type Barbero = { id: string; nombre: string; foto_url: string | null };
 type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; barbero_id?: string | null };
 type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean };
 type Turno = { fecha_hora: string; duracion_minutos: number; barbero_id: string | null };
+type PagoShop = {
+  whatsapp_pedidos: string | null;
+  datos_cuenta: string | null;
+  mercado_pago_url: string | null;
+  pedido_sena: boolean | null;
+};
 
 function ymdMontevideo(date: Date) {
   return date.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
@@ -38,11 +46,17 @@ function fromMinutes(mins: number) {
 }
 function slugDeHost() {
   if (typeof window === "undefined") return null;
-  const host = window.location.hostname;
-  if (!host.endsWith("reservoapps.com")) return null;
-  const sub = host.replace(".reservoapps.com", "");
-  if (!sub || sub === "www") return null;
-  return sub;
+  const host = window.location.hostname.replace(/^www\./, "");
+  if (host === "reservoapps.com" || host === "localhost") return null;
+  if (!host.endsWith(".reservoapps.com")) return null;
+  const sub = host.replace(/\.reservoapps\.com$/, "");
+  return sub || null;
+}
+function waNumber(telefono: string) {
+  const solo = telefono.replace(/\D/g, "");
+  if (solo.startsWith("598")) return solo;
+  if (solo.startsWith("0")) return `598${solo.slice(1)}`;
+  return `598${solo}`;
 }
 
 function ReservarPage() {
@@ -54,6 +68,7 @@ function ReservarPage() {
     if (typeof window === "undefined") return "barberia";
     return localStorage.getItem("rubro_" + slug) || "barberia";
   });
+  const [pago, setPago] = useState<PagoShop | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [horariosLocal, setHorariosLocal] = useState<Horario[]>([]);
@@ -78,13 +93,23 @@ function ReservarPage() {
   const radio = rosa ? 999 : 16;
 
   useEffect(() => {
-    localStorage.setItem("barberia_slug", slug);
+    if (slug && slug !== "reservoapps.com") localStorage.setItem("barberia_slug", slug);
     const load = async () => {
       try {
         const supabase = createClient();
-        const { data: shop, error: shopErr } = await supabase.from("barberias").select("id, rubro").eq("slug", slug).maybeSingle();
+        const { data: shop, error: shopErr } = await supabase
+          .from("barberias")
+          .select("id, rubro, whatsapp_pedidos, datos_cuenta, mercado_pago_url, pedido_sena")
+          .eq("slug", slug)
+          .maybeSingle();
         if (shopErr || !shop) throw new Error("No se encontró el local");
         setBarberiaId(shop.id);
+        setPago({
+          whatsapp_pedidos: shop.whatsapp_pedidos,
+          datos_cuenta: shop.datos_cuenta,
+          mercado_pago_url: shop.mercado_pago_url,
+          pedido_sena: shop.pedido_sena,
+        });
         const r = shop.rubro || "barberia";
         setRubro(r);
         localStorage.setItem("rubro_" + slug, r);
@@ -92,7 +117,7 @@ function ReservarPage() {
         const hasta = new Date();
         hasta.setDate(hasta.getDate() + 40);
         const [servRes, barRes, horRes, horBarRes, bloqRes, turRes] = await Promise.all([
-          supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos, precio, imagen_url").eq("barberia_id", shop.id).eq("activo", true).order("orden"),
+          supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos, precio, imagen_url, categoria, sena").eq("barberia_id", shop.id).eq("activo", true).order("orden"),
           supabase.from("barberos").select("id, nombre, foto_url").eq("barberia_id", shop.id).eq("activo", true).order("nombre"),
           supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin").eq("barberia_id", shop.id).eq("activo", true),
           supabase.from("horario_barbero").select("dia_semana, hora_inicio, hora_fin, barbero_id").eq("barberia_id", shop.id).eq("activo", true),
@@ -100,7 +125,7 @@ function ReservarPage() {
           supabase.from("turnos").select("fecha_hora, duracion_minutos, barbero_id").eq("barberia_id", shop.id).in("estado", ["pendiente", "confirmado", "realizado"]).gte("fecha_hora", desde.toISOString()).lte("fecha_hora", hasta.toISOString()),
         ]);
         if (servRes.error) throw new Error(servRes.error.message);
-        setServicios(servRes.data || []);
+        setServicios((servRes.data as Servicio[]) || []);
         setBarberos(barRes.data || []);
         setHorariosLocal(horRes.data || []);
         setHorariosBarbero(horBarRes.data || []);
@@ -121,6 +146,15 @@ function ReservarPage() {
     const propios = horariosBarbero.filter((h) => h.barbero_id === barbero.id);
     return propios.length ? propios : horariosLocal;
   }, [barbero, horariosLocal, horariosBarbero]);
+
+  const grupos = useMemo(() => {
+    const map = new Map<string, Servicio[]>();
+    for (const s of servicios) {
+      const k = s.categoria?.trim() || "Servicios";
+      map.set(k, [...(map.get(k) || []), s]);
+    }
+    return Array.from(map.entries());
+  }, [servicios]);
 
   const celdasMes = useMemo(() => {
     const year = mes.getFullYear();
@@ -162,6 +196,22 @@ function ReservarPage() {
     return slots;
   }, [servicio, barbero, fecha, horarios, bloqueos, turnos]);
 
+  const textoSena = () => {
+    if (!servicio || !pago) return "";
+    const sena = Number(servicio.sena || 0);
+    if (!pago.pedido_sena || sena <= 0) return "";
+    let msg = `Hola, reservé ${servicio.nombre} el ${fecha} a las ${hora}. Seña $${sena}.`;
+    if (pago.datos_cuenta) msg += `\n\nCuenta:\n${pago.datos_cuenta}`;
+    if (pago.mercado_pago_url) msg += `\n\nMercado Pago:\n${pago.mercado_pago_url}`;
+    return msg;
+  };
+
+  const abrirSena = () => {
+    const tel = pago?.whatsapp_pedidos;
+    if (!tel) return;
+    window.open(`https://wa.me/${waNumber(tel)}?text=${encodeURIComponent(textoSena())}`, "_blank");
+  };
+
   const guardar = async (e: FormEvent) => {
     e.preventDefault();
     if (!servicio || !fecha || !hora) return;
@@ -181,14 +231,7 @@ function ReservarPage() {
         p_barbero_id: barbero?.id || null,
       });
       if (rpcError) throw new Error(rpcError.message);
-      const { data: creado } = await supabase
-        .from("turnos")
-        .select("id")
-        .eq("barberia_id", servicio.barberia_id)
-        .eq("fecha_hora", fechaHora)
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: creado } = await supabase.from("turnos").select("id").eq("barberia_id", servicio.barberia_id).eq("fecha_hora", fechaHora).order("id", { ascending: false }).limit(1).maybeSingle();
       if (creado?.id) {
         await fetch("/api/whatsapp/reserva", {
           method: "POST",
@@ -235,6 +278,8 @@ function ReservarPage() {
     />
   );
 
+  const pideSena = Boolean(pago?.pedido_sena && servicio && Number(servicio.sena || 0) > 0);
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center pb-28" style={{ background: t.bg, color: t.text }}>
@@ -252,6 +297,22 @@ function ReservarPage() {
           {servicio.nombre}
           {barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}
         </p>
+        {pideSena && (
+          <div className="mt-6 text-left max-w-sm mx-auto p-4" style={{ background: t.card, borderRadius: 16 }}>
+            <p className="font-medium mb-2">Seña ${servicio.sena}</p>
+            {pago?.datos_cuenta && <p className="text-sm whitespace-pre-wrap mb-2">{pago.datos_cuenta}</p>}
+            {pago?.mercado_pago_url && (
+              <a href={pago.mercado_pago_url} target="_blank" rel="noreferrer" className="text-sm underline block mb-3">
+                Pagar con Mercado Pago
+              </a>
+            )}
+            {pago?.whatsapp_pedidos && (
+              <button type="button" onClick={abrirSena} className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
+                Enviar seña por WhatsApp
+              </button>
+            )}
+          </div>
+        )}
         <Link href={`/b/${slug}`} className="inline-block mt-8">Volver</Link>
         {nav}
       </main>
@@ -268,30 +329,46 @@ function ReservarPage() {
         </p>
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
-        <h2 className="font-medium mb-3">Elegí un servicio</h2>
-        <div className="grid grid-cols-3 gap-2 items-stretch">
-          {servicios.map((s) => {
-            const activo = servicio?.id === s.id;
-            return (
-              <button key={s.id} onClick={() => { setServicio(s); setHora(""); }} className="text-left overflow-hidden flex flex-col h-full" style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16, color: t.text }}>
-                {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-24 w-full object-cover shrink-0" /> : <div className="h-24 w-full shrink-0 flex items-center justify-center text-xl" style={{ background: t.bg }}>✂</div>}
-                <div className="p-3 flex-1">
-                  <p className="text-sm font-medium leading-4 line-clamp-2">{s.nombre}</p>
-                  <p className="text-xs mt-1" style={{ color: t.muted }}>${s.precio}</p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        {grupos.map(([cat, items]) => (
+          <div key={cat} className="mb-5">
+            <h2 className="font-medium mb-3">{cat}</h2>
+            <div className="grid grid-cols-3 gap-2 items-stretch">
+              {items.map((s) => {
+                const activo = servicio?.id === s.id;
+                return (
+                  <button key={s.id} type="button" onClick={() => { setServicio(s); setHora(""); }} className="text-left overflow-hidden flex flex-col h-full" style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16, color: t.text }}>
+                    {s.imagen_url ? <img src={s.imagen_url} alt="" className="h-24 w-full object-cover shrink-0" /> : <div className="h-24 w-full shrink-0 flex items-center justify-center text-xl" style={{ background: t.bg }}>✂</div>}
+                    <div className="p-3 flex-1">
+                      <p className="text-sm font-medium leading-4 line-clamp-2">{s.nombre}</p>
+                      <p className="text-xs mt-1" style={{ color: t.muted }}>${s.precio}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {pideSena && (
+          <div className="mb-4 p-4 text-sm" style={{ background: t.card, borderRadius: 16 }}>
+            <p className="font-medium">Este servicio pide seña ${servicio?.sena}</p>
+            {pago?.datos_cuenta && <p className="mt-2 whitespace-pre-wrap">{pago.datos_cuenta}</p>}
+            {pago?.mercado_pago_url && (
+              <a href={pago.mercado_pago_url} target="_blank" rel="noreferrer" className="underline mt-2 inline-block">
+                Mercado Pago
+              </a>
+            )}
+          </div>
+        )}
 
         {barberos.length > 0 && (
           <>
-            <h2 className="font-medium mb-3 mt-6">{rosa ? "Elegí profesional" : "Elegí barbero"}</h2>
+            <h2 className="font-medium mb-3 mt-2">{rosa ? "Elegí profesional" : "Elegí barbero"}</h2>
             <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
               {barberos.map((b) => {
                 const activoSel = barbero?.id === b.id;
                 return (
-                  <button key={b.id} onClick={() => { setBarbero(b); setHora(""); }} className="shrink-0 p-3 w-28 text-center" style={{ background: t.card, border: activoSel ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
+                  <button key={b.id} type="button" onClick={() => { setBarbero(b); setHora(""); }} className="shrink-0 p-3 w-28 text-center" style={{ background: t.card, border: activoSel ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}>
                     {b.foto_url ? <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" /> : <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: t.bg }}>{b.nombre.slice(0, 1)}</div>}
                     <p className="text-sm font-medium leading-4">{b.nombre}</p>
                   </button>
@@ -304,12 +381,14 @@ function ReservarPage() {
         <h2 className="font-medium mb-3">Elegí día y hora</h2>
         <div className="p-4 mb-3" style={{ background: t.card, borderRadius: rosa ? 22 : 16 }}>
           <div className="flex items-center justify-between mb-3">
-            <button onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>‹</button>
+            <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>‹</button>
             <p className="text-sm font-medium capitalize">{mesLabel}</p>
-            <button onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
+            <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
           </div>
           <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>
-            {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => <span key={i}>{d}</span>)}
+            {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
+              <span key={i}>{d}</span>
+            ))}
           </div>
           <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
             {celdasMes.map((value, i) => {
@@ -317,7 +396,7 @@ function ReservarPage() {
               const activoDia = fecha === value;
               const pasado = value < hoy;
               return (
-                <button key={value} disabled={pasado} onClick={() => { setFecha(value); setHora(""); setEsperaOk(false); }} className="h-8 w-8 mx-auto rounded-full" style={{ background: activoDia ? t.btn : "transparent", color: activoDia ? t.btnText : pasado ? t.line : t.text }}>
+                <button key={value} type="button" disabled={pasado} onClick={() => { setFecha(value); setHora(""); setEsperaOk(false); }} className="h-8 w-8 mx-auto rounded-full" style={{ background: activoDia ? t.btn : "transparent", color: activoDia ? t.btnText : pasado ? t.line : t.text }}>
                   {Number(value.slice(8))}
                 </button>
               );
@@ -329,13 +408,17 @@ function ReservarPage() {
           <div className="mb-6">
             <div className="flex gap-2 overflow-x-auto pb-2">
               {horariosDelDia.map((h) => (
-                <button key={h} onClick={() => setHora(h)} className="shrink-0 px-3 py-2 text-sm font-medium" style={{ background: hora === h ? t.btn : t.card, color: hora === h ? t.btnText : t.text, borderRadius: radio }}>{h}</button>
+                <button key={h} type="button" onClick={() => setHora(h)} className="shrink-0 px-3 py-2 text-sm font-medium" style={{ background: hora === h ? t.btn : t.card, color: hora === h ? t.btnText : t.text, borderRadius: radio }}>
+                  {h}
+                </button>
               ))}
             </div>
             {horariosDelDia.length === 0 && (
               <div className="mt-3">
                 <p className="text-sm mb-3">No hay horarios ese día.</p>
-                {esperaOk ? <p className="text-sm">Quedaste en lista de espera.</p> : (
+                {esperaOk ? (
+                  <p className="text-sm">Quedaste en lista de espera.</p>
+                ) : (
                   <form onSubmit={anotarEspera} className="space-y-2">
                     <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
                     <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
