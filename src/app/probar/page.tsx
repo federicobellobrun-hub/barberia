@@ -55,6 +55,9 @@ export default function ProbarPage() {
           <select value={rubro} onChange={(e) => setRubro(e.target.value)} className={campo} style={estilo}>
             <option value="barberia">Barbería</option>
             <option value="pestanas_unas">Pestañas y uñas</option>
+            <option value="canina">Peluquería canina</option>
+            <option value="taller">Taller mecánico</option>
+            <option value="otro">Otro rubro</option>
           </select>
           <p className="text-sm mb-2">Cómo querés probar</p>
           <div className="grid grid-cols-2 gap-2 mb-6">
