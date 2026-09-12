@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+const RUBROS_OK = ["barberia", "pestanas_unas", "canina", "taller", "otro"];
+
 function admin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -16,13 +18,6 @@ function slugify(v: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "")
     .slice(0, 32);
-}
-
-function waNumber(telefono: string) {
-  const solo = telefono.replace(/\D/g, "");
-  if (solo.startsWith("598")) return solo;
-  if (solo.startsWith("0")) return `598${solo.slice(1)}`;
-  return `598${solo}`;
 }
 
 async function avisoDemo(nombre: string, modo: string, vence: string, email: string) {
@@ -60,7 +55,7 @@ export async function POST(req: Request) {
     const password = String(body.password || "");
     const whatsapp = String(body.whatsapp || "").trim();
     const modo = body.modo === "automatico" ? "automatico" : "manual";
-    const rubro = body.rubro === "pestanas_unas" ? "pestanas_unas" : "barberia";
+    const rubro = RUBROS_OK.includes(body.rubro) ? body.rubro : "barberia";
     const slug = slugify(String(body.slug || nombre));
 
     if (!nombre || !slug || !email || password.length < 6) {
