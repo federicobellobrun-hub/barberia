@@ -36,7 +36,9 @@ export default function ProbarPage() {
   return (
     <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
       <div className="max-w-md mx-auto px-5 pt-8 pb-16">
-        <Link href="/" className="text-sm" style={{ color: "#7a7268" }}>‹ Reservo</Link>
+        <Link href="/" className="text-sm" style={{ color: "#7a7268" }}>
+          ‹ Reservo
+        </Link>
         <h1 className="text-[34px] mt-6 mb-2" style={{ fontFamily: "Georgia, Times, serif" }}>
           Probá 7 días
         </h1>
@@ -64,9 +66,7 @@ export default function ProbarPage() {
             </button>
           </div>
           <p className="text-xs mb-4" style={{ color: "#7a7268" }}>
-            {modo === "automatico"
-              ? "Los avisos salen solos (tope de prueba). Ideal para ver la diferencia."
-              : "Vos avisás por WhatsApp. Sin costo de Meta."}
+            {modo === "automatico" ? "Los avisos salen solos (tope de prueba)." : "Vos avisás por WhatsApp."}
           </p>
           <button disabled={enviando} className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1C1712", color: "#F5F0E8" }}>
             {enviando ? "Creando..." : "Empezar prueba"}
