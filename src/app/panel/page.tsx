@@ -12,12 +12,24 @@ type Barberia = {
   activo: boolean | null;
   modo_whatsapp: string | null;
   rubro: string | null;
+  plan: string | null;
+  trial_hasta: string | null;
 };
 
 const RUBROS = [
   { id: "barberia", titulo: "Barberías", desc: "Cortes, barba y agenda clásica" },
   { id: "pestanas_unas", titulo: "Pestañas y uñas", desc: "Citas de estética y belleza" },
 ] as const;
+
+function etiquetaPlan(b: Barberia) {
+  if (b.plan === "trial") {
+    const vence = b.trial_hasta ? new Date(b.trial_hasta).toLocaleDateString("es-UY") : "";
+    const vencida = b.trial_hasta ? new Date(b.trial_hasta) < new Date() : false;
+    return vencida ? `Prueba vencida${vence ? " · " + vence : ""}` : `Prueba · vence ${vence}`;
+  }
+  if (b.plan === "automatico") return "Plan automático";
+  return "Plan manual";
+}
 
 export default function PanelReservo() {
   const supabase = createBrowserClient(
@@ -48,7 +60,7 @@ export default function PanelReservo() {
     }
     const { data } = await supabase
       .from("barberias")
-      .select("id,nombre,slug,activo,modo_whatsapp,rubro")
+      .select("id,nombre,slug,activo,modo_whatsapp,rubro,plan,trial_hasta")
       .order("nombre");
     setLista((data as Barberia[] | null) ?? []);
     setOk(true);
@@ -68,11 +80,16 @@ export default function PanelReservo() {
     return data.session?.access_token || "";
   }
 
-  async function guardar(id: string, patch: { activo?: boolean; modo_whatsapp?: string; rubro?: string }) {
+  async function guardar(id: string, patch: Record<string, string | boolean | null>) {
     setMsg("");
     const { error } = await supabase.from("barberias").update(patch).eq("id", id);
     if (error) setMsg(error.message);
     else void init();
+  }
+
+  async function pasarAPago(b: Barberia) {
+    const plan = b.modo_whatsapp === "automatico" ? "automatico" : "manual";
+    await guardar(b.id, { plan, trial_hasta: null });
   }
 
   async function crear(e: FormEvent<HTMLFormElement>) {
@@ -141,6 +158,7 @@ export default function PanelReservo() {
             </Link>
             {RUBROS.map((r) => {
               const n = lista.filter((b) => (b.rubro || "barberia") === r.id).length;
+              const trials = lista.filter((b) => (b.rubro || "barberia") === r.id && b.plan === "trial").length;
               return (
                 <button
                   key={r.id}
@@ -154,6 +172,7 @@ export default function PanelReservo() {
                   </p>
                   <p className="text-xs text-[#7a7268] mt-1">
                     {r.desc} · {n} agenda{n === 1 ? "" : "s"}
+                    {trials ? ` · ${trials} en prueba` : ""}
                   </p>
                 </button>
               );
@@ -173,9 +192,12 @@ export default function PanelReservo() {
             {visibles.map((b) => (
               <article key={b.id} className="rounded-2xl p-4 mb-3" style={{ border: "1px solid #ddd4c8" }}>
                 <p className="font-medium">{b.nombre}</p>
-                <p className="text-xs text-[#7a7268] mb-3">
+                <p className="text-xs text-[#7a7268] mb-1">
                   /b/{b.slug}
                   {b.slug === "diano" ? " · Demo" : ""}
+                </p>
+                <p className="text-xs mb-3" style={{ color: b.plan === "trial" ? "#8B3A3A" : "#7a7268" }}>
+                  {etiquetaPlan(b)}
                 </p>
                 <div className="flex flex-wrap gap-2 mb-3">
                   <button
@@ -198,6 +220,16 @@ export default function PanelReservo() {
                     <option value="manual">WhatsApp manual</option>
                     <option value="automatico">WhatsApp automático</option>
                   </select>
+                  {b.plan === "trial" && (
+                    <button
+                      type="button"
+                      className="rounded-full px-3 py-1 text-xs"
+                      style={{ border: "1px solid #1C1712" }}
+                      onClick={() => void pasarAPago(b)}
+                    >
+                      Pasar a pago
+                    </button>
+                  )}
                 </div>
                 <div className="flex gap-4 text-xs">
                   <Link href={`/b/${b.slug}`}>Ver web</Link>
