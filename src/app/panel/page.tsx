@@ -19,6 +19,9 @@ type Barberia = {
 const RUBROS = [
   { id: "barberia", titulo: "Barberías", desc: "Cortes, barba y agenda clásica" },
   { id: "pestanas_unas", titulo: "Pestañas y uñas", desc: "Citas de estética y belleza" },
+  { id: "canina", titulo: "Peluquería canina", desc: "Baño, corte y estética de mascotas" },
+  { id: "taller", titulo: "Taller", desc: "Turnos de mecánica y service" },
+  { id: "otro", titulo: "Otros", desc: "Cualquier otro local con agenda" },
 ] as const;
 
 function etiquetaPlan(b: Barberia) {
