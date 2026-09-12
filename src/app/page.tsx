@@ -86,9 +86,14 @@ export default function HomePage() {
       <div className="relative mx-auto max-w-md px-5 pt-6 pb-16">
         <header className="flex items-start justify-between mb-12">
           <Logo />
-          <Link href="/login" className="mt-2 text-[13px] text-[#9a9388] hover:text-[#1C1712]">
-            Ingresar
-          </Link>
+          <div className="flex gap-4 mt-2">
+            <Link href="/probar" className="text-[13px] text-[#1C1712] underline underline-offset-4">
+              Probar 7 días
+            </Link>
+            <Link href="/login" className="text-[13px] text-[#9a9388] hover:text-[#1C1712]">
+              Ingresar
+            </Link>
+          </div>
         </header>
 
         <h1 className="rise text-[34px] leading-[1.15] mb-4" style={{ fontFamily: "Georgia, Times, serif" }}>
