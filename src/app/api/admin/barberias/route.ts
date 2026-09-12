@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   const email = String(body.email || "").trim().toLowerCase();
   const password = String(body.password || "");
   const modo = body.modo_whatsapp === "automatico" ? "automatico" : "manual";
-  const rubro = body.rubro === "pestanas_unas" ? "pestanas_unas" : "barberia";
+  const rubrosOk = ["barberia", "pestanas_unas", "canina", "taller", "otro"];   const rubro = rubrosOk.includes(body.rubro) ? body.rubro : "barberia";
 
   if (!nombre || !slug || !email || password.length < 6) {
     return NextResponse.json({ error: "Nombre, enlace, email y contraseña (6+)" }, { status: 400 });
