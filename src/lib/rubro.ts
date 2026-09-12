@@ -1,4 +1,4 @@
-export type Rubro = "barberia" | "pestanas_unas";
+export type Rubro = "barberia" | "pestanas_unas" | "canina" | "taller" | "otro";
 export type Pack = "auto" | "barberia" | "rosa" | "oscuro" | "arena" | "clinico" | "oro" | "oliva";
 
 export const PACKS: { id: Pack; nombre: string; icono: string }[] = [
@@ -12,8 +12,21 @@ export const PACKS: { id: Pack; nombre: string; icono: string }[] = [
   { id: "oscuro", nombre: "Oscuro", icono: "●" },
 ];
 
+export const RUBROS_OK = ["barberia", "pestanas_unas", "canina", "taller", "otro"] as const;
+
 export function temaPack(pack?: string | null, rubro?: string | null) {
-  const elegido = !pack || pack === "auto" ? (rubro === "pestanas_unas" ? "rosa" : "barberia") : pack;
+  const elegido =
+    !pack || pack === "auto"
+      ? rubro === "pestanas_unas"
+        ? "rosa"
+        : rubro === "canina"
+          ? "oliva"
+          : rubro === "taller"
+            ? "clinico"
+            : rubro === "otro"
+              ? "arena"
+              : "barberia"
+      : pack;
 
   if (elegido === "rosa") {
     return { pack: "rosa", icono: "❀", bg: "linear-gradient(180deg, #FDF7F9 0%, #F6E6EE 100%)", card: "#FFFFFF", text: "#3A2430", muted: "#9A7584", line: "#E8CED8", btn: "#B76E79", btnText: "#FFF9FB", cita: "Reservá tu cita", panel: "Panel del estudio", galeria: "Trabajos" };
