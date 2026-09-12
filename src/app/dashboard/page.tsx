@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
@@ -66,6 +65,9 @@ function abrirWhatsapp(telefono: string, texto: string) {
 function nroTurno(id: string) {
   return id.replace(/-/g, "").slice(-6).toUpperCase();
 }
+function linkPublico(slug: string) {
+  return `https://${slug}.reservoapps.com`;
+}
 
 async function avisoCambio(turnoId: string, tipo: "cancelado" | "movido") {
   await fetch("/api/whatsapp/cambio", {
@@ -78,6 +80,8 @@ async function avisoCambio(turnoId: string, tipo: "cancelado" | "movido") {
 export default function DashboardPage() {
   const [nombre, setNombre] = useState("Barbero");
   const [rol, setRol] = useState("");
+  const [slug, setSlug] = useState("");
+  const [copiado, setCopiado] = useState(false);
   const [miBarberoId, setMiBarberoId] = useState<string | null>(null);
   const [fecha, setFecha] = useState(ymd(new Date()));
   const [mes, setMes] = useState(() => ymd(new Date()).slice(0, 7));
@@ -96,6 +100,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const esBarbero = rol === "barbero";
   const hoy = ymd(new Date());
+  const urlClientes = slug ? linkPublico(slug) : "";
 
   useEffect(() => {
     const loadUser = async () => {
@@ -107,12 +112,16 @@ export default function DashboardPage() {
         router.push("/login");
         return;
       }
-      const { data } = await supabase.from("usuarios").select("nombre, rol, barbero_id").eq("auth_user_id", user.id).maybeSingle();
+      const { data } = await supabase.from("usuarios").select("nombre, rol, barbero_id, barberia_id").eq("auth_user_id", user.id).maybeSingle();
       if (data?.nombre) setNombre(data.nombre);
       setRol(data?.rol || "");
       if (data?.rol === "barbero" && data.barbero_id) {
         setMiBarberoId(data.barbero_id);
         setFiltroBarbero(data.barbero_id);
+      }
+      if (data?.barberia_id) {
+        const { data: shop } = await supabase.from("barberias").select("slug").eq("id", data.barberia_id).maybeSingle();
+        if (shop?.slug) setSlug(shop.slug);
       }
     };
     void loadUser();
@@ -177,6 +186,13 @@ export default function DashboardPage() {
 
   const mesLabel = new Date(`${mes}-01T12:00:00-03:00`).toLocaleDateString("es-UY", { month: "long", year: "numeric" });
 
+  const copiarLink = async () => {
+    if (!urlClientes) return;
+    await navigator.clipboard.writeText(urlClientes);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  };
+
   const cambiarEstado = async (id: string, estado: string) => {
     const supabase = createClient();
     const { error: e } = await supabase.from("turnos").update({ estado }).eq("id", id);
@@ -232,7 +248,21 @@ export default function DashboardPage() {
         <p className="text-sm" style={{ color: "var(--muted)" }}>
           Hola, {nombre}
         </p>
-        <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-4">Agenda</h1>
+        <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-3">Agenda</h1>
+
+        {urlClientes && (
+          <div className="flex items-center justify-between gap-3 mb-5 px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 16 }}>
+            <div className="min-w-0">
+              <p className="text-[10px] tracking-[0.16em] uppercase" style={{ color: "var(--muted)" }}>
+                Link para clientes
+              </p>
+              <p className="text-sm truncate">{urlClientes.replace("https://", "")}</p>
+            </div>
+            <button type="button" onClick={() => void copiarLink()} className="shrink-0 text-xs px-3 py-2 rounded-full" style={{ background: "#1c1712", color: "#f4efe6" }}>
+              {copiado ? "Copiado" : "Copiar"}
+            </button>
+          </div>
+        )}
 
         {!esBarbero && barberos.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
