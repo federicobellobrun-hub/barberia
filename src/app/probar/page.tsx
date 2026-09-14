@@ -59,8 +59,9 @@ export default function ProbarPage() {
             <option value="taller">Taller mecánico</option>
             <option value="otro">Otro rubro</option>
           </select>
+
           <p className="text-sm mb-2">Cómo querés probar</p>
-          <div className="grid grid-cols-2 gap-2 mb-6">
+          <div className="grid grid-cols-2 gap-2 mb-4">
             <button type="button" onClick={() => setModo("manual")} className="py-3 text-sm rounded-2xl" style={{ background: modo === "manual" ? "#1C1712" : "#EFE8DC", color: modo === "manual" ? "#F5F0E8" : "#1C1712" }}>
               Manual
             </button>
@@ -68,9 +69,23 @@ export default function ProbarPage() {
               Automático
             </button>
           </div>
-          <p className="text-xs mb-4" style={{ color: "#7a7268" }}>
-            {modo === "automatico" ? "Los avisos salen solos (tope de prueba)." : "Vos avisás por WhatsApp."}
+
+          <div className="rounded-2xl px-4 py-3 mb-3" style={estilo}>
+            <p className="text-sm font-medium mb-1">Manual</p>
+            <p className="text-xs leading-5" style={{ color: "#7a7268" }}>
+              Reservan en la web. Vos confirmás y avisás por tu WhatsApp. Sin costo extra de mensajes.
+            </p>
+          </div>
+          <div className="rounded-2xl px-4 py-3 mb-3" style={estilo}>
+            <p className="text-sm font-medium mb-1">Automático</p>
+            <p className="text-xs leading-5" style={{ color: "#7a7268" }}>
+              Les llega solos: confirmación, aviso a tu celular y recordatorio el día antes. En la prueba hay un tope de mensajes.
+            </p>
+          </div>
+          <p className="text-xs text-center mb-6" style={{ color: "#7a7268" }}>
+            En los dos casos la agenda es igual. Cambia quién manda el WhatsApp.
           </p>
+
           <button disabled={enviando} className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1C1712", color: "#F5F0E8" }}>
             {enviando ? "Creando..." : "Empezar prueba"}
           </button>
