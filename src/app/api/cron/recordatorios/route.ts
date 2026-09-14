@@ -30,48 +30,34 @@ function waNumber(telefono: string) {
 async function enviarWhatsapp(to: string, nombre: string, fecha: string, hora: string, local: string) {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const plantilla = process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "hello_world";
+  const plantilla = process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "recordatorio_cita";
   if (!token || !phoneId) return { ok: false, motivo: "Falta token de WhatsApp" };
-
-  const esPrueba = plantilla === "hello_world";
-  const body: Record<string, unknown> = {
-    messaging_product: "whatsapp",
-    to,
-    type: "template",
-    template: esPrueba
-      ? { name: "hello_world", language: { code: "en_US" } }
-      : {
-          name: plantilla,
-          language: { code: "es_UY" },
-          components: [
-            {
-              type: "body",
-              parameters: [
-                { type: "text", text: nombre },
-                { type: "text", text: fecha },
-                { type: "text", text: hora },
-                { type: "text", text: local },
-              ],
-            },
-          ],
-        },
-  };
 
   const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "template",
+      template: {
+        name: plantilla,
+        language: { code: "es_UY" },
+        components: [
+          {
+            type: "body",
+            parameters: [nombre, fecha, hora, local].map((text) => ({ type: "text", text })),
+          },
+        ],
+      },
+    }),
   });
   const data = await res.json();
-  if (!res.ok) return { ok: false, motivo: data?.error?.message || JSON.stringify(data) };
-  return { ok: true };
+  if (!res.ok) return { ok: false, motivo: data?.error?.message || JSON.stringify(data), plantilla };
+  return { ok: true, plantilla };
 }
 
-type ClienteRel = { nombre: string | null; telefono: string | null };
-type ShopRel = { nombre: string | null; modo_whatsapp: string | null };
+type Rel = { nombre: string | null; telefono?: string | null; modo_whatsapp?: string | null };
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -93,22 +79,21 @@ export async function GET(request: Request) {
       .select("id, fecha_hora, recordatorio_enviado_at, clientes(nombre, telefono), barberias(nombre, modo_whatsapp)")
       .gte("fecha_hora", desde)
       .lte("fecha_hora", hasta)
-      .in("estado", ["pendiente", "confirmado"])
+      .eq("estado", "confirmado")
       .is("recordatorio_enviado_at", null);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    const resultados: Array<Record<string, unknown>> = [];
+    const resultados = [];
 
     for (const t of turnos || []) {
-      const cliente = (Array.isArray(t.clientes) ? t.clientes[0] : t.clientes) as ClienteRel | null;
-      const shop = (Array.isArray(t.barberias) ? t.barberias[0] : t.barberias) as ShopRel | null;
+      const cliente = (Array.isArray(t.clientes) ? t.clientes[0] : t.clientes) as Rel | null;
+      const shop = (Array.isArray(t.barberias) ? t.barberias[0] : t.barberias) as Rel | null;
 
       if (!shop || shop.modo_whatsapp !== "automatico") {
         resultados.push({ id: t.id, ok: false, motivo: "Local en modo manual" });
         continue;
       }
-
       if (!cliente?.telefono) {
         resultados.push({ id: t.id, ok: false, motivo: "Sin teléfono" });
         continue;
@@ -125,7 +110,6 @@ export async function GET(request: Request) {
       if (envio.ok) {
         await supabase.from("turnos").update({ recordatorio_enviado_at: new Date().toISOString() }).eq("id", t.id);
       }
-
       resultados.push({ id: t.id, nombre: cliente.nombre, ...envio });
     }
 
