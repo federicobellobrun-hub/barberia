@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 
+const WA = "https://wa.me/59897344643?text=" + encodeURIComponent("Hola Federico, consulta por Reservo Apps");
+
 function Logo() {
   return (
     <Link href="/" className="flex items-center gap-3">
@@ -140,6 +142,19 @@ export default function HomePage() {
           </p>
         </footer>
       </div>
+
+      <a
+        href={WA}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Escribinos por WhatsApp"
+        className="fixed z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg"
+        style={{ right: 18, bottom: 22, background: "#1C1712", color: "#F5F0E8" }}
+      >
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M12.04 2C6.5 2 2.02 6.48 2.02 12.02c0 1.77.46 3.5 1.34 5.02L2 22l5.1-1.33A10 10 0 0 0 12.04 22C17.58 22 22 17.52 22 11.98 22 6.48 17.58 2 12.04 2zm5.8 14.25c-.24.68-1.4 1.26-1.94 1.34-.5.07-1.12.1-1.81-.11-.41-.13-.95-.31-1.64-.61-2.89-1.25-4.77-4.16-4.92-4.35-.14-.2-1.18-1.57-1.18-3 0-1.42.75-2.12 1.01-2.41.27-.29.58-.36.78-.36h.56c.18 0 .42-.07.66.5.24.58.82 2 .89 2.15.07.14.12.31.02.5-.1.2-.15.31-.3.48-.14.16-.3.36-.43.49-.14.14-.29.29-.12.56.16.27.73 1.2 1.56 1.95 1.08.96 1.98 1.26 2.26 1.4.27.14.43.12.59-.07.16-.2.68-.79.86-1.06.18-.27.36-.22.6-.13.24.08 1.54.73 1.8.86.27.14.44.2.51.31.07.11.07.64-.17 1.32z" />
+        </svg>
+      </a>
     </main>
   );
 }
