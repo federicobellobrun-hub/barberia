@@ -62,7 +62,8 @@ type Rel = { nombre: string | null; telefono?: string | null; modo_whatsapp?: st
 export async function GET(request: Request) {
   const secret = (process.env.CRON_SECRET || "").trim();
   const header = (request.headers.get("authorization") || "").trim();
-  if (secret && header !== `Bearer ${secret}`) {
+  const porUrl = new URL(request.url).searchParams.get("secret")?.trim();
+  if (secret && header !== `Bearer ${secret}` && porUrl !== secret) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
   try {
