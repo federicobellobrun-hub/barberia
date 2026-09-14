@@ -72,6 +72,7 @@ function ReservarPage() {
   const [rubro, setRubro] = useState(() => (typeof window === "undefined" ? "barberia" : localStorage.getItem("rubro_" + slug) || "barberia"));
   const [estilo, setEstilo] = useState(() => (typeof window === "undefined" ? "auto" : localStorage.getItem("estilo_" + slug) || "auto"));
   const [pago, setPago] = useState<PagoShop | null>(null);
+  const [trialVencida, setTrialVencida] = useState(false);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [horariosLocal, setHorariosLocal] = useState<Horario[]>([]);
@@ -109,11 +110,12 @@ function ReservarPage() {
         const supabase = createClient();
         const { data: shop, error: shopErr } = await supabase
           .from("barberias")
-          .select("id, rubro, estilo, whatsapp_pedidos, datos_cuenta, mercado_pago_url, pedido_sena")
+          .select("id, rubro, estilo, whatsapp_pedidos, datos_cuenta, mercado_pago_url, pedido_sena, plan, trial_hasta")
           .eq("slug", slug)
           .maybeSingle();
         if (shopErr || !shop) throw new Error("No se encontró el local");
         setBarberiaId(shop.id);
+        setTrialVencida(shop.plan === "trial" && !!shop.trial_hasta && new Date(shop.trial_hasta) < new Date());
         const r = shop.rubro || "barberia";
         const pack = shop.estilo || "auto";
         setRubro(r);
@@ -229,6 +231,7 @@ function ReservarPage() {
 
   const guardar = async (e: FormEvent) => {
     e.preventDefault();
+    if (trialVencida) return setError("La prueba de 7 días terminó.");
     if (!servicio || !fecha || !hora) return;
     if (barberos.length > 0 && !barbero) return setError(rosa ? "Elegí una profesional" : "Elegí un barbero");
     if (pideSena && !metodoSena) return setError("Elegí cómo pagar la seña");
@@ -380,202 +383,215 @@ function ReservarPage() {
         </p>
         {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
 
-        {!hayCategorias ? (
-          <div className="space-y-2 mb-4">
-            {servicios.map((s) => (
-              <TarjetaServicio key={s.id} s={s} />
-            ))}
-          </div>
-        ) : (
-          <div className="relative overflow-hidden mb-4">
-            <div className="flex" style={{ width: "200%", transform: vista === "servicios" ? "translateX(-50%)" : "translateX(0)", transition: "transform 320ms ease" }}>
-              <div className="w-1/2 pr-1">
-                <div className="grid grid-cols-2 gap-2">
-                  {categorias.map(([nombreCat, items]) => (
-                    <button
-                      key={nombreCat}
-                      type="button"
-                      onClick={() => {
-                        setCategoria(nombreCat);
-                        setServicio(null);
-                        setMetodoSena(null);
-                        setHora("");
-                        setVista("servicios");
-                      }}
-                      className="p-4 text-left"
-                      style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
-                    >
-                      <p className="font-medium">{nombreCat}</p>
-                      <p className="text-xs mt-1" style={{ color: t.muted }}>
-                        {items.length} servicios
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="w-1/2 pl-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setVista("categorias");
-                    setServicio(null);
-                    setMetodoSena(null);
-                  }}
-                  className="text-sm mb-3"
-                  style={{ color: t.muted }}
-                >
-                  ‹ Categorías
-                </button>
-                <h2 className="font-medium mb-3">{categoria}</h2>
-                <div className="space-y-2">
-                  {listaCat.map((s) => (
-                    <TarjetaServicio key={s.id} s={s} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {servicio && (
-          <div className="mb-5 p-4" style={{ background: t.card, borderRadius: 16, border: `1px solid ${t.line}` }}>
-            {servicio.imagen_url && <img src={servicio.imagen_url} alt="" className="h-36 w-full object-cover rounded-xl mb-3" />}
-            <p className="text-lg font-medium">{servicio.nombre}</p>
-            <p className="text-sm mt-1" style={{ color: t.muted }}>
-              {servicio.duracion_minutos} min · ${servicio.precio}
+        {trialVencida && (
+          <div className="rounded-2xl px-4 py-4 mb-5" style={{ background: t.card, border: `1px solid ${t.line}` }}>
+            <p className="text-sm font-medium mb-1">La prueba de 7 días terminó</p>
+            <p className="text-xs leading-5" style={{ color: t.muted }}>
+              El local sigue visible. Para volver a tomar reservas, el dueño activa el plan.
             </p>
-            {pideSena ? (
-              <>
-                <p className="mt-3 font-medium">Requiere seña ${servicio.sena}</p>
-                {pago?.datos_cuenta && (
-                  <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2 mt-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
-                    Transferencia / cuenta
-                  </button>
-                )}
-                {mpLink && (
-                  <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
-                    Mercado Pago
-                  </button>
-                )}
-              </>
-            ) : (
-              <p className="text-sm mt-2" style={{ color: t.muted }}>
-                Sin seña
-              </p>
-            )}
           </div>
         )}
 
-        {servicio && (!pideSena || metodoSena) && barberos.length > 0 && (
+        {!trialVencida && (
           <>
-            <h2 className="font-medium mb-3">{rosa ? "Elegí profesional" : "Elegí barbero"}</h2>
-            <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
-              {barberos.map((b) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => {
-                    setBarbero(b);
-                    setHora("");
-                  }}
-                  className="shrink-0 p-3 w-28 text-center"
-                  style={{ background: t.card, border: barbero?.id === b.id ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
-                >
-                  {b.foto_url ? (
-                    <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" />
-                  ) : (
-                    <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: t.bg }}>
-                      {b.nombre.slice(0, 1)}
-                    </div>
-                  )}
-                  <p className="text-sm font-medium leading-4">{b.nombre}</p>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {servicio && (!pideSena || metodoSena) && (
-          <>
-            <h2 className="font-medium mb-3">Elegí día y hora</h2>
-            <div className="p-4 mb-3" style={{ background: t.card, borderRadius: rosa ? 22 : 16 }}>
-              <div className="flex items-center justify-between mb-3">
-                <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>
-                  ‹
-                </button>
-                <p className="text-sm font-medium capitalize">{mesLabel}</p>
-                <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>
-                  ›
-                </button>
-              </div>
-              <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>
-                {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
-                  <span key={i}>{d}</span>
+            {!hayCategorias ? (
+              <div className="space-y-2 mb-4">
+                {servicios.map((s) => (
+                  <TarjetaServicio key={s.id} s={s} />
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
-                {celdasMes.map((value, i) => {
-                  if (!value) return <span key={i} />;
-                  const activoDia = fecha === value;
-                  const pasado = value < hoy;
-                  return (
+            ) : (
+              <div className="relative overflow-hidden mb-4">
+                <div className="flex" style={{ width: "200%", transform: vista === "servicios" ? "translateX(-50%)" : "translateX(0)", transition: "transform 320ms ease" }}>
+                  <div className="w-1/2 pr-1">
+                    <div className="grid grid-cols-2 gap-2">
+                      {categorias.map(([nombreCat, items]) => (
+                        <button
+                          key={nombreCat}
+                          type="button"
+                          onClick={() => {
+                            setCategoria(nombreCat);
+                            setServicio(null);
+                            setMetodoSena(null);
+                            setHora("");
+                            setVista("servicios");
+                          }}
+                          className="p-4 text-left"
+                          style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
+                        >
+                          <p className="font-medium">{nombreCat}</p>
+                          <p className="text-xs mt-1" style={{ color: t.muted }}>
+                            {items.length} servicios
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="w-1/2 pl-1">
                     <button
-                      key={value}
                       type="button"
-                      disabled={pasado}
                       onClick={() => {
-                        setFecha(value);
-                        setHora("");
-                        setEsperaOk(false);
+                        setVista("categorias");
+                        setServicio(null);
+                        setMetodoSena(null);
                       }}
-                      className="h-8 w-8 mx-auto rounded-full"
-                      style={{ background: activoDia ? t.btn : "transparent", color: activoDia ? t.btnText : pasado ? t.line : t.text }}
+                      className="text-sm mb-3"
+                      style={{ color: t.muted }}
                     >
-                      {Number(value.slice(8))}
+                      ‹ Categorías
                     </button>
-                  );
-                })}
+                    <h2 className="font-medium mb-3">{categoria}</h2>
+                    <div className="space-y-2">
+                      {listaCat.map((s) => (
+                        <TarjetaServicio key={s.id} s={s} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            )}
 
-        {servicio && (!pideSena || metodoSena) && fecha && (
-          <div className="mb-6">
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {horariosDelDia.map((h) => (
-                <button key={h} type="button" onClick={() => setHora(h)} className="shrink-0 px-3 py-2 text-sm font-medium" style={{ background: hora === h ? t.btn : t.card, color: hora === h ? t.btnText : t.text, borderRadius: radio }}>
-                  {h}
-                </button>
-              ))}
-            </div>
-            {horariosDelDia.length === 0 && (
-              <div className="mt-3">
-                <p className="text-sm mb-3">No hay horarios ese día.</p>
-                {esperaOk ? (
-                  <p className="text-sm">Quedaste en lista de espera.</p>
+            {servicio && (
+              <div className="mb-5 p-4" style={{ background: t.card, borderRadius: 16, border: `1px solid ${t.line}` }}>
+                {servicio.imagen_url && <img src={servicio.imagen_url} alt="" className="h-36 w-full object-cover rounded-xl mb-3" />}
+                <p className="text-lg font-medium">{servicio.nombre}</p>
+                <p className="text-sm mt-1" style={{ color: t.muted }}>
+                  {servicio.duracion_minutos} min · ${servicio.precio}
+                </p>
+                {pideSena ? (
+                  <>
+                    <p className="mt-3 font-medium">Requiere seña ${servicio.sena}</p>
+                    {pago?.datos_cuenta && (
+                      <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2 mt-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
+                        Transferencia / cuenta
+                      </button>
+                    )}
+                    {mpLink && (
+                      <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
+                        Mercado Pago
+                      </button>
+                    )}
+                  </>
                 ) : (
-                  <form onSubmit={anotarEspera} className="space-y-2">
-                    <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
-                    <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
-                    <button className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
-                      Anotarme en lista de espera
-                    </button>
-                  </form>
+                  <p className="text-sm mt-2" style={{ color: t.muted }}>
+                    Sin seña
+                  </p>
                 )}
               </div>
             )}
-          </div>
-        )}
 
-        {servicio && (!pideSena || metodoSena) && fecha && hora && (
-          <form onSubmit={guardar} className="space-y-3 mb-4">
-            <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
-            <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
-            <button disabled={enviando} className="w-full py-4 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
-              {enviando ? "Enviando..." : pideSena ? "Pedir reserva (queda pendiente de seña)" : "Confirmar reserva"}
-            </button>
-          </form>
+            {servicio && (!pideSena || metodoSena) && barberos.length > 0 && (
+              <>
+                <h2 className="font-medium mb-3">{rosa ? "Elegí profesional" : "Elegí barbero"}</h2>
+                <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
+                  {barberos.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => {
+                        setBarbero(b);
+                        setHora("");
+                      }}
+                      className="shrink-0 p-3 w-28 text-center"
+                      style={{ background: t.card, border: barbero?.id === b.id ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
+                    >
+                      {b.foto_url ? (
+                        <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" />
+                      ) : (
+                        <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: t.bg }}>
+                          {b.nombre.slice(0, 1)}
+                        </div>
+                      )}
+                      <p className="text-sm font-medium leading-4">{b.nombre}</p>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {servicio && (!pideSena || metodoSena) && (
+              <>
+                <h2 className="font-medium mb-3">Elegí día y hora</h2>
+                <div className="p-4 mb-3" style={{ background: t.card, borderRadius: rosa ? 22 : 16 }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>
+                      ‹
+                    </button>
+                    <p className="text-sm font-medium capitalize">{mesLabel}</p>
+                    <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>
+                      ›
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>
+                    {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
+                      <span key={i}>{d}</span>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
+                    {celdasMes.map((value, i) => {
+                      if (!value) return <span key={i} />;
+                      const activoDia = fecha === value;
+                      const pasado = value < hoy;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          disabled={pasado}
+                          onClick={() => {
+                            setFecha(value);
+                            setHora("");
+                            setEsperaOk(false);
+                          }}
+                          className="h-8 w-8 mx-auto rounded-full"
+                          style={{ background: activoDia ? t.btn : "transparent", color: activoDia ? t.btnText : pasado ? t.line : t.text }}
+                        >
+                          {Number(value.slice(8))}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {servicio && (!pideSena || metodoSena) && fecha && (
+              <div className="mb-6">
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {horariosDelDia.map((h) => (
+                    <button key={h} type="button" onClick={() => setHora(h)} className="shrink-0 px-3 py-2 text-sm font-medium" style={{ background: hora === h ? t.btn : t.card, color: hora === h ? t.btnText : t.text, borderRadius: radio }}>
+                      {h}
+                    </button>
+                  ))}
+                </div>
+                {horariosDelDia.length === 0 && (
+                  <div className="mt-3">
+                    <p className="text-sm mb-3">No hay horarios ese día.</p>
+                    {esperaOk ? (
+                      <p className="text-sm">Quedaste en lista de espera.</p>
+                    ) : (
+                      <form onSubmit={anotarEspera} className="space-y-2">
+                        <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
+                        <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
+                        <button className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
+                          Anotarme en lista de espera
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {servicio && (!pideSena || metodoSena) && fecha && hora && (
+              <form onSubmit={guardar} className="space-y-3 mb-4">
+                <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
+                <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
+                <button disabled={enviando} className="w-full py-4 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
+                  {enviando ? "Enviando..." : pideSena ? "Pedir reserva (queda pendiente de seña)" : "Confirmar reserva"}
+                </button>
+              </form>
+            )}
+          </>
         )}
       </div>
       {nav}
