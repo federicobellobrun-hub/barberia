@@ -60,12 +60,11 @@ async function enviarWhatsapp(to: string, nombre: string, fecha: string, hora: s
 type Rel = { nombre: string | null; telefono?: string | null; modo_whatsapp?: string | null };
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const header = request.headers.get("authorization");
+  const secret = (process.env.CRON_SECRET || "").trim();
+  const header = (request.headers.get("authorization") || "").trim();
   if (secret && header !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
-
   try {
     const supabase = admin();
     const maniana = new Date();
