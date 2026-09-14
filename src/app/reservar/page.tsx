@@ -259,6 +259,7 @@ function ReservarPage() {
         .limit(1)
         .maybeSingle();
       if (creado?.id && !pideSena) {
+        await supabase.from("turnos").update({ estado: "confirmado" }).eq("id", creado.id);
         await fetch("/api/whatsapp/reserva", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
