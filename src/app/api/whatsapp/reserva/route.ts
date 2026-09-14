@@ -32,18 +32,15 @@ async function sendTemplate(to: string, name: string, params: string[]) {
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!token || !phoneId) return { ok: false, motivo: "Falta token" };
 
-  const esPrueba = name === "hello_world";
   const body = {
     messaging_product: "whatsapp",
     to,
     type: "template",
-    template: esPrueba
-      ? { name: "hello_world", language: { code: "en_US" } }
-      : {
-          name,
-          language: { code: "es_UY" },
-          components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }],
-        },
+    template: {
+      name,
+      language: { code: "es_UY" },
+      components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }],
+    },
   };
 
   const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
@@ -82,7 +79,7 @@ export async function POST(req: Request) {
   const telLocal = shop.whatsapp_pedidos
     ? waNumber(String(shop.whatsapp_pedidos)).replace(/^598/, "0")
     : "el local";
-  const conf = process.env.WHATSAPP_TEMPLATE_CONFIRMACION || "reserva_confirmada";
+  const conf = process.env.WHATSAPP_TEMPLATE_CONFIRMACION || "reserva_confirmada_v2";
   const aviso = process.env.WHATSAPP_TEMPLATE_AVISO_BARBERO || "aviso_barbero";
 
   const resultados = [];
@@ -92,9 +89,10 @@ export async function POST(req: Request) {
       a: "cliente",
       ...(await sendTemplate(waNumber(cliente.telefono), conf, [
         cliente.nombre || "cliente",
-        local,
         fecha,
         hora,
+        local,
+        telLocal,
       ])),
     });
   }
