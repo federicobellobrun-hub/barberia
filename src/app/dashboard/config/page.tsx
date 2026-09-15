@@ -7,6 +7,16 @@ import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import { PACKS } from "@/lib/rubro";
 
+function shopActual() {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search).get("shop");
+  if (q) {
+    localStorage.setItem("admin_shop", q);
+    return q;
+  }
+  return localStorage.getItem("admin_shop");
+}
+
 export default function ConfigPage() {
   const [id, setId] = useState("");
   const [nombre, setNombre] = useState("");
@@ -26,18 +36,27 @@ export default function ConfigPage() {
   const [ok, setOk] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const shopQ = shopActual() ? `?shop=${shopActual()}` : "";
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      const { data: u } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
-      if (!u?.barberia_id) return setError("Este usuario no tiene local vinculado");
+      const slugShop = shopActual();
+      const { data: u } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", user.id).maybeSingle();
+      let barberiaId = u?.barberia_id as string | null;
+      if (u?.rol === "superadmin" && slugShop) {
+        const { data: shop } = await supabase.from("barberias").select("id").eq("slug", slugShop).maybeSingle();
+        if (shop) barberiaId = shop.id;
+      }
+      if (!barberiaId) return setError("Este usuario no tiene local vinculado");
       const { data } = await supabase
         .from("barberias")
         .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas")
-        .eq("id", u.barberia_id)
+        .eq("id", barberiaId)
         .maybeSingle();
       if (!data) return setError("No se encontró la barbería");
       setId(data.id);
@@ -63,20 +82,23 @@ export default function ConfigPage() {
     e.preventDefault();
     if (!id) return setError("No se encontró la barbería");
     const supabase = createClient();
-    const { error: e1 } = await supabase.from("barberias").update({
-      nombre,
-      whatsapp_pedidos: whatsapp,
-      mensaje_confirmacion: mensaje,
-      slug: slug || undefined,
-      direccion,
-      maps_url: maps,
-      fidelizacion,
-      datos_cuenta: cuenta,
-      mercado_pago_url: mpUrl,
-      pedido_sena: pedirSena,
-      mostrar_resenas: mostrarResenas,
-      estilo,
-    }).eq("id", id);
+    const { error: e1 } = await supabase
+      .from("barberias")
+      .update({
+        nombre,
+        whatsapp_pedidos: whatsapp,
+        mensaje_confirmacion: mensaje,
+        slug: slug || undefined,
+        direccion,
+        maps_url: maps,
+        fidelizacion,
+        datos_cuenta: cuenta,
+        mercado_pago_url: mpUrl,
+        pedido_sena: pedirSena,
+        mostrar_resenas: mostrarResenas,
+        estilo,
+      })
+      .eq("id", id);
     if (e1) setError(e1.message);
     else setOk("Guardado");
   };
@@ -91,8 +113,13 @@ export default function ConfigPage() {
     const campo = tipo === "logo" ? "logo_url" : "portada_url";
     const { error: e1 } = await supabase.from("barberias").update({ [campo]: data.publicUrl }).eq("id", id);
     if (e1) setError(e1.message);
-    else if (tipo === "logo") { setLogo(data.publicUrl); setOk("Logo actualizado"); }
-    else { setPortada(data.publicUrl); setOk("Portada actualizada"); }
+    else if (tipo === "logo") {
+      setLogo(data.publicUrl);
+      setOk("Logo actualizado");
+    } else {
+      setPortada(data.publicUrl);
+      setOk("Portada actualizada");
+    }
   };
 
   const campo = "w-full rounded-2xl px-4 py-3";
@@ -101,33 +128,62 @@ export default function ConfigPage() {
   return (
     <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
+        <BrandHeader left={<Link href={`/dashboard/mas${shopQ}`}>‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-6">Configuración</h1>
         <form onSubmit={guardar} className="space-y-3">
           {error && <p className="text-red-500 text-sm">{error}</p>}
           {ok && <p className="text-sm">{ok}</p>}
           {logo && <img src={logo} alt="Logo" className="h-20 w-20 object-contain rounded-full mx-auto" />}
           <p className="text-sm">Logo</p>
-          <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subir(file, "logo"); }} />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void subir(file, "logo");
+            }}
+          />
           {portada && <img src={portada} alt="Portada" className="h-32 w-full object-cover rounded-2xl" />}
           <p className="text-sm">Foto de portada</p>
-          <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subir(file, "portada"); }} />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void subir(file, "portada");
+            }}
+          />
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del local" className={campo} style={estiloInput} />
           <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp. Ej: 099123456" className={campo} style={estiloInput} />
           <input value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Dirección" className={campo} style={estiloInput} />
           <input value={maps} onChange={(e) => setMaps(e.target.value)} placeholder="Link de Google Maps" className={campo} style={estiloInput} />
           <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="enlace. Ej: vale-studio" className={campo} style={estiloInput} />
           <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje de confirmación" rows={4} className={campo} style={estiloInput} />
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={fidelizacion} onChange={(e) => setFidelizacion(e.target.checked)} />Cortesía cada 10 cortes</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={pedirSena} onChange={(e) => setPedirSena(e.target.checked)} />Pedir seña al reservar</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={mostrarResenas} onChange={(e) => setMostrarResenas(e.target.checked)} />Mostrar reseñas en la web</label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={fidelizacion} onChange={(e) => setFidelizacion(e.target.checked)} />
+            Cortesía cada 10 cortes
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={pedirSena} onChange={(e) => setPedirSena(e.target.checked)} />
+            Pedir seña al reservar
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={mostrarResenas} onChange={(e) => setMostrarResenas(e.target.checked)} />
+            Mostrar reseñas en la web
+          </label>
           <textarea value={cuenta} onChange={(e) => setCuenta(e.target.value)} placeholder="Datos de cuenta bancaria" rows={3} className={campo} style={estiloInput} />
           <input value={mpUrl} onChange={(e) => setMpUrl(e.target.value)} placeholder="https://link.mercadopago.com.uy/velestudio" className={campo} style={estiloInput} />
           <p className="text-sm pt-2">Estilo visual</p>
           <select value={estilo} onChange={(e) => setEstilo(e.target.value)} className={campo} style={estiloInput}>
-            {PACKS.map((p) => <option key={p.id} value={p.id}>{p.icono} {p.nombre}</option>)}
+            {PACKS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.icono} {p.nombre}
+              </option>
+            ))}
           </select>
-          <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
+          <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            Guardar
+          </button>
         </form>
       </div>
     </main>
