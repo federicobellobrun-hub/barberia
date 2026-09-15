@@ -31,6 +31,7 @@ export default function CatalogoPage() {
   const [sSena, setSSena] = useState("0");
   const router = useRouter();
   const rosa = rubro === "pestanas_unas";
+  const shopQ = typeof window !== "undefined" ? window.location.search : "";
 
   const load = async (id: string) => {
     const supabase = createClient();
@@ -50,12 +51,25 @@ export default function CatalogoPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
-      if (!data?.barberia_id) return setError("Este usuario no tiene local");
-      setBarberiaId(data.barberia_id);
-      const { data: shop } = await supabase.from("barberias").select("rubro").eq("id", data.barberia_id).maybeSingle();
-      setRubro(shop?.rubro || "barberia");
-      await load(data.barberia_id);
+
+      const shopSlug = new URLSearchParams(window.location.search).get("shop");
+      const { data } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", user.id).maybeSingle();
+
+      let id = data?.barberia_id as string | null;
+      if (data?.rol === "superadmin" && shopSlug) {
+        const { data: shop } = await supabase.from("barberias").select("id, rubro").eq("slug", shopSlug).maybeSingle();
+        if (shop) {
+          id = shop.id;
+          setRubro(shop.rubro || "barberia");
+        }
+      } else if (id) {
+        const { data: shop } = await supabase.from("barberias").select("rubro").eq("id", id).maybeSingle();
+        setRubro(shop?.rubro || "barberia");
+      }
+
+      if (!id) return setError("Este usuario no tiene local");
+      setBarberiaId(id);
+      await load(id);
     };
     void init();
   }, [router]);
@@ -128,7 +142,7 @@ export default function CatalogoPage() {
   return (
     <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
+        <BrandHeader left={<Link href={`/dashboard/mas${shopQ}`}>‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Catálogo</h1>
         <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>
           Servicios, categorías y seña
