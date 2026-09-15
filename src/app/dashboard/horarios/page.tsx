@@ -9,6 +9,7 @@ import BrandHeader from "@/components/BrandHeader";
 const dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 type Fila = { id?: string; dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
 type Barbero = { id: string; nombre: string };
+type Excepcion = { id: string; fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean };
 
 function norm(v: string) {
   return String(v).slice(0, 5);
@@ -24,11 +25,33 @@ function shopActual() {
   return localStorage.getItem("admin_shop");
 }
 
+function fechasDelMes(mes: string, weekdays: number[]) {
+  const [y, m] = mes.split("-").map(Number);
+  const out: string[] = [];
+  const last = new Date(y, m, 0).getDate();
+  for (let d = 1; d <= last; d++) {
+    const date = new Date(y, m - 1, d);
+    if (weekdays.includes(date.getDay())) {
+      const mm = String(m).padStart(2, "0");
+      const dd = String(d).padStart(2, "0");
+      out.push(`${y}-${mm}-${dd}`);
+    }
+  }
+  return out;
+}
+
 export default function HorariosPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [quien, setQuien] = useState("local");
   const [filas, setFilas] = useState<Fila[]>([]);
+  const [exs, setExs] = useState<Excepcion[]>([]);
+  const [exMes, setExMes] = useState(() => new Date().toISOString().slice(0, 7));
+  const [exDias, setExDias] = useState<number[]>([]);
+  const [exFecha, setExFecha] = useState("");
+  const [exInicio, setExInicio] = useState("10:00");
+  const [exFin, setExFin] = useState("14:00");
+  const [exCerrado, setExCerrado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState("");
   const router = useRouter();
@@ -63,6 +86,17 @@ export default function HorariosPage() {
     }
   };
 
+  const loadEx = async (id: string) => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("horario_excepcion")
+      .select("id, fecha, hora_inicio, hora_fin, cerrado")
+      .eq("barberia_id", id)
+      .order("fecha");
+    if (error) setError(error.message);
+    setExs((data as Excepcion[]) || []);
+  };
+
   useEffect(() => {
     const init = async () => {
       const supabase = createClient();
@@ -82,6 +116,7 @@ export default function HorariosPage() {
       const { data: b } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", id).eq("activo", true);
       setBarberos(b || []);
       await load(id, "local");
+      await loadEx(id);
     };
     void init();
   }, [router]);
@@ -111,6 +146,42 @@ export default function HorariosPage() {
     await load(barberiaId, quien);
   };
 
+  const toggleDia = (n: number) => {
+    setExDias((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
+  };
+
+  const guardarEspecial = async () => {
+    if (!barberiaId) return;
+    const fechas = new Set<string>();
+    if (exFecha) fechas.add(exFecha);
+    fechasDelMes(exMes, exDias).forEach((f) => fechas.add(f));
+    if (fechas.size === 0) return setError("Elegí una fecha o al menos un día del mes");
+    const supabase = createClient();
+    const rows = [...fechas].map((fecha) => ({
+      barberia_id: barberiaId,
+      fecha,
+      hora_inicio: exCerrado ? null : exInicio,
+      hora_fin: exCerrado ? null : exFin,
+      cerrado: exCerrado,
+    }));
+    const { error } = await supabase.from("horario_excepcion").upsert(rows, { onConflict: "barberia_id,fecha" });
+    if (error) return setError(error.message);
+    setOk(`Guardado en ${rows.length} día${rows.length === 1 ? "" : "s"}`);
+    setExFecha("");
+    setExDias([]);
+    await loadEx(barberiaId);
+  };
+
+  const borrarEx = async (id: string) => {
+    if (!barberiaId) return;
+    const supabase = createClient();
+    const { error } = await supabase.from("horario_excepcion").delete().eq("id", id);
+    if (error) setError(error.message);
+    else await loadEx(barberiaId);
+  };
+
+  const campo = { background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" };
+
   return (
     <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
@@ -118,6 +189,7 @@ export default function HorariosPage() {
         <h1 className="text-[34px] font-semibold tracking-tight mb-5">Horarios</h1>
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
         {ok && <p className="text-sm mb-3">{ok}</p>}
+
         <select
           value={quien}
           onChange={async (e) => {
@@ -126,7 +198,7 @@ export default function HorariosPage() {
             if (barberiaId) await load(barberiaId, e.target.value);
           }}
           className="w-full rounded-2xl px-4 py-3 mb-4"
-          style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }}
+          style={campo}
         >
           <option value="local">Horario del local</option>
           {barberos.map((b) => (
@@ -135,8 +207,9 @@ export default function HorariosPage() {
             </option>
           ))}
         </select>
+
         {filas.map((f, i) => (
-          <div key={f.dia_semana} className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <div key={f.dia_semana} className="rounded-2xl p-4 mb-3" style={campo}>
             <div className="flex items-center justify-between mb-2">
               <p className="font-medium">{dias[f.dia_semana]}</p>
               <label className="text-sm flex items-center gap-2">
@@ -150,9 +223,63 @@ export default function HorariosPage() {
             </div>
           </div>
         ))}
-        <button onClick={() => void guardar()} className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
-          Guardar horario
+
+        <button onClick={() => void guardar()} className="w-full rounded-2xl py-4 font-medium mb-10" style={{ background: "#1c1712", color: "#f4efe6" }}>
+          Guardar horario semanal
         </button>
+
+        <h2 className="text-xl font-semibold mb-2">Horario especial</h2>
+        <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
+          Pisa el semanal. Un día suelto o todos los lunes de un mes.
+        </p>
+
+        <div className="rounded-2xl p-4 mb-4 space-y-3" style={campo}>
+          <p className="text-sm">Un día</p>
+          <input type="date" value={exFecha} onChange={(e) => setExFecha(e.target.value)} className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <p className="text-sm pt-2">O varios del mes</p>
+          <input type="month" value={exMes} onChange={(e) => setExMes(e.target.value)} className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <div className="flex flex-wrap gap-2">
+            {dias.map((d, i) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleDia(i)}
+                className="rounded-full px-3 py-1 text-xs"
+                style={{
+                  background: exDias.includes(i) ? "#1c1712" : "var(--bg)",
+                  color: exDias.includes(i) ? "#f4efe6" : "var(--text)",
+                  border: "1px solid var(--line)",
+                }}
+              >
+                {d.slice(0, 3)}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={exCerrado} onChange={(e) => setExCerrado(e.target.checked)} />
+            Cerrado esos días
+          </label>
+          {!exCerrado && (
+            <div className="grid grid-cols-2 gap-2">
+              <input type="time" value={exInicio} onChange={(e) => setExInicio(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+              <input type="time" value={exFin} onChange={(e) => setExFin(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+            </div>
+          )}
+          <button type="button" onClick={() => void guardarEspecial()} className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            Guardar horario especial
+          </button>
+        </div>
+
+        {exs.map((e) => (
+          <div key={e.id} className="rounded-2xl p-3 mb-2 flex items-center justify-between" style={campo}>
+            <p className="text-sm">
+              {e.fecha.slice(0, 10)} · {e.cerrado ? "Cerrado" : `${norm(e.hora_inicio || "")}–${norm(e.hora_fin || "")}`}
+            </p>
+            <button type="button" className="text-xs text-red-500" onClick={() => void borrarEx(e.id)}>
+              Borrar
+            </button>
+          </div>
+        ))}
       </div>
     </main>
   );
