@@ -23,6 +23,7 @@ type Servicio = {
 type Barbero = { id: string; nombre: string; foto_url: string | null };
 type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; barbero_id?: string | null };
 type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean };
+type Excepcion = { fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean };
 type Turno = { fecha_hora: string; duracion_minutos: number; barbero_id: string | null };
 type PagoShop = {
   whatsapp_pedidos: string | null;
@@ -78,6 +79,7 @@ function ReservarPage() {
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [horariosLocal, setHorariosLocal] = useState<Horario[]>([]);
   const [horariosBarbero, setHorariosBarbero] = useState<Horario[]>([]);
+  const [excepciones, setExcepciones] = useState<Excepcion[]>([]);
   const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -133,13 +135,14 @@ function ReservarPage() {
         const desde = new Date();
         const hasta = new Date();
         hasta.setDate(hasta.getDate() + 40);
-        const [servRes, barRes, horRes, horBarRes, bloqRes, turRes] = await Promise.all([
+        const [servRes, barRes, horRes, horBarRes, bloqRes, turRes, excRes] = await Promise.all([
           supabase.from("servicios").select("id, barberia_id, nombre, descripcion, duracion_minutos, precio, imagen_url, categoria, sena").eq("barberia_id", shop.id).eq("activo", true).order("orden"),
           supabase.from("barberos").select("id, nombre, foto_url").eq("barberia_id", shop.id).eq("activo", true).order("nombre"),
           supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin").eq("barberia_id", shop.id).eq("activo", true),
           supabase.from("horario_barbero").select("dia_semana, hora_inicio, hora_fin, barbero_id").eq("barberia_id", shop.id).eq("activo", true),
           supabase.from("bloqueos").select("fecha_inicio, fecha_fin, todo_el_dia").eq("barberia_id", shop.id),
           supabase.from("turnos").select("fecha_hora, duracion_minutos, barbero_id").eq("barberia_id", shop.id).in("estado", ["pendiente", "confirmado", "realizado"]).gte("fecha_hora", desde.toISOString()).lte("fecha_hora", hasta.toISOString()),
+          supabase.from("horario_excepcion").select("fecha, hora_inicio, hora_fin, cerrado").eq("barberia_id", shop.id),
         ]);
         if (servRes.error) throw new Error(servRes.error.message);
         setServicios((servRes.data as Servicio[]) || []);
@@ -148,6 +151,7 @@ function ReservarPage() {
         setHorariosBarbero(horBarRes.data || []);
         setBloqueos(bloqRes.data || []);
         setTurnos(turRes.data || []);
+        setExcepciones((excRes.data as Excepcion[]) || []);
         if ((barRes.data || []).length === 1) setBarbero(barRes.data![0]);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar");
@@ -189,13 +193,16 @@ function ReservarPage() {
   const horariosDelDia = useMemo(() => {
     if (!servicio || !fecha) return [];
     const date = new Date(`${fecha}T12:00:00-03:00`);
+    const ex = excepciones.find((e) => String(e.fecha).slice(0, 10) === fecha);
+    if (ex?.cerrado) return [];
     const horario = horarios.find((h) => Number(h.dia_semana) === weekdayMontevideo(date));
-    if (!horario) return [];
+    if (!ex && !horario) return [];
+    const start = toMinutes((ex?.hora_inicio || horario?.hora_inicio || "").slice(0, 5));
+    const end = toMinutes((ex?.hora_fin || horario?.hora_fin || "").slice(0, 5));
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
     const dayStart = new Date(`${fecha}T00:00:00-03:00`);
     const dayEnd = new Date(`${fecha}T23:59:59-03:00`);
     if (bloqueos.some((b) => b.todo_el_dia && new Date(b.fecha_inicio) <= dayEnd && new Date(b.fecha_fin) >= dayStart)) return [];
-    const start = toMinutes(horario.hora_inicio);
-    const end = toMinutes(horario.hora_fin);
     const dur = servicio.duracion_minutos;
     const slots: string[] = [];
     for (let mins = start; mins + dur <= end; mins += 30) {
@@ -213,7 +220,7 @@ function ReservarPage() {
       slots.push(hhmm);
     }
     return slots;
-  }, [servicio, barbero, fecha, horarios, bloqueos, turnos]);
+  }, [servicio, barbero, fecha, horarios, bloqueos, turnos, excepciones]);
 
   const textoSena = () => {
     if (!servicio) return "";
