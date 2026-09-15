@@ -17,6 +17,10 @@ function shopActual() {
   return localStorage.getItem("admin_shop");
 }
 
+function mesUy() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Montevideo" }).slice(0, 7);
+}
+
 export default function ConfigPage() {
   const [id, setId] = useState("");
   const [nombre, setNombre] = useState("");
@@ -31,12 +35,17 @@ export default function ConfigPage() {
   const [pedirSena, setPedirSena] = useState(false);
   const [mostrarResenas, setMostrarResenas] = useState(true);
   const [estilo, setEstilo] = useState("auto");
+  const [plan, setPlan] = useState("");
+  const [modoWa, setModoWa] = useState("manual");
+  const [waMes, setWaMes] = useState<string | null>(null);
+  const [waEnviados, setWaEnviados] = useState(0);
   const [logo, setLogo] = useState<string | null>(null);
   const [portada, setPortada] = useState<string | null>(null);
   const [ok, setOk] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const shopQ = shopActual() ? `?shop=${shopActual()}` : "";
+  const usados = waMes === mesUy() ? waEnviados : 0;
 
   useEffect(() => {
     const load = async () => {
@@ -55,7 +64,7 @@ export default function ConfigPage() {
       if (!barberiaId) return setError("Este usuario no tiene local vinculado");
       const { data } = await supabase
         .from("barberias")
-        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas")
+        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, modo_whatsapp, wa_mes, wa_enviados")
         .eq("id", barberiaId)
         .maybeSingle();
       if (!data) return setError("No se encontró la barbería");
@@ -74,6 +83,10 @@ export default function ConfigPage() {
       setPedirSena(data.pedido_sena === true);
       setMostrarResenas(data.mostrar_resenas !== false);
       setEstilo(data.estilo || "auto");
+      setPlan(data.plan || "");
+      setModoWa(data.modo_whatsapp || "manual");
+      setWaMes(data.wa_mes || null);
+      setWaEnviados(Number(data.wa_enviados || 0));
     };
     void load();
   }, [router]);
@@ -129,7 +142,13 @@ export default function ConfigPage() {
     <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
         <BrandHeader left={<Link href={`/dashboard/mas${shopQ}`}>‹</Link>} />
-        <h1 className="text-[34px] font-semibold tracking-tight mb-6">Configuración</h1>
+        <h1 className="text-[34px] font-semibold tracking-tight mb-2">Configuración</h1>
+        {modoWa === "automatico" && (
+          <p className="text-sm mb-5" style={{ color: "var(--muted)" }}>
+            WhatsApp este mes: {usados}
+            {plan === "trial" ? " / 40" : ""}
+          </p>
+        )}
         <form onSubmit={guardar} className="space-y-3">
           {error && <p className="text-red-500 text-sm">{error}</p>}
           {ok && <p className="text-sm">{ok}</p>}
