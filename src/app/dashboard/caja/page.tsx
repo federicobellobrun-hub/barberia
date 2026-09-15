@@ -23,30 +23,52 @@ function one<T>(v: T | T[] | null | undefined): T | null {
   return Array.isArray(v) ? v[0] || null : v;
 }
 
+function shopActual() {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search).get("shop");
+  if (q) {
+    localStorage.setItem("admin_shop", q);
+    return q;
+  }
+  return localStorage.getItem("admin_shop");
+}
+
 export default function CajaPage() {
   const [filas, setFilas] = useState<Fila[]>([]);
   const [mes, setMes] = useState(() => new Date().toISOString().slice(0, 7));
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const shopQ = shopActual() ? `?shop=${shopActual()}` : "";
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
+      const slug = shopActual();
+      const { data: u } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", user.id).maybeSingle();
+      let barberiaId = u?.barberia_id as string | null;
+      if (u?.rol === "superadmin" && slug) {
+        const { data: shop } = await supabase.from("barberias").select("id").eq("slug", slug).maybeSingle();
+        if (shop) barberiaId = shop.id;
+      }
+      if (!barberiaId) return;
       const inicio = new Date(`${mes}-01T00:00:00-03:00`);
       const fin = new Date(inicio);
       fin.setMonth(fin.getMonth() + 1);
       const { data, error } = await supabase
         .from("pagos")
         .select("id, monto, metodo, pagado_at, turnos(fecha_hora, clientes(nombre), servicios(nombre))")
+        .eq("barberia_id", barberiaId)
         .gte("pagado_at", inicio.toISOString())
         .lt("pagado_at", fin.toISOString())
         .order("pagado_at");
       if (error) setError(error.message);
-      setFilas((data as any) || []);
+      setFilas((data as Fila[]) || []);
     };
-    load();
+    void load();
   }, [mes, router]);
 
   const total = useMemo(() => filas.reduce((acc, f) => acc + Number(f.monto || 0), 0), [filas]);
@@ -74,7 +96,7 @@ export default function CajaPage() {
   return (
     <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
+        <BrandHeader left={<Link href={`/dashboard/mas${shopQ}`}>‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-5">Caja</h1>
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
         <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-full rounded-2xl px-4 py-3 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" }} />
