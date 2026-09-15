@@ -6,16 +6,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 
-type Fila = {
+type PagoRow = {
   id: string;
   monto: number;
   metodo: string;
   pagado_at: string;
-  turnos: {
-    fecha_hora: string;
-    clientes: { nombre: string } | { nombre: string }[] | null;
-    servicios: { nombre: string } | { nombre: string }[] | null;
-  } | null;
+  turnos: unknown;
 };
 
 function one<T>(v: T | T[] | null | undefined): T | null {
@@ -34,7 +30,7 @@ function shopActual() {
 }
 
 export default function CajaPage() {
-  const [filas, setFilas] = useState<Fila[]>([]);
+  const [filas, setFilas] = useState<PagoRow[]>([]);
   const [mes, setMes] = useState(() => new Date().toISOString().slice(0, 7));
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -66,23 +62,28 @@ export default function CajaPage() {
         .lt("pagado_at", fin.toISOString())
         .order("pagado_at");
       if (error) setError(error.message);
-      setFilas((data as Fila[]) || []);
+      setFilas((data as PagoRow[] | null) || []);
     };
     void load();
   }, [mes, router]);
 
   const total = useMemo(() => filas.reduce((acc, f) => acc + Number(f.monto || 0), 0), [filas]);
 
+  const datoTurno = (f: PagoRow) => {
+    const t = one(f.turnos as { clientes?: { nombre: string } | { nombre: string }[]; servicios?: { nombre: string } | { nombre: string }[] } | Array<unknown> | null);
+    return {
+      cliente: one(t && "clientes" in t ? t.clientes : null)?.nombre || "Cliente",
+      servicio: one(t && "servicios" in t ? t.servicios : null)?.nombre || "",
+    };
+  };
+
   const exportar = () => {
     const lineas = [
       ["Fecha", "Cliente", "Servicio", "Método", "Monto"],
-      ...filas.map((f) => [
-        new Date(f.pagado_at).toLocaleString("es-UY"),
-        one(f.turnos?.clientes)?.nombre || "",
-        one(f.turnos?.servicios)?.nombre || "",
-        f.metodo,
-        String(f.monto),
-      ]),
+      ...filas.map((f) => {
+        const d = datoTurno(f);
+        return [new Date(f.pagado_at).toLocaleString("es-UY"), d.cliente, d.servicio, f.metodo, String(f.monto)];
+      }),
       ["", "", "", "TOTAL", String(total)],
     ];
     const csv = lineas.map((r) => r.map((c) => `"${c}"`).join(";")).join("\n");
@@ -104,14 +105,17 @@ export default function CajaPage() {
           Exportar Excel
         </button>
         <p className="text-2xl font-semibold mb-4">Total ${total}</p>
-        {filas.map((f) => (
-          <div key={f.id} className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            <p className="font-medium">{one(f.turnos?.clientes)?.nombre || "Cliente"}</p>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              {one(f.turnos?.servicios)?.nombre} · {f.metodo} · ${f.monto}
-            </p>
-          </div>
-        ))}
+        {filas.map((f) => {
+          const d = datoTurno(f);
+          return (
+            <div key={f.id} className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+              <p className="font-medium">{d.cliente}</p>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>
+                {d.servicio} · {f.metodo} · ${f.monto}
+              </p>
+            </div>
+          );
+        })}
       </div>
     </main>
   );
