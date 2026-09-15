@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import BottomNav from "@/components/BottomNav";
@@ -68,7 +68,6 @@ function nroTurno(id: string) {
 function linkPublico(slug: string) {
   return `https://${slug}.reservoapps.com`;
 }
-
 async function avisoCambio(turnoId: string, tipo: "cancelado" | "movido") {
   await fetch("/api/whatsapp/cambio", {
     method: "POST",
@@ -77,10 +76,14 @@ async function avisoCambio(turnoId: string, tipo: "cancelado" | "movido") {
   });
 }
 
-export default function DashboardPage() {
+function DashboardInner() {
+  const search = useSearchParams();
+  const shopSlug = search.get("shop");
   const [nombre, setNombre] = useState("Barbero");
   const [rol, setRol] = useState("");
   const [slug, setSlug] = useState("");
+  const [barberiaId, setBarberiaId] = useState<string | null>(null);
+  const [listo, setListo] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [miBarberoId, setMiBarberoId] = useState<string | null>(null);
   const [fecha, setFecha] = useState(ymd(new Date()));
@@ -101,6 +104,7 @@ export default function DashboardPage() {
   const esBarbero = rol === "barbero";
   const hoy = ymd(new Date());
   const urlClientes = slug ? linkPublico(slug) : "";
+  const qShop = shopSlug ? `?shop=${shopSlug}` : "";
 
   useEffect(() => {
     const loadUser = async () => {
@@ -119,15 +123,24 @@ export default function DashboardPage() {
         setMiBarberoId(data.barbero_id);
         setFiltroBarbero(data.barbero_id);
       }
-      if (data?.barberia_id) {
+      if (data?.rol === "superadmin" && shopSlug) {
+        const { data: shop } = await supabase.from("barberias").select("id, slug").eq("slug", shopSlug).maybeSingle();
+        if (shop) {
+          setBarberiaId(shop.id);
+          setSlug(shop.slug);
+        }
+      } else if (data?.barberia_id) {
+        setBarberiaId(data.barberia_id);
         const { data: shop } = await supabase.from("barberias").select("slug").eq("id", data.barberia_id).maybeSingle();
         if (shop?.slug) setSlug(shop.slug);
       }
+      setListo(true);
     };
     void loadUser();
-  }, [router]);
+  }, [router, shopSlug]);
 
   useEffect(() => {
+    if (!listo || !barberiaId) return;
     const load = async () => {
       setLoading(true);
       setError(null);
@@ -141,13 +154,14 @@ export default function DashboardPage() {
         supabase
           .from("turnos")
           .select("id, barberia_id, barbero_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo), barberos(nombre)")
+          .eq("barberia_id", barberiaId)
           .gte("fecha_hora", desde)
           .lte("fecha_hora", hasta)
           .neq("estado", "cancelado")
           .order("fecha_hora"),
-        supabase.from("turnos").select("fecha_hora, barbero_id").gte("fecha_hora", inicioMes.toISOString()).lt("fecha_hora", siguiente.toISOString()).neq("estado", "cancelado"),
-        supabase.from("pagos").select("monto").gte("pagado_at", inicioMes.toISOString()).lt("pagado_at", siguiente.toISOString()),
-        supabase.from("barberos").select("id, nombre").eq("activo", true).order("nombre"),
+        supabase.from("turnos").select("fecha_hora, barbero_id").eq("barberia_id", barberiaId).gte("fecha_hora", inicioMes.toISOString()).lt("fecha_hora", siguiente.toISOString()).neq("estado", "cancelado"),
+        supabase.from("pagos").select("monto").eq("barberia_id", barberiaId).gte("pagado_at", inicioMes.toISOString()).lt("pagado_at", siguiente.toISOString()),
+        supabase.from("barberos").select("id, nombre").eq("barberia_id", barberiaId).eq("activo", true).order("nombre"),
       ]);
       if (turnosRes.error) setError(turnosRes.error.message);
       setTurnos((turnosRes.data as Turno[]) || []);
@@ -165,7 +179,7 @@ export default function DashboardPage() {
       setLoading(false);
     };
     void load();
-  }, [fecha, mes, filtroBarbero, esBarbero, miBarberoId]);
+  }, [listo, barberiaId, fecha, mes, filtroBarbero, esBarbero, miBarberoId]);
 
   const filtroActivo = esBarbero && miBarberoId ? miBarberoId : filtroBarbero;
   const turnosFiltrados = useMemo(
@@ -473,18 +487,26 @@ export default function DashboardPage() {
         items={
           esBarbero
             ? [
-                { href: "/dashboard", label: "Agenda", active: true },
-                { href: "/dashboard/nuevo", label: "Nuevo" },
-                { href: "/dashboard/mas", label: "Más" },
+                { href: `/dashboard${qShop}`, label: "Agenda", active: true },
+                { href: `/dashboard/nuevo${qShop}`, label: "Nuevo" },
+                { href: `/dashboard/mas${qShop}`, label: "Más" },
               ]
             : [
-                { href: "/dashboard", label: "Agenda", active: true },
-                { href: "/dashboard/clientes", label: "Clientes" },
-                { href: "/dashboard/catalogo", label: "Catálogo" },
-                { href: "/dashboard/mas", label: "Más" },
+                { href: `/dashboard${qShop}`, label: "Agenda", active: true },
+                { href: `/dashboard/clientes${qShop}`, label: "Clientes" },
+                { href: `/dashboard/catalogo${qShop}`, label: "Catálogo" },
+                { href: `/dashboard/mas${qShop}`, label: "Más" },
               ]
         }
       />
     </main>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen" style={{ background: "#F5F0E8" }} />}>
+      <DashboardInner />
+    </Suspense>
   );
 }
