@@ -14,6 +14,16 @@ function norm(v: string) {
   return String(v).slice(0, 5);
 }
 
+function shopActual() {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search).get("shop");
+  if (q) {
+    localStorage.setItem("admin_shop", q);
+    return q;
+  }
+  return localStorage.getItem("admin_shop");
+}
+
 export default function HorariosPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
@@ -22,6 +32,7 @@ export default function HorariosPage() {
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState("");
   const router = useRouter();
+  const shopQ = shopActual() ? `?shop=${shopActual()}` : "";
 
   const vacias = (): Fila[] =>
     dias.map((_, i) => ({
@@ -55,49 +66,44 @@ export default function HorariosPage() {
   useEffect(() => {
     const init = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).single();
-      if (!data?.barberia_id) return;
-      setBarberiaId(data.barberia_id);
-      const { data: b } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", data.barberia_id).eq("activo", true);
+      const slug = shopActual();
+      const { data } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", user.id).maybeSingle();
+      let id = data?.barberia_id as string | null;
+      if (data?.rol === "superadmin" && slug) {
+        const { data: shop } = await supabase.from("barberias").select("id").eq("slug", slug).maybeSingle();
+        if (shop) id = shop.id;
+      }
+      if (!id) return;
+      setBarberiaId(id);
+      const { data: b } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", id).eq("activo", true);
       setBarberos(b || []);
-      await load(data.barberia_id, "local");
+      await load(id, "local");
     };
-    init();
+    void init();
   }, [router]);
 
   const guardar = async () => {
     if (!barberiaId) return;
     const supabase = createClient();
     for (const f of filas) {
-      const payload = {
-        hora_inicio: f.hora_inicio,
-        hora_fin: f.hora_fin,
-        activo: f.activo,
-      };
+      const payload = { hora_inicio: f.hora_inicio, hora_fin: f.hora_fin, activo: f.activo };
       if (quien === "local") {
         if (f.id) {
           const { error } = await supabase.from("horario_semanal").update(payload).eq("id", f.id);
           if (error) return setError(error.message);
         } else {
-          const { error } = await supabase.from("horario_semanal").insert({
-            ...payload,
-            barberia_id: barberiaId,
-            dia_semana: f.dia_semana,
-          });
+          const { error } = await supabase.from("horario_semanal").insert({ ...payload, barberia_id: barberiaId, dia_semana: f.dia_semana });
           if (error) return setError(error.message);
         }
       } else if (f.id) {
         const { error } = await supabase.from("horario_barbero").update(payload).eq("id", f.id);
         if (error) return setError(error.message);
       } else {
-        const { error } = await supabase.from("horario_barbero").insert({
-          ...payload,
-          barberia_id: barberiaId,
-          barbero_id: quien,
-          dia_semana: f.dia_semana,
-        });
+        const { error } = await supabase.from("horario_barbero").insert({ ...payload, barberia_id: barberiaId, barbero_id: quien, dia_semana: f.dia_semana });
         if (error) return setError(error.message);
       }
     }
@@ -108,11 +114,10 @@ export default function HorariosPage() {
   return (
     <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
+        <BrandHeader left={<Link href={`/dashboard/mas${shopQ}`}>‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-5">Horarios</h1>
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
         {ok && <p className="text-sm mb-3">{ok}</p>}
-
         <select
           value={quien}
           onChange={async (e) => {
@@ -125,31 +130,27 @@ export default function HorariosPage() {
         >
           <option value="local">Horario del local</option>
           {barberos.map((b) => (
-            <option key={b.id} value={b.id}>{b.nombre}</option>
+            <option key={b.id} value={b.id}>
+              {b.nombre}
+            </option>
           ))}
         </select>
-
         {filas.map((f, i) => (
           <div key={f.dia_semana} className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             <div className="flex items-center justify-between mb-2">
               <p className="font-medium">{dias[f.dia_semana]}</p>
               <label className="text-sm flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={f.activo}
-                  onChange={(e) => setFilas((prev) => prev.map((x, idx) => idx === i ? { ...x, activo: e.target.checked } : x))}
-                />
+                <input type="checkbox" checked={f.activo} onChange={(e) => setFilas((prev) => prev.map((x, idx) => (idx === i ? { ...x, activo: e.target.checked } : x)))} />
                 Abierto
               </label>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <input type="time" value={f.hora_inicio} onChange={(e) => setFilas((prev) => prev.map((x, idx) => idx === i ? { ...x, hora_inicio: e.target.value } : x))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-              <input type="time" value={f.hora_fin} onChange={(e) => setFilas((prev) => prev.map((x, idx) => idx === i ? { ...x, hora_fin: e.target.value } : x))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+              <input type="time" value={f.hora_inicio} onChange={(e) => setFilas((prev) => prev.map((x, idx) => (idx === i ? { ...x, hora_inicio: e.target.value } : x)))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+              <input type="time" value={f.hora_fin} onChange={(e) => setFilas((prev) => prev.map((x, idx) => (idx === i ? { ...x, hora_fin: e.target.value } : x)))} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
             </div>
           </div>
         ))}
-
-        <button onClick={guardar} className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+        <button onClick={() => void guardar()} className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
           Guardar horario
         </button>
       </div>
