@@ -69,11 +69,14 @@ export default function CajaPage() {
 
   const total = useMemo(() => filas.reduce((acc, f) => acc + Number(f.monto || 0), 0), [filas]);
 
-  const datoTurno = (f: PagoRow) => {
-    const t = one(f.turnos as { clientes?: { nombre: string } | { nombre: string }[]; servicios?: { nombre: string } | { nombre: string }[] } | Array<unknown> | null);
-    return {
-      cliente: one(t && "clientes" in t ? t.clientes : null)?.nombre || "Cliente",
-      servicio: one(t && "servicios" in t ? t.servicios : null)?.nombre || "",
+   const datoTurno = (f: PagoRow) => {
+    const raw = f.turnos;
+    const t = Array.isArray(raw) ? raw[0] : raw;
+    const row = t as { clientes?: { nombre: string } | { nombre: string }[]; servicios?: { nombre: string } | { nombre: string }[] } | null;
+    const cliente = one(row?.clientes || null)?.nombre || "Cliente";
+    const servicio = one(row?.servicios || null)?.nombre || "";
+    return { cliente, servicio };
+  };
     };
   };
 
