@@ -6,18 +6,18 @@ const WA = "https://wa.me/59897344643?text=" + encodeURIComponent("Hola Federico
 
 function Logo() {
   return (
-    <Link href="/" className="flex items-center gap-3">
+    <Link href="/" className="flex items-center gap-3.5">
       <span
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[20px]"
+        className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full text-[34px]"
         style={{ border: "1.5px solid #1C1712", fontFamily: "Georgia, Times, serif" }}
       >
         R
       </span>
-      <span className="leading-[1.05]">
-        <span className="block text-[22px] tracking-[0.04em]" style={{ fontFamily: "Georgia, Times, serif" }}>
+      <span className="leading-[1.02]">
+        <span className="block text-[32px] tracking-[0.04em]" style={{ fontFamily: "Georgia, Times, serif" }}>
           RESERVO
         </span>
-        <span className="block text-[10px] tracking-[0.32em] text-[#7a7268]">APPS</span>
+        <span className="block text-[12px] tracking-[0.34em] text-[#7a7268]">APPS</span>
       </span>
     </Link>
   );
@@ -88,7 +88,7 @@ export default function HomePage() {
       <div className="relative mx-auto max-w-md px-5 pt-6 pb-16">
         <header className="flex items-start justify-between mb-12">
           <Logo />
-          <div className="flex gap-4 mt-2">
+          <div className="flex gap-4 mt-3">
             <Link href="/probar" className="text-[13px] text-[#1C1712] underline underline-offset-4">
               Probar 7 días
             </Link>
@@ -152,7 +152,7 @@ export default function HomePage() {
         style={{ right: 18, bottom: 22, background: "#1C1712", color: "#F5F0E8" }}
       >
         <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          <path d="M12.04 2C6.5 2 2.02 6.48 2.02 12.02c0 1.77.46 3.5 1.34 5.02L2 22l5.1-1.33A10 10 0 0 0 12.04 22C17.58 22 22 17.52 22 11.98 22 6.48 17.58 2 12.04 2zm5.8 14.25c-.24.68-1.4 1.26-1.94 1.34-.5.07-1.12.1-1.81-.11-.41-.13-.95-.31-1.64-.61-2.89-1.25-4.77-4.16-4.92-4.35-.14-.2-1.18-1.57-1.18-3 0-1.42.75-2.12 1.01-2.41.27-.29.58-.36.78-.36h.56c.18 0 .42-.07.66.5.24.58.82 2 .89 2.15.07.14.12.31.02.5-.1.2-.15.31-.3.48-.14.16-.3.36-.43.49-.14.14-.29.29-.12.56.16.27.73 1.2 1.56 1.95 1.08.96 1.98 1.26 2.26 1.4.27.14.43.12.59-.07.16-.2.68-.79.86-1.06.18-.27.36-.22.6-.13.24.08 1.54.73 1.8.86.27.14.44.2.51.31.07.11.07.64-.17 1.32z" />
+          <path d="M12.04 2C6.5 2 2.02 6.48 2.02 12.02c0 1.77.46 3.5 1.34 5.02L2 22l5.1-1.33A10 10 0 0 0 12.04 22C17.58 22 22 17.52 22 11.98 22 6.48 17.58 2 12.04 2zm5.8 14.25c-.24.68-1.4 1.26-1.94 1.34-.5.07-1.12.1-1.81-.11-.41-.13-.95-.31-1.64-.61-2.89-1.25-4.77-4.16-4.92-4.35-.14-.2-1.18-1.57-1.18-3 0-1.42.75-2.12.81-2.27.06-.15.48-.64.5-.86 0-.22-.06-.5-.3-.78-.24-.27-.5-.3-.68-.3h-.58c-.2 0-.5.07-.76.37-.26.3-1 1-1 2.43s1.02 2.82 1.16 3.02c.14.2 2.02 3.23 4.97 4.4.7.3 1.24.48 1.66.61.7.22 1.33.19 1.83.12.56-.08 1.4-.57 1.6-1.13.2-.55.2-1.02.14-1.12-.06-.1-.24-.16-.5-.28z" />
         </svg>
       </a>
     </main>
