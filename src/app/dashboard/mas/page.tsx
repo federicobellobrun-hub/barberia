@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
+import { temaPack, aplicarTema } from "@/lib/rubro";
 
 type Item = { href: string; t: string; d: string };
 
@@ -20,6 +21,7 @@ function MasInner() {
   const shop = search.get("shop");
   const q = shop ? `?shop=${shop}` : "";
   const [items, setItems] = useState<Item[] | null>(null);
+  const [tema, setTema] = useState(() => temaPack("auto", "barberia"));
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -31,13 +33,20 @@ function MasInner() {
       const { data: yo } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", data.user.id).maybeSingle();
 
       let rubro = "barberia";
+      let estilo = "auto";
       if (shop) {
-        const { data: s } = await supabase.from("barberias").select("rubro").eq("slug", shop).maybeSingle();
+        const { data: s } = await supabase.from("barberias").select("rubro, estilo").eq("slug", shop).maybeSingle();
         rubro = s?.rubro || "barberia";
+        estilo = s?.estilo || "auto";
       } else if (yo?.barberia_id) {
-        const { data: s } = await supabase.from("barberias").select("rubro").eq("id", yo.barberia_id).maybeSingle();
+        const { data: s } = await supabase.from("barberias").select("rubro, estilo").eq("id", yo.barberia_id).maybeSingle();
         rubro = s?.rubro || "barberia";
+        estilo = s?.estilo || "auto";
       }
+      const pack = temaPack(estilo, rubro);
+      setTema(pack);
+      aplicarTema(pack);
+
       const equipo = rubro === "pestanas_unas" ? "Equipo" : "Barberos";
 
       const dueño: Item[] = [
@@ -69,20 +78,22 @@ function MasInner() {
   }, [q, shop]);
 
   return (
-    <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
+    <main className="min-h-screen" style={{ background: tema.bg, color: tema.text }}>
       <div className="mx-auto max-w-md px-5 py-8">
-        <Link href={`/dashboard${q}`} className="text-sm text-[#7a7268]">
+        <Link href={`/dashboard${q}`} className="text-sm" style={{ color: tema.muted }}>
           ← Agenda
         </Link>
         <h1 className="mt-4 text-3xl mb-6" style={{ fontFamily: "Georgia, Times, serif" }}>
           Más
         </h1>
         {!items ? (
-          <p className="text-sm text-[#7a7268]">Cargando…</p>
+          <p className="text-sm" style={{ color: tema.muted }}>
+            Cargando…
+          </p>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {items.map((i) => (
-              <Link key={i.t} href={i.href} className="rounded-2xl p-4 text-sm" style={{ background: "#EFE8DC", border: "1px solid #ddd4c8" }}>
+              <Link key={i.t} href={i.href} className="rounded-2xl p-4 text-sm" style={{ background: tema.card, border: `1px solid ${tema.line}`, color: tema.text }}>
                 <Icon d={i.d} />
                 {i.t}
               </Link>
@@ -96,7 +107,7 @@ function MasInner() {
 
 export default function MasPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen p-6" style={{ background: "#F5F0E8" }}>Cargando…</main>}>
+    <Suspense fallback={<main className="min-h-screen p-6">Cargando…</main>}>
       <MasInner />
     </Suspense>
   );
