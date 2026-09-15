@@ -13,6 +13,7 @@ type Servicio = {
   id: string;
   barberia_id: string;
   nombre: string;
+  descripcion: string | null;
   duracion_minutos: number;
   precio: number;
   imagen_url: string | null;
@@ -133,7 +134,7 @@ function ReservarPage() {
         const hasta = new Date();
         hasta.setDate(hasta.getDate() + 40);
         const [servRes, barRes, horRes, horBarRes, bloqRes, turRes] = await Promise.all([
-          supabase.from("servicios").select("id, barberia_id, nombre, duracion_minutos, precio, imagen_url, categoria, sena").eq("barberia_id", shop.id).eq("activo", true).order("orden"),
+          supabase.from("servicios").select("id, barberia_id, nombre, descripcion, duracion_minutos, precio, imagen_url, categoria, sena").eq("barberia_id", shop.id).eq("activo", true).order("orden"),
           supabase.from("barberos").select("id, nombre, foto_url").eq("barberia_id", shop.id).eq("activo", true).order("nombre"),
           supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin").eq("barberia_id", shop.id).eq("activo", true),
           supabase.from("horario_barbero").select("dia_semana, hora_inicio, hora_fin, barbero_id").eq("barberia_id", shop.id).eq("activo", true),
@@ -327,6 +328,11 @@ function ReservarPage() {
         )}
         <div className="py-3 pr-3 min-w-0">
           <p className="font-medium">{s.nombre}</p>
+          {s.descripcion && (
+            <p className="text-xs mt-0.5 truncate" style={{ color: t.muted }}>
+              {s.descripcion}
+            </p>
+          )}
           <p className="text-sm" style={{ color: t.muted }}>
             ${s.precio} · {s.duracion_minutos} min
           </p>
@@ -456,6 +462,11 @@ function ReservarPage() {
               <div className="mb-5 p-4" style={{ background: t.card, borderRadius: 16, border: `1px solid ${t.line}` }}>
                 {servicio.imagen_url && <img src={servicio.imagen_url} alt="" className="h-36 w-full object-cover rounded-xl mb-3" />}
                 <p className="text-lg font-medium">{servicio.nombre}</p>
+                {servicio.descripcion && (
+                  <p className="text-sm mt-1" style={{ color: t.muted }}>
+                    {servicio.descripcion}
+                  </p>
+                )}
                 <p className="text-sm mt-1" style={{ color: t.muted }}>
                   {servicio.duracion_minutos} min · ${servicio.precio}
                 </p>
