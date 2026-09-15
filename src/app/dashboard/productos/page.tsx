@@ -24,6 +24,7 @@ export default function ProductosPage() {
   const [desc, setDesc] = useState("");
   const [stock, setStock] = useState("0");
   const router = useRouter();
+  const shopQ = typeof window !== "undefined" ? window.location.search : "";
 
   const load = async (id: string) => {
     const supabase = createClient();
@@ -43,10 +44,16 @@ export default function ProductosPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
-      if (!data?.barberia_id) return setError("Este usuario no tiene local");
-      setBarberiaId(data.barberia_id);
-      await load(data.barberia_id);
+      const shopSlug = new URLSearchParams(window.location.search).get("shop");
+      const { data } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", user.id).maybeSingle();
+      let id = data?.barberia_id as string | null;
+      if (data?.rol === "superadmin" && shopSlug) {
+        const { data: shop } = await supabase.from("barberias").select("id").eq("slug", shopSlug).maybeSingle();
+        if (shop) id = shop.id;
+      }
+      if (!id) return setError("Este usuario no tiene local");
+      setBarberiaId(id);
+      await load(id);
     };
     void init();
   }, [router]);
@@ -104,7 +111,7 @@ export default function ProductosPage() {
   return (
     <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
+        <BrandHeader left={<Link href={`/dashboard/mas${shopQ}`}>‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Productos</h1>
         <p className="mb-2 text-sm" style={{ color: "var(--muted)" }}>
           Solo artículos de la tienda · {productos.length} cargados
@@ -120,7 +127,9 @@ export default function ProductosPage() {
           </button>
         </form>
         {productos.length === 0 && !error && (
-          <p className="text-sm" style={{ color: "var(--muted)" }}>Todavía no hay productos en este local.</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            Todavía no hay productos en este local.
+          </p>
         )}
         {productos.map((p) => (
           <div key={p.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
@@ -128,10 +137,21 @@ export default function ProductosPage() {
             <input value={p.nombre} onChange={(e) => setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, nombre: e.target.value } : x)))} className={campo} style={estilo} />
             <input type="number" value={p.precio} onChange={(e) => setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, precio: Number(e.target.value) } : x)))} className={campo} style={estilo} />
             <input type="number" value={p.stock ?? 0} onChange={(e) => setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, stock: Number(e.target.value) } : x)))} className={campo} style={estilo} />
-            <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void foto(p.id, file); }} />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void foto(p.id, file);
+              }}
+            />
             <div className="flex gap-2">
-              <button type="button" onClick={() => void guardar(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
-              <button type="button" onClick={() => void borrar(p.id)} className="px-4 rounded-xl text-sm text-red-500">Borrar</button>
+              <button type="button" onClick={() => void guardar(p)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
+                Guardar
+              </button>
+              <button type="button" onClick={() => void borrar(p.id)} className="px-4 rounded-xl text-sm text-red-500">
+                Borrar
+              </button>
             </div>
           </div>
         ))}
