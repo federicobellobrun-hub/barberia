@@ -18,6 +18,16 @@ type Servicio = {
   sena: number | null;
 };
 
+function shopActual() {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search).get("shop");
+  if (q) {
+    localStorage.setItem("admin_shop", q);
+    return q;
+  }
+  return localStorage.getItem("admin_shop");
+}
+
 export default function CatalogoPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [rubro, setRubro] = useState("barberia");
@@ -31,7 +41,8 @@ export default function CatalogoPage() {
   const [sSena, setSSena] = useState("0");
   const router = useRouter();
   const rosa = rubro === "pestanas_unas";
-  const shopQ = typeof window !== "undefined" ? window.location.search : "";
+  const shopSlug = shopActual();
+  const shopQ = shopSlug ? `?shop=${shopSlug}` : "";
 
   const load = async (id: string) => {
     const supabase = createClient();
@@ -52,12 +63,12 @@ export default function CatalogoPage() {
       } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
 
-      const shopSlug = new URLSearchParams(window.location.search).get("shop");
+      const slug = shopActual();
       const { data } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", user.id).maybeSingle();
 
       let id = data?.barberia_id as string | null;
-      if (data?.rol === "superadmin" && shopSlug) {
-        const { data: shop } = await supabase.from("barberias").select("id, rubro").eq("slug", shopSlug).maybeSingle();
+      if (data?.rol === "superadmin" && slug) {
+        const { data: shop } = await supabase.from("barberias").select("id, rubro").eq("slug", slug).maybeSingle();
         if (shop) {
           id = shop.id;
           setRubro(shop.rubro || "barberia");
@@ -151,14 +162,7 @@ export default function CatalogoPage() {
 
         <form onSubmit={addServicio} className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
           <input required value={sNombre} onChange={(e) => setSNombre(e.target.value)} placeholder={rosa ? "Nombre. Ej: Lifting" : "Nombre. Ej: Corte fade"} className={campo} style={estilo} />
-          <input
-            value={sDetalle}
-            onChange={(e) => setSDetalle(e.target.value)}
-            maxLength={80}
-            placeholder={rosa ? "Detalle. Ej: 2D, pelo a pelo" : "Detalle. Ej: máquina + tijera"}
-            className={campo}
-            style={estilo}
-          />
+          <input value={sDetalle} onChange={(e) => setSDetalle(e.target.value)} maxLength={80} placeholder={rosa ? "Detalle. Ej: 2D, pelo a pelo" : "Detalle. Ej: máquina + tijera"} className={campo} style={estilo} />
           <input value={sCategoria} onChange={(e) => setSCategoria(e.target.value)} placeholder={rosa ? "Categoría. Ej: Pestañas" : "Categoría. Ej: Cortes"} className={campo} style={estilo} />
           <div className="grid grid-cols-3 gap-2">
             <input required value={sDuracion} onChange={(e) => setSDuracion(e.target.value)} placeholder="Min" className="rounded-xl px-3 py-3" style={estilo} />
@@ -175,15 +179,7 @@ export default function CatalogoPage() {
             {s.imagen_url && <img src={s.imagen_url} alt="" className="h-36 w-full object-cover rounded-xl" />}
             <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && void subirFotoServicio(s.id, e.target.files[0])} />
             <input value={s.nombre} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, nombre: e.target.value } : x)))} onBlur={() => void updateServicio(s)} className={campo} style={estilo} />
-            <input
-              value={s.descripcion || ""}
-              maxLength={80}
-              placeholder="Detalle del servicio"
-              onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, descripcion: e.target.value } : x)))}
-              onBlur={() => void updateServicio(s)}
-              className={campo}
-              style={estilo}
-            />
+            <input value={s.descripcion || ""} maxLength={80} placeholder="Detalle del servicio" onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, descripcion: e.target.value } : x)))} onBlur={() => void updateServicio(s)} className={campo} style={estilo} />
             <input value={s.categoria || ""} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, categoria: e.target.value } : x)))} onBlur={() => void updateServicio(s)} className={campo} style={estilo} />
             <div className="grid grid-cols-3 gap-2">
               <input value={s.duracion_minutos} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, duracion_minutos: Number(e.target.value) } : x)))} onBlur={() => void updateServicio(s)} className="rounded-xl px-3 py-3" style={estilo} />
