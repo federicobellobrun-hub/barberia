@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+const LIMITE_TRIAL = 40;
+
 function admin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -26,11 +28,14 @@ function fechaUy(fechaHora: string) {
   return new Date(fechaHora).toLocaleDateString("es-UY", { timeZone: "America/Montevideo" });
 }
 
+function mesUy() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Montevideo" }).slice(0, 7);
+}
+
 async function sendTemplate(to: string, name: string, params: string[]) {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!token || !phoneId) return { ok: false, motivo: "Falta token" };
-  const esPrueba = name === "hello_world";
   const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -38,13 +43,11 @@ async function sendTemplate(to: string, name: string, params: string[]) {
       messaging_product: "whatsapp",
       to,
       type: "template",
-      template: esPrueba
-        ? { name: "hello_world", language: { code: "en_US" } }
-        : {
-            name,
-            language: { code: "es_UY" },
-            components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }],
-          },
+      template: {
+        name,
+        language: { code: "es_UY" },
+        components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }],
+      },
     }),
   });
   const data = await res.json();
@@ -69,10 +72,8 @@ export async function POST(req: Request) {
   if (!t) return NextResponse.json({ error: "Turno no encontrado", turnoId }, { status: 404 });
 
   const [{ data: shop }, { data: cliente }] = await Promise.all([
-    supabase.from("barberias").select("nombre, modo_whatsapp").eq("id", t.barberia_id).maybeSingle(),
-    t.cliente_id
-      ? supabase.from("clientes").select("nombre, telefono").eq("id", t.cliente_id).maybeSingle()
-      : Promise.resolve({ data: null }),
+    supabase.from("barberias").select("id, nombre, modo_whatsapp, plan, wa_mes, wa_enviados").eq("id", t.barberia_id).maybeSingle(),
+    t.cliente_id ? supabase.from("clientes").select("nombre, telefono").eq("id", t.cliente_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
   if (!shop || shop.modo_whatsapp !== "automatico") {
@@ -80,10 +81,16 @@ export async function POST(req: Request) {
   }
   if (!cliente?.telefono) return NextResponse.json({ ok: true, skipped: "sin telefono" });
 
+  const mes = mesUy();
+  const usados = shop.wa_mes === mes ? Number(shop.wa_enviados || 0) : 0;
+  if (shop.plan === "trial" && usados >= LIMITE_TRIAL) {
+    return NextResponse.json({ ok: true, skipped: "limite_trial", usados });
+  }
+
   const plantilla =
     tipo === "cancelado"
-      ? process.env.WHATSAPP_TEMPLATE_CANCELADO || process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "hello_world"
-      : process.env.WHATSAPP_TEMPLATE_MOVIDO || process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "hello_world";
+      ? process.env.WHATSAPP_TEMPLATE_CANCELADO || "reserva_cancelada"
+      : process.env.WHATSAPP_TEMPLATE_MOVIDO || "reserva_movida";
 
   const envio = await sendTemplate(waNumber(cliente.telefono), plantilla, [
     cliente.nombre || "cliente",
@@ -91,6 +98,10 @@ export async function POST(req: Request) {
     horaUy(t.fecha_hora),
     shop.nombre || "la barbería",
   ]);
+
+  if (envio.ok) {
+    await supabase.from("barberias").update({ wa_mes: mes, wa_enviados: usados + 1 }).eq("id", shop.id);
+  }
 
   return NextResponse.json({ ok: true, tipo, envio });
 }
