@@ -122,61 +122,59 @@ export default function BloqueosPage() {
   const box: React.CSSProperties = {
     width: "100%",
     boxSizing: "border-box",
-    background: "#EFE8DC",
-    border: "1px solid #ddd4c8",
-    color: "#1C1712",
+    background: "var(--bg)",
+    border: "1px solid var(--line)",
+    color: "var(--text)",
     fontSize: 16,
     height: 48,
     padding: "0 14px",
   };
 
   return (
-    <main className="min-h-screen pb-24" style={{ background: "#F5F0E8", color: "#1C1712" }}>
+    <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-4">
         <header className="flex items-center justify-between mb-6">
           <Link href="/dashboard/mas">‹</Link>
           <ThemeToggle />
         </header>
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Bloqueos</h1>
-        <p className="text-sm mb-5" style={{ color: "#7a7268" }}>
+        <p className="text-sm mb-5" style={{ color: "var(--muted)" }}>
           Día entero o solo un rango de horas
         </p>
 
-        <form onSubmit={guardar} className="rounded-2xl p-4 mb-6 space-y-3" style={{ background: "#fff", border: "1px solid #ddd4c8" }}>
+        <form onSubmit={guardar} className="rounded-2xl p-4 mb-6 space-y-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
           {error && <p className="text-red-500 text-sm break-words">{error}</p>}
           <input value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} placeholder="Desde. Ej: 11/09/2026" inputMode="numeric" className="rounded-xl" style={box} />
           <input value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} placeholder="Hasta (opcional)" inputMode="numeric" className="rounded-xl" style={box} />
           <input value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} placeholder="Hora desde. Ej: 14:00" inputMode="numeric" className="rounded-xl" style={box} />
           <input value={horaFin} onChange={(e) => setHoraFin(e.target.value)} placeholder="Hora hasta. Ej: 16:00" inputMode="numeric" className="rounded-xl" style={box} />
-          <p className="text-xs" style={{ color: "#7a7268" }}>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
             Sin horas = bloquea el día entero
           </p>
           <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Feriado, almuerzo, vacaciones..." className="rounded-xl" style={box} />
-          <button disabled={saving} className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1C1712", color: "#F5F0E8" }}>
+          <button disabled={saving} className="w-full rounded-2xl py-3 font-medium" style={{ background: "var(--btn)", color: "var(--btn-text)" }}>
             {saving ? "Guardando..." : "Bloquear"}
           </button>
         </form>
 
-        {bloqueos.map((b) => {
-          const desde = new Date(b.fecha_inicio);
-          const hasta = new Date(b.fecha_fin);
-          const dia = desde.toLocaleDateString("es-UY");
-          const rangoHora = b.todo_el_dia
-            ? "Todo el día"
-            : `${desde.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })} – ${hasta.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}`;
-          return (
-            <div key={b.id} className="rounded-2xl p-4 mb-3 flex justify-between gap-3" style={{ background: "#fff", border: "1px solid #ddd4c8" }}>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium break-words">{dia}</p>
-                <p className="text-sm">{rangoHora}</p>
-                <p className="text-sm break-words" style={{ color: "#7a7268" }}>{b.motivo}</p>
-              </div>
-              <button type="button" onClick={() => void eliminar(b.id)} className="text-sm text-red-500 shrink-0">
-                Quitar
-              </button>
+        {bloqueos.map((b) => (
+          <div key={b.id} className="rounded-2xl p-4 mb-3 flex justify-between gap-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                {new Date(b.fecha_inicio).toLocaleString("es-UY", { timeZone: "America/Montevideo" })}
+                {" → "}
+                {new Date(b.fecha_fin).toLocaleString("es-UY", { timeZone: "America/Montevideo" })}
+              </p>
+              <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+                {b.todo_el_dia ? "Día entero" : "Rango de horas"}
+                {b.motivo ? ` · ${b.motivo}` : ""}
+              </p>
             </div>
-          );
-        })}
+            <button type="button" className="text-xs shrink-0" style={{ color: "var(--muted)" }} onClick={() => void eliminar(b.id)}>
+              Quitar
+            </button>
+          </div>
+        ))}
       </div>
     </main>
   );
