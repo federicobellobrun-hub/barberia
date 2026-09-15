@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+const LIMITE_TRIAL = 40;
+
 function admin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -27,26 +29,27 @@ function fechaUy(fechaHora: string) {
   return new Date(fechaHora).toLocaleDateString("es-UY", { timeZone: "America/Montevideo" });
 }
 
+function mesUy() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Montevideo" }).slice(0, 7);
+}
+
 async function sendTemplate(to: string, name: string, params: string[]) {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!token || !phoneId) return { ok: false, motivo: "Falta token" };
-
-  const body = {
-    messaging_product: "whatsapp",
-    to,
-    type: "template",
-    template: {
-      name,
-      language: { code: "es_UY" },
-      components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }],
-    },
-  };
-
   const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "template",
+      template: {
+        name,
+        language: { code: "es_UY" },
+        components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }],
+      },
+    }),
   });
   const data = await res.json();
   if (!res.ok) return { ok: false, motivo: data?.error?.message || JSON.stringify(data), plantilla: name, params };
@@ -60,7 +63,7 @@ export async function POST(req: Request) {
   const supabase = admin();
   const { data: t, error } = await supabase
     .from("turnos")
-    .select("id, fecha_hora, barberia_id, clientes(nombre, telefono), barberias(nombre, modo_whatsapp, whatsapp_pedidos)")
+    .select("id, fecha_hora, barberia_id, clientes(nombre, telefono), barberias(id, nombre, modo_whatsapp, whatsapp_pedidos, plan, wa_mes, wa_enviados)")
     .eq("id", turnoId)
     .maybeSingle();
 
@@ -73,12 +76,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, skipped: "manual", shop });
   }
 
+  const mes = mesUy();
+  const usados = shop.wa_mes === mes ? Number(shop.wa_enviados || 0) : 0;
+  if (shop.plan === "trial" && usados >= LIMITE_TRIAL) {
+    return NextResponse.json({ ok: true, skipped: "limite_trial", usados, limite: LIMITE_TRIAL });
+  }
+
   const fecha = fechaUy(t.fecha_hora);
   const hora = horaUy(t.fecha_hora);
   const local = shop.nombre || "la barbería";
-  const telLocal = shop.whatsapp_pedidos
-    ? waNumber(String(shop.whatsapp_pedidos)).replace(/^598/, "0")
-    : "el local";
+  const telLocal = shop.whatsapp_pedidos ? waNumber(String(shop.whatsapp_pedidos)).replace(/^598/, "0") : "el local";
   const conf = process.env.WHATSAPP_TEMPLATE_CONFIRMACION || "reserva_confirmada_v2";
   const aviso = process.env.WHATSAPP_TEMPLATE_AVISO_BARBERO || "aviso_barbero";
 
@@ -87,27 +94,21 @@ export async function POST(req: Request) {
   if (cliente?.telefono) {
     resultados.push({
       a: "cliente",
-      ...(await sendTemplate(waNumber(cliente.telefono), conf, [
-        cliente.nombre || "cliente",
-        fecha,
-        hora,
-        local,
-        telLocal,
-      ])),
+      ...(await sendTemplate(waNumber(cliente.telefono), conf, [cliente.nombre || "cliente", fecha, hora, local, telLocal])),
     });
   }
 
   if (!soloCliente && shop.whatsapp_pedidos) {
     resultados.push({
       a: "barbero",
-      ...(await sendTemplate(waNumber(shop.whatsapp_pedidos), aviso, [
-        cliente?.nombre || "cliente",
-        local,
-        fecha,
-        hora,
-      ])),
+      ...(await sendTemplate(waNumber(shop.whatsapp_pedidos), aviso, [cliente?.nombre || "cliente", local, fecha, hora])),
     });
   }
 
-  return NextResponse.json({ ok: true, shop, plantillas: { conf, aviso }, resultados });
+  const okCount = resultados.filter((r) => r.ok).length;
+  if (okCount > 0) {
+    await supabase.from("barberias").update({ wa_mes: mes, wa_enviados: usados + okCount }).eq("id", shop.id);
+  }
+
+  return NextResponse.json({ ok: true, shop, usados: usados + okCount, plantillas: { conf, aviso }, resultados });
 }
