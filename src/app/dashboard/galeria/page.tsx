@@ -8,6 +8,16 @@ import ThemeToggle from "@/components/ThemeToggle";
 
 type Foto = { id: string; url: string; mostrar_inicio: boolean | null };
 
+function shopActual() {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search).get("shop");
+  if (q) {
+    localStorage.setItem("admin_shop", q);
+    return q;
+  }
+  return localStorage.getItem("admin_shop");
+}
+
 export default function GaleriaPage() {
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -15,14 +25,11 @@ export default function GaleriaPage() {
   const [subiendo, setSubiendo] = useState(false);
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const router = useRouter();
+  const shopQ = shopActual() ? `?shop=${shopActual()}` : "";
 
   const load = async (shopId: string) => {
     const supabase = createClient();
-    const { data, error: e } = await supabase
-      .from("fotos")
-      .select("id, url, mostrar_inicio")
-      .eq("barberia_id", shopId)
-      .order("created_at", { ascending: false });
+    const { data, error: e } = await supabase.from("fotos").select("id, url, mostrar_inicio").eq("barberia_id", shopId).order("created_at", { ascending: false });
     if (e) setError(e.message);
     setFotos(data || []);
   };
@@ -34,13 +41,19 @@ export default function GaleriaPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      const { data: yo } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
-      if (!yo?.barberia_id) {
+      const slug = shopActual();
+      const { data: yo } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", user.id).maybeSingle();
+      let id = yo?.barberia_id as string | null;
+      if (yo?.rol === "superadmin" && slug) {
+        const { data: shop } = await supabase.from("barberias").select("id").eq("slug", slug).maybeSingle();
+        if (shop) id = shop.id;
+      }
+      if (!id) {
         setError("Este usuario no tiene local");
         return;
       }
-      setBarberiaId(yo.barberia_id);
-      await load(yo.barberia_id);
+      setBarberiaId(id);
+      await load(id);
     };
     void init();
   }, [router]);
@@ -58,11 +71,7 @@ export default function GaleriaPage() {
       return setError(upErr.message);
     }
     const { data } = supabase.storage.from("fotos").getPublicUrl(path);
-    const { error: e } = await supabase.from("fotos").insert({
-      barberia_id: barberiaId,
-      url: data.publicUrl,
-      mostrar_inicio: true,
-    });
+    const { error: e } = await supabase.from("fotos").insert({ barberia_id: barberiaId, url: data.publicUrl, mostrar_inicio: true });
     setSubiendo(false);
     if (e) setError(e.message);
     else {
@@ -91,14 +100,13 @@ export default function GaleriaPage() {
     <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-4">
         <header className="flex items-center justify-between mb-6">
-          <Link href="/dashboard/mas">‹</Link>
+          <Link href={`/dashboard/mas${shopQ}`}>‹</Link>
           <ThemeToggle />
         </header>
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Galería</h1>
         <p className="mb-4 text-sm" style={{ color: "var(--muted)" }}>
           Fotos del local en la pantalla principal
         </p>
-
         <label className="mb-6 block rounded-2xl p-4 text-center text-sm cursor-pointer" style={{ background: "var(--card)", border: "1px dashed var(--line)" }}>
           {subiendo ? "Subiendo..." : "Subir foto"}
           <input
@@ -113,27 +121,26 @@ export default function GaleriaPage() {
             }}
           />
         </label>
-
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         {msg && <p className="text-sm mb-4">{msg}</p>}
-        {fotos.length === 0 && !error && <p className="text-sm" style={{ color: "var(--muted)" }}>Este local todavía no tiene fotos.</p>}
-
+        {fotos.length === 0 && !error && (
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            Este local todavía no tiene fotos.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-3">
           {fotos.map((f) => (
             <div key={f.id} className="rounded-2xl overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
               <img src={f.url} alt="" className="h-36 w-full object-cover" />
               <div className="p-2 space-y-2">
                 <button
-                  onClick={() => toggle(f)}
+                  onClick={() => void toggle(f)}
                   className="w-full rounded-xl py-2 text-xs"
-                  style={{
-                    background: f.mostrar_inicio === false ? "var(--bg)" : "#1c1712",
-                    color: f.mostrar_inicio === false ? "var(--text)" : "#f4efe6",
-                  }}
+                  style={{ background: f.mostrar_inicio === false ? "var(--bg)" : "#1c1712", color: f.mostrar_inicio === false ? "var(--text)" : "#f4efe6" }}
                 >
                   {f.mostrar_inicio === false ? "Oculta" : "En inicio"}
                 </button>
-                <button onClick={() => borrar(f.id)} className="w-full text-xs text-red-500">
+                <button onClick={() => void borrar(f.id)} className="w-full text-xs text-red-500">
                   Borrar
                 </button>
               </div>
