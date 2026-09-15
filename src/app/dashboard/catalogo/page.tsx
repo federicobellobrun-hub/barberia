@@ -9,6 +9,7 @@ import BrandHeader from "@/components/BrandHeader";
 type Servicio = {
   id: string;
   nombre: string;
+  descripcion: string | null;
   duracion_minutos: number;
   precio: number;
   activo: boolean;
@@ -23,6 +24,7 @@ export default function CatalogoPage() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sNombre, setSNombre] = useState("");
+  const [sDetalle, setSDetalle] = useState("");
   const [sCategoria, setSCategoria] = useState("");
   const [sDuracion, setSDuracion] = useState("30");
   const [sPrecio, setSPrecio] = useState("");
@@ -34,7 +36,7 @@ export default function CatalogoPage() {
     const supabase = createClient();
     const { data, error: e } = await supabase
       .from("servicios")
-      .select("id, nombre, duracion_minutos, precio, activo, imagen_url, categoria, sena")
+      .select("id, nombre, descripcion, duracion_minutos, precio, activo, imagen_url, categoria, sena")
       .eq("barberia_id", id)
       .order("orden");
     if (e) setError(e.message);
@@ -65,6 +67,7 @@ export default function CatalogoPage() {
     const { error: e1 } = await supabase.from("servicios").insert({
       barberia_id: barberiaId,
       nombre: sNombre,
+      descripcion: sDetalle.trim() || null,
       categoria: sCategoria.trim() || null,
       duracion_minutos: Number(sDuracion),
       precio: Number(sPrecio),
@@ -74,6 +77,7 @@ export default function CatalogoPage() {
     });
     if (e1) return setError(e1.message);
     setSNombre("");
+    setSDetalle("");
     setSCategoria("");
     setSDuracion("30");
     setSPrecio("");
@@ -87,6 +91,7 @@ export default function CatalogoPage() {
       .from("servicios")
       .update({
         nombre: s.nombre,
+        descripcion: s.descripcion?.trim() || null,
         categoria: s.categoria,
         duracion_minutos: s.duracion_minutos,
         precio: s.precio,
@@ -132,6 +137,14 @@ export default function CatalogoPage() {
 
         <form onSubmit={addServicio} className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
           <input required value={sNombre} onChange={(e) => setSNombre(e.target.value)} placeholder={rosa ? "Nombre. Ej: Lifting" : "Nombre. Ej: Corte fade"} className={campo} style={estilo} />
+          <input
+            value={sDetalle}
+            onChange={(e) => setSDetalle(e.target.value)}
+            maxLength={80}
+            placeholder={rosa ? "Detalle. Ej: 2D, pelo a pelo" : "Detalle. Ej: máquina + tijera"}
+            className={campo}
+            style={estilo}
+          />
           <input value={sCategoria} onChange={(e) => setSCategoria(e.target.value)} placeholder={rosa ? "Categoría. Ej: Pestañas" : "Categoría. Ej: Cortes"} className={campo} style={estilo} />
           <div className="grid grid-cols-3 gap-2">
             <input required value={sDuracion} onChange={(e) => setSDuracion(e.target.value)} placeholder="Min" className="rounded-xl px-3 py-3" style={estilo} />
@@ -145,20 +158,30 @@ export default function CatalogoPage() {
 
         {servicios.map((s) => (
           <div key={s.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)", opacity: s.activo ? 1 : 0.55 }}>
-            {s.imagen_url && <img src={s.imagen_url} alt="" className="h-28 w-full object-cover rounded-xl" />}
-            <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subirFotoServicio(s.id, file); }} />
-            <input value={s.nombre} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, nombre: e.target.value } : x)))} className={campo} style={estilo} />
-            <input value={s.categoria || ""} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, categoria: e.target.value } : x)))} placeholder="Categoría" className={campo} style={estilo} />
+            {s.imagen_url && <img src={s.imagen_url} alt="" className="h-36 w-full object-cover rounded-xl" />}
+            <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && void subirFotoServicio(s.id, e.target.files[0])} />
+            <input value={s.nombre} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, nombre: e.target.value } : x)))} onBlur={() => void updateServicio(s)} className={campo} style={estilo} />
+            <input
+              value={s.descripcion || ""}
+              maxLength={80}
+              placeholder="Detalle del servicio"
+              onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, descripcion: e.target.value } : x)))}
+              onBlur={() => void updateServicio(s)}
+              className={campo}
+              style={estilo}
+            />
+            <input value={s.categoria || ""} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, categoria: e.target.value } : x)))} onBlur={() => void updateServicio(s)} className={campo} style={estilo} />
             <div className="grid grid-cols-3 gap-2">
-              <input type="number" value={s.duracion_minutos} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, duracion_minutos: Number(e.target.value) } : x)))} className="rounded-xl px-3 py-2" style={estilo} />
-              <input type="number" value={s.precio} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, precio: Number(e.target.value) } : x)))} className="rounded-xl px-3 py-2" style={estilo} />
-              <input type="number" value={s.sena || 0} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, sena: Number(e.target.value) } : x)))} className="rounded-xl px-3 py-2" style={estilo} />
+              <input value={s.duracion_minutos} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, duracion_minutos: Number(e.target.value) } : x)))} onBlur={() => void updateServicio(s)} className="rounded-xl px-3 py-3" style={estilo} />
+              <input value={s.precio} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, precio: Number(e.target.value) } : x)))} onBlur={() => void updateServicio(s)} className="rounded-xl px-3 py-3" style={estilo} />
+              <input value={s.sena || 0} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, sena: Number(e.target.value) } : x)))} onBlur={() => void updateServicio(s)} className="rounded-xl px-3 py-3" style={estilo} />
             </div>
-            <p className="text-xs" style={{ color: "var(--muted)" }}>Minutos · Precio · Seña</p>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => void updateServicio(s)} className="flex-1 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
-              <button type="button" onClick={() => void ocultarServicio(s.id, !s.activo)} className="px-4 rounded-xl text-sm">{s.activo ? "Ocultar" : "Mostrar"}</button>
-            </div>
+            <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+              Minutos · Precio · Seña
+            </p>
+            <button type="button" onClick={() => void ocultarServicio(s.id, !s.activo)} className="text-xs" style={{ color: "var(--muted)" }}>
+              {s.activo ? "Ocultar" : "Mostrar"}
+            </button>
           </div>
         ))}
       </div>
