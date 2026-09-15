@@ -14,6 +14,8 @@ type Barberia = {
   rubro: string | null;
   plan: string | null;
   trial_hasta: string | null;
+  wa_mes: string | null;
+  wa_enviados: number | null;
 };
 
 const RUBROS = [
@@ -24,6 +26,12 @@ const RUBROS = [
   { id: "otro", titulo: "Otros", desc: "Cualquier otro local con agenda" },
 ] as const;
 
+const LIMITE_TRIAL = 40;
+
+function mesUy() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Montevideo" }).slice(0, 7);
+}
+
 function etiquetaPlan(b: Barberia) {
   if (b.plan === "trial") {
     const vence = b.trial_hasta ? new Date(b.trial_hasta).toLocaleDateString("es-UY") : "";
@@ -32,6 +40,13 @@ function etiquetaPlan(b: Barberia) {
   }
   if (b.plan === "automatico") return "Plan automático";
   return "Plan manual";
+}
+
+function etiquetaWa(b: Barberia) {
+  const n = b.wa_mes === mesUy() ? Number(b.wa_enviados || 0) : 0;
+  if (b.modo_whatsapp !== "automatico") return "WhatsApp manual · 0 API";
+  if (b.plan === "trial") return `WhatsApp ${n} / ${LIMITE_TRIAL} este mes`;
+  return `WhatsApp ${n} este mes`;
 }
 
 export default function PanelReservo() {
@@ -63,7 +78,7 @@ export default function PanelReservo() {
     }
     const { data } = await supabase
       .from("barberias")
-      .select("id,nombre,slug,activo,modo_whatsapp,rubro,plan,trial_hasta")
+      .select("id,nombre,slug,activo,modo_whatsapp,rubro,plan,trial_hasta,wa_mes,wa_enviados")
       .order("nombre");
     setLista((data as Barberia[] | null) ?? []);
     setOk(true);
@@ -199,8 +214,11 @@ export default function PanelReservo() {
                   /b/{b.slug}
                   {b.slug === "diano" ? " · Demo" : ""}
                 </p>
-                <p className="text-xs mb-3" style={{ color: b.plan === "trial" ? "#8B3A3A" : "#7a7268" }}>
+                <p className="text-xs mb-1" style={{ color: b.plan === "trial" ? "#8B3A3A" : "#7a7268" }}>
                   {etiquetaPlan(b)}
+                </p>
+                <p className="text-xs mb-3" style={{ color: "#7a7268" }}>
+                  {etiquetaWa(b)}
                 </p>
                 <div className="flex flex-wrap gap-2 mb-3">
                   <button
