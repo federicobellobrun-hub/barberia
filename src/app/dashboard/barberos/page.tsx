@@ -9,6 +9,16 @@ import BrandHeader from "@/components/BrandHeader";
 
 type Barbero = { id: string; nombre: string; foto_url: string | null; activo: boolean };
 
+function shopActual() {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search).get("shop");
+  if (q) {
+    localStorage.setItem("admin_shop", q);
+    return q;
+  }
+  return localStorage.getItem("admin_shop");
+}
+
 export default function BarberosPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [rubro, setRubro] = useState("barberia");
@@ -24,6 +34,7 @@ export default function BarberosPage() {
   const rosa = rubro === "pestanas_unas";
   const titulo = rosa ? "Equipo" : "Barberos";
   const uno = rosa ? "profesional" : "barbero";
+  const shopQ = shopActual() ? `?shop=${shopActual()}` : "";
 
   const load = async (id: string) => {
     const supabase = createClient();
@@ -39,12 +50,22 @@ export default function BarberosPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
-      const { data } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", user.id).maybeSingle();
-      if (!data?.barberia_id) return;
-      setBarberiaId(data.barberia_id);
-      const { data: shop } = await supabase.from("barberias").select("rubro").eq("id", data.barberia_id).maybeSingle();
-      setRubro(shop?.rubro || "barberia");
-      await load(data.barberia_id);
+      const slug = shopActual();
+      const { data } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", user.id).maybeSingle();
+      let id = data?.barberia_id as string | null;
+      if (data?.rol === "superadmin" && slug) {
+        const { data: shop } = await supabase.from("barberias").select("id, rubro").eq("slug", slug).maybeSingle();
+        if (shop) {
+          id = shop.id;
+          setRubro(shop.rubro || "barberia");
+        }
+      } else if (id) {
+        const { data: shop } = await supabase.from("barberias").select("rubro").eq("id", id).maybeSingle();
+        setRubro(shop?.rubro || "barberia");
+      }
+      if (!id) return;
+      setBarberiaId(id);
+      await load(id);
     };
     void init();
   }, [router]);
@@ -142,10 +163,13 @@ export default function BarberosPage() {
     else await load(barberiaId);
   };
 
+  const campo = "w-full rounded-xl px-3 py-3";
+  const estilo = { background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" };
+
   return (
     <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader left={<Link href="/dashboard/mas">‹</Link>} />
+        <BrandHeader left={<Link href={`/dashboard/mas${shopQ}`}>‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-5">{titulo}</h1>
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
         {msg && <p className="text-sm mb-3">{msg}</p>}
@@ -161,40 +185,45 @@ export default function BarberosPage() {
               setPreview(file ? URL.createObjectURL(file) : null);
             }}
           />
-          <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={`Nombre ${rosa ? "de la profesional" : "del barbero"}`} className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (opcional, para que entre)" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-          <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña (opcional)" className="w-full rounded-xl px-3 py-3" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
+          <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={rosa ? "Nombre de la profesional" : "Nombre del barbero"} className={campo} style={estilo} />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (opcional, para que entre)" className={campo} style={estilo} />
+          <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña (mínimo 6)" className={campo} style={estilo} />
           <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
-            Agregar
+            Agregar {uno}
           </button>
         </form>
 
         {barberos.map((b) => (
-          <div key={b.id} className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <div key={b.id} className="rounded-2xl p-4 mb-3 flex gap-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             {b.foto_url ? (
-              <img src={b.foto_url} alt="" className="h-20 w-20 object-cover rounded-full mb-3" />
+              <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full" />
             ) : (
-              <div className="h-20 w-20 rounded-full mb-3 flex items-center justify-center" style={{ background: "var(--bg)" }}>
+              <div className="h-14 w-14 rounded-full flex items-center justify-center" style={{ background: "var(--bg)" }}>
                 {b.nombre.slice(0, 1)}
               </div>
             )}
-            <p className="font-medium mb-2">{b.nombre}</p>
-            <input
-              type="file"
-              accept="image/*"
-              className="text-sm mb-3"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void cambiarFoto(b.id, file);
-              }}
-            />
-            <div className="flex gap-4 text-sm">
-              <button type="button" onClick={() => void accesoExistente(b.id)}>
-                Dar acceso
-              </button>
-              <button type="button" onClick={() => void borrar(b.id)} className="text-red-500">
-                Borrar
-              </button>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">{b.nombre}</p>
+              <div className="flex flex-wrap gap-3 mt-2 text-xs">
+                <label className="cursor-pointer" style={{ color: "var(--muted)" }}>
+                  Foto
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void cambiarFoto(b.id, file);
+                    }}
+                  />
+                </label>
+                <button type="button" onClick={() => void accesoExistente(b.id)} style={{ color: "var(--muted)" }}>
+                  Dar acceso
+                </button>
+                <button type="button" onClick={() => void borrar(b.id)} className="text-red-500">
+                  Borrar
+                </button>
+              </div>
             </div>
           </div>
         ))}
