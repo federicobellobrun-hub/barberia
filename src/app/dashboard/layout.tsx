@@ -54,6 +54,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         estilo = shop?.estilo || "auto";
         rubro = shop?.rubro || "barberia";
         if (shop?.slug) localStorage.setItem("barberia_slug", shop.slug);
+                if (shop?.slug) {
+          localStorage.setItem("barberia_slug", shop.slug);
+          localStorage.setItem("admin_shop", shop.slug);
+        }
       } else if (yo?.barberia_id) {
         const { data: shop } = await supabase
           .from("barberias")
