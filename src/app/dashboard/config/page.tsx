@@ -91,6 +91,22 @@ export default function ConfigPage() {
     void load();
   }, [router]);
 
+  const pagar = async (tipo: "manual" | "automatico") => {
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    const jwt = data.session?.access_token;
+    if (!jwt) return setError("Sesión vencida");
+    const shop = shopActual();
+    const res = await fetch(`/api/billing/checkout${shop ? `?shop=${shop}` : ""}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + jwt },
+      body: JSON.stringify({ plan: tipo }),
+    });
+    const json = (await res.json()) as { url?: string; error?: string };
+    if (!res.ok || !json.url) return setError(json.error || "No se pudo iniciar el pago");
+    window.location.href = json.url;
+  };
+
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return setError("No se encontró la barbería");
@@ -144,34 +160,34 @@ export default function ConfigPage() {
         <BrandHeader left={<Link href={`/dashboard/mas${shopQ}`}>‹</Link>} />
         <h1 className="text-[34px] font-semibold tracking-tight mb-2">Configuración</h1>
         {modoWa === "automatico" && (
-          <p className="text-sm mb-5" style={{ color: "var(--muted)" }}>
+          <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
             WhatsApp este mes: {usados}
             {plan === "trial" ? " / 40" : ""}
           </p>
         )}
+
+        <div className="rounded-2xl p-4 mb-6 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <p className="font-medium">Plan</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            {plan === "trial" ? "Prueba de 7 días" : plan === "automatico" ? "Automático" : "Manual"}
+          </p>
+          <button type="button" className="w-full rounded-2xl py-3 text-sm" style={{ border: "1px solid var(--line)" }} onClick={() => void pagar("manual")}>
+            Activar manual · $990 / mes
+          </button>
+          <button type="button" className="w-full rounded-2xl py-3 text-sm font-medium" style={{ background: "#1c1712", color: "#f4efe6" }} onClick={() => void pagar("automatico")}>
+            Activar automático · $1.990 / mes
+          </button>
+        </div>
+
         <form onSubmit={guardar} className="space-y-3">
           {error && <p className="text-red-500 text-sm">{error}</p>}
           {ok && <p className="text-sm">{ok}</p>}
           {logo && <img src={logo} alt="Logo" className="h-20 w-20 object-contain rounded-full mx-auto" />}
           <p className="text-sm">Logo</p>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void subir(file, "logo");
-            }}
-          />
+          <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subir(file, "logo"); }} />
           {portada && <img src={portada} alt="Portada" className="h-32 w-full object-cover rounded-2xl" />}
           <p className="text-sm">Foto de portada</p>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void subir(file, "portada");
-            }}
-          />
+          <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subir(file, "portada"); }} />
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del local" className={campo} style={estiloInput} />
           <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp. Ej: 099123456" className={campo} style={estiloInput} />
           <input value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Dirección" className={campo} style={estiloInput} />
