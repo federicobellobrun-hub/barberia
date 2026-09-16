@@ -172,10 +172,10 @@ export default function ConfigPage() {
             {plan === "trial" ? "Prueba de 7 días" : plan === "automatico" ? "Automático" : "Manual"}
           </p>
           <button type="button" className="w-full rounded-2xl py-3 text-sm" style={{ border: "1px solid var(--line)" }} onClick={() => void pagar("manual")}>
-            Activar manual · $990 / mes
+            Activar manual · $890 / mes
           </button>
           <button type="button" className="w-full rounded-2xl py-3 text-sm font-medium" style={{ background: "#1c1712", color: "#f4efe6" }} onClick={() => void pagar("automatico")}>
-            Activar automático · $1.990 / mes
+            Activar automático · $1.490 / mes
           </button>
         </div>
 
