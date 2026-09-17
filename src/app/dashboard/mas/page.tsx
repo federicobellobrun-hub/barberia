@@ -49,7 +49,7 @@ function MasInner() {
 
       const equipo = rubro === "pestanas_unas" ? "Equipo" : "Barberos";
 
-      const dueño: Item[] = [
+           const dueño: Item[] = [
         { href: `/dashboard${q}`, t: "Agenda", d: "M4 6h16M4 10h16M4 14h10" },
         { href: `/dashboard/nuevo${q}`, t: "Nuevo turno", d: "M12 5v14M5 12h14" },
         { href: `/dashboard/clientes${q}`, t: "Clientes", d: "M12 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 19c1.5-3 4-5 7-5s5.5 2 7 5" },
@@ -57,6 +57,7 @@ function MasInner() {
         { href: `/dashboard/productos${q}`, t: "Productos", d: "M4 8h16l-1 11H5L4 8zM9 8V6a3 3 0 0 1 6 0v2" },
         { href: `/dashboard/resenas${q}`, t: "Reseñas", d: "M12 3l2.2 6.6H21l-5.4 4 2.1 6.4L12 16.8 6.3 20l2.1-6.4L3 9.6h6.8z" },
         { href: `/dashboard/bloqueos${q}`, t: "Bloqueos", d: "M7 11V8a5 5 0 0 1 10 0v3M6 11h12v10H6z" },
+        { href: `/dashboard/espera${q}`, t: "Espera", d: "M12 7v5l3 2M5 19h14M8 19v-2M16 19v-2" },
         { href: `/dashboard/galeria${q}`, t: "Galería", d: "M4 6h16v12H4zM8 16l3-4 2 3 2-2 3 3" },
         { href: `/dashboard/horarios${q}`, t: "Horarios", d: "M12 7v5l3 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z" },
         { href: `/dashboard/caja${q}`, t: "Caja", d: "M4 8h16v10H4zM8 8V6h8v2" },
