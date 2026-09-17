@@ -113,12 +113,14 @@ function ReservarPage() {
         const supabase = createClient();
         const { data: shop, error: shopErr } = await supabase
           .from("barberias")
-          .select("id, rubro, estilo, whatsapp_pedidos, datos_cuenta, mercado_pago_url, pedido_sena, plan, trial_hasta")
+          .select("id, slug, rubro, estilo, whatsapp_pedidos, datos_cuenta, mercado_pago_url, pedido_sena, plan, trial_hasta, plan_hasta")
           .eq("slug", slug)
           .maybeSingle();
         if (shopErr || !shop) throw new Error("No se encontró el local");
         setBarberiaId(shop.id);
-        setTrialVencida(shop.plan === "trial" && !!shop.trial_hasta && new Date(shop.trial_hasta) < new Date());
+        const trialCaida = shop.plan === "trial" && !!shop.trial_hasta && new Date(shop.trial_hasta) < new Date();
+        const planCaido = !!shop.plan_hasta && new Date(`${shop.plan_hasta}T23:59:59-03:00`) < new Date();
+        setTrialVencida(shop.slug !== "diano" && (trialCaida || planCaido));
         const r = shop.rubro || "barberia";
         const pack = shop.estilo || "auto";
         setRubro(r);
@@ -239,7 +241,7 @@ function ReservarPage() {
 
   const guardar = async (e: FormEvent) => {
     e.preventDefault();
-    if (trialVencida) return setError("La prueba de 7 días terminó.");
+    if (trialVencida) return setError("La agenda está pausada.");
     if (!servicio || !fecha || !hora) return;
     if (barberos.length > 0 && !barbero) return setError(rosa ? "Elegí una profesional" : "Elegí un barbero");
     if (pideSena && !metodoSena) return setError("Elegí cómo pagar la seña");
@@ -399,9 +401,9 @@ function ReservarPage() {
 
         {trialVencida && (
           <div className="rounded-2xl px-4 py-4 mb-5" style={{ background: t.card, border: `1px solid ${t.line}` }}>
-            <p className="text-sm font-medium mb-1">La prueba de 7 días terminó</p>
+            <p className="text-sm font-medium mb-1">La agenda está pausada</p>
             <p className="text-xs leading-5" style={{ color: t.muted }}>
-              El local sigue visible. Para volver a tomar reservas, el dueño activa el plan.
+              El plan venció. El dueño lo activa de nuevo desde Configuración.
             </p>
           </div>
         )}
