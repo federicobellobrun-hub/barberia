@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import BottomNav from "@/components/BottomNav";
-import { temaPack, aplicarTema } from "@/lib/rubro";
+import { temaLocal, aplicarTema } from "@/lib/rubro";
 
 type Servicio = {
   id: string;
@@ -73,6 +73,8 @@ function ReservarPage() {
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [rubro, setRubro] = useState(() => (typeof window === "undefined" ? "barberia" : localStorage.getItem("rubro_" + slug) || "barberia"));
   const [estilo, setEstilo] = useState(() => (typeof window === "undefined" ? "auto" : localStorage.getItem("estilo_" + slug) || "auto"));
+  const [colorFondo, setColorFondo] = useState<string | null>(null);
+  const [colorBoton, setColorBoton] = useState<string | null>(null);
   const [pago, setPago] = useState<PagoShop | null>(null);
   const [trialVencida, setTrialVencida] = useState(false);
   const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -97,14 +99,14 @@ function ReservarPage() {
   const [esperaOk, setEsperaOk] = useState(false);
   const [mes, setMes] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
-  const t = temaPack(estilo, rubro);
+  const t = temaLocal(estilo, rubro, colorFondo, colorBoton);
   const rosa = t.pack === "rosa";
   const radio = rosa ? 999 : 16;
   const mpLink = pago?.mercado_pago_url ? linkHttps(pago.mercado_pago_url) : "";
 
   useEffect(() => {
-    aplicarTema(t);
-  }, [estilo, rubro]);
+    aplicarTema(t, { fondo: colorFondo, boton: colorBoton });
+  }, [estilo, rubro, colorFondo, colorBoton]);
 
   useEffect(() => {
     if (slug && slug !== "reservoapps.com") localStorage.setItem("barberia_slug", slug);
@@ -113,7 +115,7 @@ function ReservarPage() {
         const supabase = createClient();
         const { data: shop, error: shopErr } = await supabase
           .from("barberias")
-          .select("id, slug, rubro, estilo, whatsapp_pedidos, datos_cuenta, mercado_pago_url, pedido_sena, plan, trial_hasta, plan_hasta")
+          .select("id, slug, rubro, estilo, whatsapp_pedidos, datos_cuenta, mercado_pago_url, pedido_sena, plan, trial_hasta, plan_hasta, color_fondo, color_boton")
           .eq("slug", slug)
           .maybeSingle();
         if (shopErr || !shop) throw new Error("No se encontró el local");
@@ -125,9 +127,11 @@ function ReservarPage() {
         const pack = shop.estilo || "auto";
         setRubro(r);
         setEstilo(pack);
+        setColorFondo(shop.color_fondo || null);
+        setColorBoton(shop.color_boton || null);
         localStorage.setItem("rubro_" + slug, r);
         localStorage.setItem("estilo_" + slug, pack);
-        aplicarTema(temaPack(pack, r));
+        aplicarTema(temaLocal(pack, r, shop.color_fondo, shop.color_boton), { fondo: shop.color_fondo, boton: shop.color_boton });
         setPago({
           whatsapp_pedidos: shop.whatsapp_pedidos,
           datos_cuenta: shop.datos_cuenta,
