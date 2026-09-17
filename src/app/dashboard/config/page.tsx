@@ -50,6 +50,8 @@ export default function ConfigPage() {
   const [pedirSena, setPedirSena] = useState(false);
   const [mostrarResenas, setMostrarResenas] = useState(true);
   const [estilo, setEstilo] = useState("auto");
+  const [colorFondo, setColorFondo] = useState("");
+  const [colorBoton, setColorBoton] = useState("");
   const [plan, setPlan] = useState("");
   const [planHasta, setPlanHasta] = useState<string | null>(null);
   const [modoWa, setModoWa] = useState("manual");
@@ -84,7 +86,7 @@ export default function ConfigPage() {
       const [{ data }, { data: aj }] = await Promise.all([
         supabase
           .from("barberias")
-          .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, plan_hasta, modo_whatsapp, wa_mes, wa_enviados")
+          .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, plan_hasta, modo_whatsapp, wa_mes, wa_enviados, color_fondo, color_boton")
           .eq("id", barberiaId)
           .maybeSingle(),
         supabase.from("reservo_ajustes").select("whatsapp_cobranza, banco, titular, cuenta, moneda").eq("id", 1).maybeSingle(),
@@ -106,6 +108,8 @@ export default function ConfigPage() {
       setPedirSena(data.pedido_sena === true);
       setMostrarResenas(data.mostrar_resenas !== false);
       setEstilo(data.estilo || "auto");
+      setColorFondo(data.color_fondo || "");
+      setColorBoton(data.color_boton || "");
       setPlan(data.plan || "");
       setPlanHasta(data.plan_hasta || null);
       setModoWa(data.modo_whatsapp || "manual");
@@ -150,6 +154,8 @@ export default function ConfigPage() {
         pedido_sena: pedirSena,
         mostrar_resenas: mostrarResenas,
         estilo,
+        color_fondo: colorFondo || null,
+        color_boton: colorBoton || null,
       })
       .eq("id", id);
     if (e1) setError(e1.message);
@@ -260,6 +266,22 @@ export default function ConfigPage() {
               </option>
             ))}
           </select>
+          <p className="text-sm pt-2">Colores propios (opcional)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-sm">
+              Fondo
+              <input type="color" value={colorFondo || "#F5F0E8"} onChange={(e) => setColorFondo(e.target.value)} className="mt-1 h-10 w-full" />
+            </label>
+            <label className="text-sm">
+              Botón
+              <input type="color" value={colorBoton || "#1C1712"} onChange={(e) => setColorBoton(e.target.value)} className="mt-1 h-10 w-full" />
+            </label>
+          </div>
+          {(colorFondo || colorBoton) && (
+            <button type="button" className="text-sm" onClick={() => { setColorFondo(""); setColorBoton(""); }}>
+              Quitar colores propios
+            </button>
+          )}
           <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
             Guardar
           </button>
