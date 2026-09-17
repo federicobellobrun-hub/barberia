@@ -36,6 +36,7 @@ export default function ConfigPage() {
   const [mostrarResenas, setMostrarResenas] = useState(true);
   const [estilo, setEstilo] = useState("auto");
   const [plan, setPlan] = useState("");
+  const [planHasta, setPlanHasta] = useState<string | null>(null);
   const [modoWa, setModoWa] = useState("manual");
   const [waMes, setWaMes] = useState<string | null>(null);
   const [waEnviados, setWaEnviados] = useState(0);
@@ -46,6 +47,7 @@ export default function ConfigPage() {
   const router = useRouter();
   const shopQ = shopActual() ? `?shop=${shopActual()}` : "";
   const usados = waMes === mesUy() ? waEnviados : 0;
+  const diasPlan = planHasta ? Math.ceil((new Date(planHasta + "T12:00:00-03:00").getTime() - Date.now()) / 86400000) : null;
 
   useEffect(() => {
     const load = async () => {
@@ -64,7 +66,7 @@ export default function ConfigPage() {
       if (!barberiaId) return setError("Este usuario no tiene local vinculado");
       const { data } = await supabase
         .from("barberias")
-        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, modo_whatsapp, wa_mes, wa_enviados")
+        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, plan_hasta, modo_whatsapp, wa_mes, wa_enviados")
         .eq("id", barberiaId)
         .maybeSingle();
       if (!data) return setError("No se encontró la barbería");
@@ -84,6 +86,7 @@ export default function ConfigPage() {
       setMostrarResenas(data.mostrar_resenas !== false);
       setEstilo(data.estilo || "auto");
       setPlan(data.plan || "");
+      setPlanHasta(data.plan_hasta || null);
       setModoWa(data.modo_whatsapp || "manual");
       setWaMes(data.wa_mes || null);
       setWaEnviados(Number(data.wa_enviados || 0));
@@ -139,8 +142,8 @@ export default function ConfigPage() {
     const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
     if (upErr) return setError(upErr.message);
     const { data } = supabase.storage.from("fotos").getPublicUrl(path);
-    const campo = tipo === "logo" ? "logo_url" : "portada_url";
-    const { error: e1 } = await supabase.from("barberias").update({ [campo]: data.publicUrl }).eq("id", id);
+    const campoFoto = tipo === "logo" ? "logo_url" : "portada_url";
+    const { error: e1 } = await supabase.from("barberias").update({ [campoFoto]: data.publicUrl }).eq("id", id);
     if (e1) setError(e1.message);
     else if (tipo === "logo") {
       setLogo(data.publicUrl);
@@ -170,13 +173,26 @@ export default function ConfigPage() {
           <p className="font-medium">Plan</p>
           <p className="text-sm" style={{ color: "var(--muted)" }}>
             {plan === "trial" ? "Prueba de 7 días" : plan === "automatico" ? "Automático" : "Manual"}
+            {planHasta ? ` · vence ${new Date(planHasta + "T12:00:00-03:00").toLocaleDateString("es-UY")}` : ""}
+            {diasPlan !== null ? ` · ${Math.max(0, diasPlan)} días` : ""}
           </p>
           <button type="button" className="w-full rounded-2xl py-3 text-sm" style={{ border: "1px solid var(--line)" }} onClick={() => void pagar("manual")}>
-            Activar manual · $890 / mes
+            Activar manual con Mercado Pago
           </button>
           <button type="button" className="w-full rounded-2xl py-3 text-sm font-medium" style={{ background: "#1c1712", color: "#f4efe6" }} onClick={() => void pagar("automatico")}>
-            Activar automático · $1.490 / mes
+            Activar automático con Mercado Pago
           </button>
+          <p className="text-sm pt-2" style={{ color: "var(--muted)" }}>
+            O transferí y te habilitamos el mes a mano.
+          </p>
+          <p className="text-sm whitespace-pre-wrap">
+            Banco: BROU{"\n"}
+            Titular: Federico Yair Bello Brun{"\n"}
+            Cuenta: PONÉ ACÁ NÚMERO O ALIAS
+          </p>
+          <a href="https://wa.me/59897344643?text=Hola%2C%20transferí%20el%20plan%20de%20Reservo" target="_blank" rel="noreferrer" className="block text-center rounded-2xl py-3 text-sm" style={{ border: "1px solid var(--line)" }}>
+            Avisar transferencia por WhatsApp
+          </a>
         </div>
 
         <form onSubmit={guardar} className="space-y-3">
