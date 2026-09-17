@@ -21,6 +21,21 @@ function mesUy() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Montevideo" }).slice(0, 7);
 }
 
+function waNumber(telefono: string) {
+  const solo = telefono.replace(/\D/g, "");
+  if (solo.startsWith("598")) return solo;
+  if (solo.startsWith("0")) return `598${solo.slice(1)}`;
+  return `598${solo}`;
+}
+
+type Ajustes = {
+  whatsapp_cobranza: string | null;
+  banco: string | null;
+  titular: string | null;
+  cuenta: string | null;
+  moneda: string | null;
+};
+
 export default function ConfigPage() {
   const [id, setId] = useState("");
   const [nombre, setNombre] = useState("");
@@ -42,12 +57,14 @@ export default function ConfigPage() {
   const [waEnviados, setWaEnviados] = useState(0);
   const [logo, setLogo] = useState<string | null>(null);
   const [portada, setPortada] = useState<string | null>(null);
+  const [ajustes, setAjustes] = useState<Ajustes | null>(null);
   const [ok, setOk] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const shopQ = shopActual() ? `?shop=${shopActual()}` : "";
   const usados = waMes === mesUy() ? waEnviados : 0;
   const diasPlan = planHasta ? Math.ceil((new Date(planHasta + "T12:00:00-03:00").getTime() - Date.now()) / 86400000) : null;
+  const waCobranza = ajustes?.whatsapp_cobranza || "097344643";
 
   useEffect(() => {
     const load = async () => {
@@ -64,12 +81,16 @@ export default function ConfigPage() {
         if (shop) barberiaId = shop.id;
       }
       if (!barberiaId) return setError("Este usuario no tiene local vinculado");
-      const { data } = await supabase
-        .from("barberias")
-        .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, plan_hasta, modo_whatsapp, wa_mes, wa_enviados")
-        .eq("id", barberiaId)
-        .maybeSingle();
+      const [{ data }, { data: aj }] = await Promise.all([
+        supabase
+          .from("barberias")
+          .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, plan_hasta, modo_whatsapp, wa_mes, wa_enviados")
+          .eq("id", barberiaId)
+          .maybeSingle(),
+        supabase.from("reservo_ajustes").select("whatsapp_cobranza, banco, titular, cuenta, moneda").eq("id", 1).maybeSingle(),
+      ]);
       if (!data) return setError("No se encontró la barbería");
+      setAjustes(aj || null);
       setId(data.id);
       setNombre(data.nombre || "");
       setWhatsapp(data.whatsapp_pedidos || "");
@@ -154,7 +175,7 @@ export default function ConfigPage() {
     }
   };
 
-  const campo = "w-full rounded-2xl px-4 py-3";
+  const campoCls = "w-full rounded-2xl px-4 py-3";
   const estiloInput = { background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" };
 
   return (
@@ -186,11 +207,18 @@ export default function ConfigPage() {
             O transferí y te habilitamos el mes a mano.
           </p>
           <p className="text-sm whitespace-pre-wrap">
-            Banco: BROU{"\n"}
-            Titular: Federico Yair Bello Brun{"\n"}
-            Cuenta: PONÉ ACÁ NÚMERO O ALIAS
+            Banco {ajustes?.banco || "Itaú"}
+            {"\n"}Titular: {ajustes?.titular || "Federico Bello"}
+            {"\n"}Cuenta N° {ajustes?.cuenta || "4103259"}
+            {"\n"}Moneda: {ajustes?.moneda || "UYU"}
           </p>
-          <a href="https://wa.me/59897344643?text=Hola%2C%20transferí%20el%20plan%20de%20Reservo" target="_blank" rel="noreferrer" className="block text-center rounded-2xl py-3 text-sm" style={{ border: "1px solid var(--line)" }}>
+          <a
+            href={`https://wa.me/${waNumber(waCobranza)}?text=${encodeURIComponent("Hola, transferí el plan de Reservo")}`}
+            target="_blank"
+            rel="noreferrer"
+            className="block text-center rounded-2xl py-3 text-sm"
+            style={{ border: "1px solid var(--line)" }}
+          >
             Avisar transferencia por WhatsApp
           </a>
         </div>
@@ -204,12 +232,12 @@ export default function ConfigPage() {
           {portada && <img src={portada} alt="Portada" className="h-32 w-full object-cover rounded-2xl" />}
           <p className="text-sm">Foto de portada</p>
           <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void subir(file, "portada"); }} />
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del local" className={campo} style={estiloInput} />
-          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp. Ej: 099123456" className={campo} style={estiloInput} />
-          <input value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Dirección" className={campo} style={estiloInput} />
-          <input value={maps} onChange={(e) => setMaps(e.target.value)} placeholder="Link de Google Maps" className={campo} style={estiloInput} />
-          <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="enlace. Ej: vale-studio" className={campo} style={estiloInput} />
-          <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje de confirmación" rows={4} className={campo} style={estiloInput} />
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del local" className={campoCls} style={estiloInput} />
+          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp. Ej: 099123456" className={campoCls} style={estiloInput} />
+          <input value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Dirección" className={campoCls} style={estiloInput} />
+          <input value={maps} onChange={(e) => setMaps(e.target.value)} placeholder="Link de Google Maps" className={campoCls} style={estiloInput} />
+          <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="enlace. Ej: vale-studio" className={campoCls} style={estiloInput} />
+          <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje de confirmación" rows={4} className={campoCls} style={estiloInput} />
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={fidelizacion} onChange={(e) => setFidelizacion(e.target.checked)} />
             Cortesía cada 10 cortes
@@ -222,10 +250,10 @@ export default function ConfigPage() {
             <input type="checkbox" checked={mostrarResenas} onChange={(e) => setMostrarResenas(e.target.checked)} />
             Mostrar reseñas en la web
           </label>
-          <textarea value={cuenta} onChange={(e) => setCuenta(e.target.value)} placeholder="Datos de cuenta bancaria" rows={3} className={campo} style={estiloInput} />
-          <input value={mpUrl} onChange={(e) => setMpUrl(e.target.value)} placeholder="https://link.mercadopago.com.uy/velestudio" className={campo} style={estiloInput} />
+          <textarea value={cuenta} onChange={(e) => setCuenta(e.target.value)} placeholder="Datos de cuenta bancaria" rows={3} className={campoCls} style={estiloInput} />
+          <input value={mpUrl} onChange={(e) => setMpUrl(e.target.value)} placeholder="https://link.mercadopago.com.uy/velestudio" className={campoCls} style={estiloInput} />
           <p className="text-sm pt-2">Estilo visual</p>
-          <select value={estilo} onChange={(e) => setEstilo(e.target.value)} className={campo} style={estiloInput}>
+          <select value={estilo} onChange={(e) => setEstilo(e.target.value)} className={campoCls} style={estiloInput}>
             {PACKS.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.icono} {p.nombre}
