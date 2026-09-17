@@ -14,6 +14,7 @@ type Barberia = {
   rubro: string | null;
   plan: string | null;
   trial_hasta: string | null;
+  plan_hasta: string | null;
   wa_mes: string | null;
   wa_enviados: number | null;
 };
@@ -42,6 +43,15 @@ function etiquetaPlan(b: Barberia) {
   return "Plan manual";
 }
 
+function etiquetaVence(b: Barberia) {
+  if (b.plan === "trial") return "";
+  if (!b.plan_hasta) return "Sin fecha de vencimiento";
+  const hasta = new Date(b.plan_hasta + "T12:00:00-03:00");
+  const dias = Math.ceil((hasta.getTime() - Date.now()) / 86400000);
+  if (dias < 0) return `Venció el ${hasta.toLocaleDateString("es-UY")}`;
+  return `Vence ${hasta.toLocaleDateString("es-UY")} · ${dias} día${dias === 1 ? "" : "s"}`;
+}
+
 function etiquetaWa(b: Barberia) {
   const n = b.wa_mes === mesUy() ? Number(b.wa_enviados || 0) : 0;
   if (b.modo_whatsapp !== "automatico") return "WhatsApp manual · 0 API";
@@ -50,11 +60,7 @@ function etiquetaWa(b: Barberia) {
 }
 
 export default function PanelReservo() {
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
+  const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
   const [ok, setOk] = useState(false);
   const [rubroVista, setRubroVista] = useState<string | null>(null);
   const [lista, setLista] = useState<Barberia[]>([]);
@@ -78,7 +84,7 @@ export default function PanelReservo() {
     }
     const { data } = await supabase
       .from("barberias")
-      .select("id,nombre,slug,activo,modo_whatsapp,rubro,plan,trial_hasta,wa_mes,wa_enviados")
+      .select("id,nombre,slug,activo,modo_whatsapp,rubro,plan,trial_hasta,plan_hasta,wa_mes,wa_enviados")
       .order("nombre");
     setLista((data as Barberia[] | null) ?? []);
     setOk(true);
@@ -88,10 +94,7 @@ export default function PanelReservo() {
     void init();
   }, []);
 
-  const visibles = useMemo(
-    () => lista.filter((b) => (b.rubro || "barberia") === rubroVista),
-    [lista, rubroVista]
-  );
+  const visibles = useMemo(() => lista.filter((b) => (b.rubro || "barberia") === rubroVista), [lista, rubroVista]);
 
   async function token() {
     const { data } = await supabase.auth.getSession();
@@ -105,9 +108,16 @@ export default function PanelReservo() {
     else void init();
   }
 
-  async function pasarAPago(b: Barberia) {
-    const plan = b.modo_whatsapp === "automatico" ? "automatico" : "manual";
-    await guardar(b.id, { plan, trial_hasta: null });
+  async function marcarMesPago(b: Barberia) {
+    const hasta = new Date();
+    hasta.setDate(hasta.getDate() + 31);
+    const plan = b.modo_whatsapp === "automatico" ? "automatico" : b.plan === "automatico" ? "automatico" : "manual";
+    await guardar(b.id, {
+      plan,
+      trial_hasta: null,
+      activo: true,
+      plan_hasta: hasta.toISOString().slice(0, 10),
+    });
   }
 
   async function crear(e: FormEvent<HTMLFormElement>) {
@@ -118,14 +128,7 @@ export default function PanelReservo() {
     const res = await fetch("/api/admin/barberias", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
-      body: JSON.stringify({
-        nombre,
-        slug,
-        email,
-        password,
-        modo_whatsapp: modo,
-        rubro: rubroVista || "barberia",
-      }),
+      body: JSON.stringify({ nombre, slug, email, password, modo_whatsapp: modo, rubro: rubroVista || "barberia" }),
     });
     const json = (await res.json()) as { error?: string };
     if (!res.ok) return setMsg(json.error || "No se pudo crear");
@@ -153,7 +156,6 @@ export default function PanelReservo() {
   }
 
   if (!ok) return <p className="p-6">Cargando…</p>;
-
   const rubroActual = RUBROS.find((r) => r.id === rubroVista);
 
   return (
@@ -163,28 +165,19 @@ export default function PanelReservo() {
         <h1 className="mt-2 text-3xl" style={{ fontFamily: "Georgia, Times, serif" }}>
           Panel de control
         </h1>
+        {msg ? <p className="text-sm text-red-700 mt-2">{msg}</p> : null}
 
         {!rubroVista && (
           <>
             <p className="text-sm text-[#7a7268] mt-2 mb-6">Elegí el tipo de agenda.</p>
-            <Link
-              href="/dashboard?shop=diano"
-              className="mb-8 block rounded-2xl p-4 text-center text-sm"
-              style={{ background: "#1C1712", color: "#F5F0E8" }}
-            >
+            <Link href="/dashboard?shop=diano" className="mb-8 block rounded-2xl p-4 text-center text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
               Editar demo Diano →
             </Link>
             {RUBROS.map((r) => {
               const n = lista.filter((b) => (b.rubro || "barberia") === r.id).length;
               const trials = lista.filter((b) => (b.rubro || "barberia") === r.id && b.plan === "trial").length;
               return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => setRubroVista(r.id)}
-                  className="w-full text-left rounded-2xl p-5 mb-3"
-                  style={{ border: "1px solid #ddd4c8", background: "#EFE8DC" }}
-                >
+                <button key={r.id} type="button" onClick={() => setRubroVista(r.id)} className="w-full text-left rounded-2xl p-5 mb-3" style={{ border: "1px solid #ddd4c8", background: "#EFE8DC" }}>
                   <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
                     {r.titulo}
                   </p>
@@ -206,7 +199,6 @@ export default function PanelReservo() {
             <h2 className="text-2xl mb-4" style={{ fontFamily: "Georgia, Times, serif" }}>
               {rubroActual.titulo}
             </h2>
-
             {visibles.map((b) => (
               <article key={b.id} className="rounded-2xl p-4 mb-3" style={{ border: "1px solid #ddd4c8" }}>
                 <p className="font-medium">{b.nombre}</p>
@@ -217,40 +209,25 @@ export default function PanelReservo() {
                 <p className="text-xs mb-1" style={{ color: b.plan === "trial" ? "#8B3A3A" : "#7a7268" }}>
                   {etiquetaPlan(b)}
                 </p>
+                {etiquetaVence(b) ? (
+                  <p className="text-xs mb-1" style={{ color: "#7a7268" }}>
+                    {etiquetaVence(b)}
+                  </p>
+                ) : null}
                 <p className="text-xs mb-3" style={{ color: "#7a7268" }}>
                   {etiquetaWa(b)}
                 </p>
                 <div className="flex flex-wrap gap-2 mb-3">
-                  <button
-                    type="button"
-                    className="rounded-full px-3 py-1 text-xs"
-                    style={{
-                      background: b.activo === false ? "#EFE8DC" : "#1C1712",
-                      color: b.activo === false ? "#1C1712" : "#F5F0E8",
-                    }}
-                    onClick={() => void guardar(b.id, { activo: b.activo === false })}
-                  >
+                  <button type="button" className="rounded-full px-3 py-1 text-xs" style={{ background: b.activo === false ? "#EFE8DC" : "#1C1712", color: b.activo === false ? "#1C1712" : "#F5F0E8" }} onClick={() => void guardar(b.id, { activo: b.activo === false })}>
                     {b.activo === false ? "Activar" : "Activa"}
                   </button>
-                  <select
-                    className="rounded-full px-3 py-1 text-xs bg-transparent"
-                    style={{ border: "1px solid #ddd4c8" }}
-                    value={b.modo_whatsapp || "manual"}
-                    onChange={(e) => void guardar(b.id, { modo_whatsapp: e.target.value })}
-                  >
+                  <select className="rounded-full px-3 py-1 text-xs bg-transparent" style={{ border: "1px solid #ddd4c8" }} value={b.modo_whatsapp || "manual"} onChange={(e) => void guardar(b.id, { modo_whatsapp: e.target.value })}>
                     <option value="manual">WhatsApp manual</option>
                     <option value="automatico">WhatsApp automático</option>
                   </select>
-                  {b.plan === "trial" && (
-                    <button
-                      type="button"
-                      className="rounded-full px-3 py-1 text-xs"
-                      style={{ border: "1px solid #1C1712" }}
-                      onClick={() => void pasarAPago(b)}
-                    >
-                      Pasar a pago
-                    </button>
-                  )}
+                  <button type="button" className="rounded-full px-3 py-1 text-xs" style={{ border: "1px solid #1C1712" }} onClick={() => void marcarMesPago(b)}>
+                    Marcar mes pago
+                  </button>
                 </div>
                 <div className="flex gap-4 text-xs">
                   <Link href={`/b/${b.slug}`}>Ver web</Link>
@@ -263,7 +240,6 @@ export default function PanelReservo() {
                 </div>
               </article>
             ))}
-
             <form onSubmit={crear} className="mt-10 space-y-3">
               <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
                 Nueva agenda · {rubroActual.titulo}
@@ -279,7 +255,6 @@ export default function PanelReservo() {
               <button type="submit" className="w-full rounded-full py-3 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
                 Crear agenda
               </button>
-              {msg ? <p className="text-sm text-red-700">{msg}</p> : null}
             </form>
           </>
         )}
