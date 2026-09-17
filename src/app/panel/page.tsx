@@ -70,6 +70,11 @@ export default function PanelReservo() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [modo, setModo] = useState("manual");
+  const [ajWa, setAjWa] = useState("097344643");
+  const [ajBanco, setAjBanco] = useState("Itaú");
+  const [ajTitular, setAjTitular] = useState("Federico Bello");
+  const [ajCuenta, setAjCuenta] = useState("4103259");
+  const [ajMoneda, setAjMoneda] = useState("UYU");
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -87,6 +92,14 @@ export default function PanelReservo() {
       .select("id,nombre,slug,activo,modo_whatsapp,rubro,plan,trial_hasta,plan_hasta,wa_mes,wa_enviados")
       .order("nombre");
     setLista((data as Barberia[] | null) ?? []);
+    const { data: aj } = await supabase.from("reservo_ajustes").select("whatsapp_cobranza,banco,titular,cuenta,moneda").eq("id", 1).maybeSingle();
+    if (aj) {
+      setAjWa(aj.whatsapp_cobranza || "097344643");
+      setAjBanco(aj.banco || "Itaú");
+      setAjTitular(aj.titular || "Federico Bello");
+      setAjCuenta(aj.cuenta || "4103259");
+      setAjMoneda(aj.moneda || "UYU");
+    }
     setOk(true);
   }
 
@@ -108,10 +121,24 @@ export default function PanelReservo() {
     else void init();
   }
 
+  async function guardarAjustes() {
+    setMsg("");
+    const { error } = await supabase.from("reservo_ajustes").upsert({
+      id: 1,
+      whatsapp_cobranza: ajWa,
+      banco: ajBanco,
+      titular: ajTitular,
+      cuenta: ajCuenta,
+      moneda: ajMoneda,
+    });
+    if (error) setMsg(error.message);
+    else setMsg("Datos de cobranza guardados");
+  }
+
   async function marcarMesPago(b: Barberia) {
     const hasta = new Date();
     hasta.setDate(hasta.getDate() + 31);
-    const plan = b.modo_whatsapp === "automatico" ? "automatico" : b.plan === "automatico" ? "automatico" : "manual";
+    const plan = b.modo_whatsapp === "automatico" || b.plan === "automatico" ? "automatico" : "manual";
     await guardar(b.id, {
       plan,
       trial_hasta: null,
@@ -157,6 +184,7 @@ export default function PanelReservo() {
 
   if (!ok) return <p className="p-6">Cargando…</p>;
   const rubroActual = RUBROS.find((r) => r.id === rubroVista);
+  const input = { border: "1px solid #ddd4c8" };
 
   return (
     <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
@@ -165,7 +193,7 @@ export default function PanelReservo() {
         <h1 className="mt-2 text-3xl" style={{ fontFamily: "Georgia, Times, serif" }}>
           Panel de control
         </h1>
-        {msg ? <p className="text-sm text-red-700 mt-2">{msg}</p> : null}
+        {msg ? <p className="text-sm mt-2">{msg}</p> : null}
 
         {!rubroVista && (
           <>
@@ -173,6 +201,19 @@ export default function PanelReservo() {
             <Link href="/dashboard?shop=diano" className="mb-8 block rounded-2xl p-4 text-center text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
               Editar demo Diano →
             </Link>
+
+            <div className="rounded-2xl p-4 mb-8 space-y-2" style={{ border: "1px solid #ddd4c8" }}>
+              <p className="font-medium">Cobranza Reservo</p>
+              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="WhatsApp avisos" value={ajWa} onChange={(e) => setAjWa(e.target.value)} />
+              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Banco" value={ajBanco} onChange={(e) => setAjBanco(e.target.value)} />
+              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Titular" value={ajTitular} onChange={(e) => setAjTitular(e.target.value)} />
+              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Cuenta" value={ajCuenta} onChange={(e) => setAjCuenta(e.target.value)} />
+              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Moneda" value={ajMoneda} onChange={(e) => setAjMoneda(e.target.value)} />
+              <button type="button" onClick={() => void guardarAjustes()} className="w-full rounded-full py-3 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
+                Guardar cobranza
+              </button>
+            </div>
+
             {RUBROS.map((r) => {
               const n = lista.filter((b) => (b.rubro || "barberia") === r.id).length;
               const trials = lista.filter((b) => (b.rubro || "barberia") === r.id && b.plan === "trial").length;
@@ -221,7 +262,7 @@ export default function PanelReservo() {
                   <button type="button" className="rounded-full px-3 py-1 text-xs" style={{ background: b.activo === false ? "#EFE8DC" : "#1C1712", color: b.activo === false ? "#1C1712" : "#F5F0E8" }} onClick={() => void guardar(b.id, { activo: b.activo === false })}>
                     {b.activo === false ? "Activar" : "Activa"}
                   </button>
-                  <select className="rounded-full px-3 py-1 text-xs bg-transparent" style={{ border: "1px solid #ddd4c8" }} value={b.modo_whatsapp || "manual"} onChange={(e) => void guardar(b.id, { modo_whatsapp: e.target.value })}>
+                  <select className="rounded-full px-3 py-1 text-xs bg-transparent" style={input} value={b.modo_whatsapp || "manual"} onChange={(e) => void guardar(b.id, { modo_whatsapp: e.target.value })}>
                     <option value="manual">WhatsApp manual</option>
                     <option value="automatico">WhatsApp automático</option>
                   </select>
@@ -244,11 +285,11 @@ export default function PanelReservo() {
               <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
                 Nueva agenda · {rubroActual.titulo}
               </p>
-              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={{ border: "1px solid #ddd4c8" }} placeholder="Nombre del local" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={{ border: "1px solid #ddd4c8" }} placeholder="enlace (unas)" value={slug} onChange={(e) => setSlug(e.target.value)} />
-              <input type="email" className="w-full rounded-xl px-3 py-3 bg-transparent" style={{ border: "1px solid #ddd4c8" }} placeholder="Email del dueño" value={email} onChange={(e) => setEmail(e.target.value)} />
-              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={{ border: "1px solid #ddd4c8" }} placeholder="Contraseña (mínimo 6)" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <select className="w-full rounded-xl px-3 py-3 bg-transparent" style={{ border: "1px solid #ddd4c8" }} value={modo} onChange={(e) => setModo(e.target.value)}>
+              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Nombre del local" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="enlace (unas)" value={slug} onChange={(e) => setSlug(e.target.value)} />
+              <input type="email" className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Email del dueño" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Contraseña (mínimo 6)" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <select className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} value={modo} onChange={(e) => setModo(e.target.value)}>
                 <option value="manual">WhatsApp manual</option>
                 <option value="automatico">WhatsApp automático</option>
               </select>
