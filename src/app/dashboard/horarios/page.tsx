@@ -9,7 +9,7 @@ import BrandHeader from "@/components/BrandHeader";
 const dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 type Fila = { id?: string; dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
 type Barbero = { id: string; nombre: string };
-type Excepcion = { id: string; fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean };
+type Excepcion = { id: string; fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean; barbero_id: string | null };
 
 function norm(v: string) {
   return String(v).slice(0, 5);
@@ -32,9 +32,7 @@ function fechasDelMes(mes: string, weekdays: number[]) {
   for (let d = 1; d <= last; d++) {
     const date = new Date(y, m - 1, d);
     if (weekdays.includes(date.getDay())) {
-      const mm = String(m).padStart(2, "0");
-      const dd = String(d).padStart(2, "0");
-      out.push(`${y}-${mm}-${dd}`);
+      out.push(`${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
     }
   }
   return out;
@@ -68,19 +66,11 @@ export default function HorariosPage() {
   const load = async (id: string, barberoId: string) => {
     const supabase = createClient();
     if (barberoId === "local") {
-      const { data, error } = await supabase
-        .from("horario_semanal")
-        .select("id, dia_semana, hora_inicio, hora_fin, activo")
-        .eq("barberia_id", id)
-        .order("dia_semana");
+      const { data, error } = await supabase.from("horario_semanal").select("id, dia_semana, hora_inicio, hora_fin, activo").eq("barberia_id", id).order("dia_semana");
       if (error) setError(error.message);
       setFilas(data?.length ? data.map((d) => ({ ...d, hora_inicio: norm(d.hora_inicio), hora_fin: norm(d.hora_fin) })) : vacias());
     } else {
-      const { data, error } = await supabase
-        .from("horario_barbero")
-        .select("id, dia_semana, hora_inicio, hora_fin, activo")
-        .eq("barbero_id", barberoId)
-        .order("dia_semana");
+      const { data, error } = await supabase.from("horario_barbero").select("id, dia_semana, hora_inicio, hora_fin, activo").eq("barbero_id", barberoId).order("dia_semana");
       if (error) setError(error.message);
       setFilas(data?.length ? data.map((d) => ({ ...d, hora_inicio: norm(d.hora_inicio), hora_fin: norm(d.hora_fin) })) : vacias());
     }
@@ -88,11 +78,7 @@ export default function HorariosPage() {
 
   const loadEx = async (id: string) => {
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("horario_excepcion")
-      .select("id, fecha, hora_inicio, hora_fin, cerrado")
-      .eq("barberia_id", id)
-      .order("fecha");
+    const { data, error } = await supabase.from("horario_excepcion").select("id, fecha, hora_inicio, hora_fin, cerrado, barbero_id").eq("barberia_id", id).order("fecha");
     if (error) setError(error.message);
     setExs((data as Excepcion[]) || []);
   };
@@ -146,10 +132,6 @@ export default function HorariosPage() {
     await load(barberiaId, quien);
   };
 
-  const toggleDia = (n: number) => {
-    setExDias((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
-  };
-
   const guardarEspecial = async () => {
     if (!barberiaId) return;
     const fechas = new Set<string>();
@@ -159,12 +141,18 @@ export default function HorariosPage() {
     const supabase = createClient();
     const rows = [...fechas].map((fecha) => ({
       barberia_id: barberiaId,
+      barbero_id: quien === "local" ? null : quien,
       fecha,
       hora_inicio: exCerrado ? null : exInicio,
       hora_fin: exCerrado ? null : exFin,
       cerrado: exCerrado,
     }));
-    const { error } = await supabase.from("horario_excepcion").upsert(rows, { onConflict: "barberia_id,fecha" });
+    for (const row of rows) {
+      let q = supabase.from("horario_excepcion").delete().eq("barberia_id", barberiaId).eq("fecha", row.fecha);
+      q = quien === "local" ? q.is("barbero_id", null) : q.eq("barbero_id", quien);
+      await q;
+    }
+    const { error } = await supabase.from("horario_excepcion").insert(rows);
     if (error) return setError(error.message);
     setOk(`Guardado en ${rows.length} día${rows.length === 1 ? "" : "s"}`);
     setExFecha("");
@@ -180,6 +168,7 @@ export default function HorariosPage() {
     else await loadEx(barberiaId);
   };
 
+  const nombreDe = (barberoId: string | null) => barberos.find((b) => b.id === barberoId)?.nombre || "Local";
   const campo = { background: "var(--card)", border: "1px solid var(--line)", color: "var(--text)" };
 
   return (
@@ -230,7 +219,7 @@ export default function HorariosPage() {
 
         <h2 className="text-xl font-semibold mb-2">Horario especial</h2>
         <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
-          Pisa el semanal. Un día suelto o todos los lunes de un mes.
+          Se guarda para {quien === "local" ? "todo el local" : "este profesional"}. Pisa el semanal.
         </p>
 
         <div className="rounded-2xl p-4 mb-4 space-y-3" style={campo}>
@@ -243,7 +232,7 @@ export default function HorariosPage() {
               <button
                 key={d}
                 type="button"
-                onClick={() => toggleDia(i)}
+                onClick={() => setExDias((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]))}
                 className="rounded-full px-3 py-1 text-xs"
                 style={{
                   background: exDias.includes(i) ? "#1c1712" : "var(--bg)",
@@ -273,7 +262,7 @@ export default function HorariosPage() {
         {exs.map((e) => (
           <div key={e.id} className="rounded-2xl p-3 mb-2 flex items-center justify-between" style={campo}>
             <p className="text-sm">
-              {e.fecha.slice(0, 10)} · {e.cerrado ? "Cerrado" : `${norm(e.hora_inicio || "")}–${norm(e.hora_fin || "")}`}
+              {String(e.fecha).slice(0, 10)} · {nombreDe(e.barbero_id)} · {e.cerrado ? "Cerrado" : `${norm(e.hora_inicio || "")}–${norm(e.hora_fin || "")}`}
             </p>
             <button type="button" className="text-xs text-red-500" onClick={() => void borrarEx(e.id)}>
               Borrar
