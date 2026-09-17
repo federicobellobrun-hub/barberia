@@ -37,7 +37,7 @@ export function temaPack(pack?: string | null, rubro?: string | null) {
     return { pack: "canina", icono: "🐾", bg: "#F4F7F1", card: "#FFFFFF", text: "#24301E", muted: "#6F7A5E", line: "#D5DEC8", btn: "#3F6B3A", btnText: "#F7FBEF", cita: "Reservá el turno de tu mascota", panel: "Panel", galeria: "Looks" };
   }
   if (elegido === "taller") {
-    return { pack: "taller", icono: "⚙", bg: "#ECEFF1", card: "#FFFFFF", text: "#1B2428", muted: "#66727A", line: "# recD5DCE0", btn: "#2C3E50", btnText: "#F4F7F8", cita: "Reservá el service", panel: "Panel del taller", galeria: "Trabajos" };
+    return { pack: "taller", icono: "⚙", bg: "#ECEFF1", card: "#FFFFFF", text: "#1B2428", muted: "#66727A", line: "#D5DCE0", btn: "#2C3E50", btnText: "#F4F7F8", cita: "Reservá el service", panel: "Panel del taller", galeria: "Trabajos" };
   }
   if (elegido === "oro") {
     return { pack: "oro", icono: "◆", bg: "#F6EFE4", card: "#EFE3D0", text: "#2C2116", muted: "#7A6248", line: "#D4B896", btn: "#8B6914", btnText: "#FFF8E8", cita: "Reservá tu turno", panel: "Panel", galeria: "Trabajos" };
@@ -61,15 +61,18 @@ export function temaRubro(rubro?: string | null) {
   return temaPack("auto", rubro);
 }
 
+export function temaLocal(pack?: string | null, rubro?: string | null, fondo?: string | null, boton?: string | null) {
+  const t = temaPack(pack, rubro);
+  return { ...t, bg: fondo || t.bg, btn: boton || t.btn };
+}
+
 export function aplicarTema(t: ReturnType<typeof temaPack>, extra?: { fondo?: string | null; boton?: string | null }) {
   if (typeof document === "undefined") return;
   const r = document.documentElement;
-  const fondo = extra?.fondo || t.bg;
-  const boton = extra?.boton || t.btn;
-  r.style.setProperty("--bg", fondo);
+  r.style.setProperty("--bg", extra?.fondo || t.bg);
   r.style.setProperty("--card", t.card);
   r.style.setProperty("--text", t.text);
   r.style.setProperty("--muted", t.muted);
   r.style.setProperty("--line", t.line);
-  r.style.setProperty("--btn", boton);
+  r.style.setProperty("--btn", extra?.boton || t.btn);
 }
