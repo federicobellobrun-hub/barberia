@@ -23,7 +23,7 @@ type Servicio = {
 type Barbero = { id: string; nombre: string; foto_url: string | null };
 type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; barbero_id?: string | null };
 type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean };
-type Excepcion = { fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean };
+type Excepcion = { fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean; barbero_id?: string | null };
 type Turno = { fecha_hora: string; duracion_minutos: number; barbero_id: string | null };
 type PagoShop = {
   whatsapp_pedidos: string | null;
@@ -144,7 +144,7 @@ function ReservarPage() {
           supabase.from("horario_barbero").select("dia_semana, hora_inicio, hora_fin, barbero_id").eq("barberia_id", shop.id).eq("activo", true),
           supabase.from("bloqueos").select("fecha_inicio, fecha_fin, todo_el_dia").eq("barberia_id", shop.id),
           supabase.from("turnos").select("fecha_hora, duracion_minutos, barbero_id").eq("barberia_id", shop.id).in("estado", ["pendiente", "confirmado", "realizado"]).gte("fecha_hora", desde.toISOString()).lte("fecha_hora", hasta.toISOString()),
-          supabase.from("horario_excepcion").select("fecha, hora_inicio, hora_fin, cerrado").eq("barberia_id", shop.id),
+          supabase.from("horario_excepcion").select("fecha, hora_inicio, hora_fin, cerrado, barbero_id").eq("barberia_id", shop.id),
         ]);
         if (servRes.error) throw new Error(servRes.error.message);
         setServicios((servRes.data as Servicio[]) || []);
@@ -195,7 +195,8 @@ function ReservarPage() {
   const horariosDelDia = useMemo(() => {
     if (!servicio || !fecha) return [];
     const date = new Date(`${fecha}T12:00:00-03:00`);
-    const ex = excepciones.find((e) => String(e.fecha).slice(0, 10) === fecha);
+    const exsDia = excepciones.filter((e) => String(e.fecha).slice(0, 10) === fecha);
+    const ex = (barbero && exsDia.find((e) => e.barbero_id === barbero.id)) || exsDia.find((e) => !e.barbero_id) || null;
     if (ex?.cerrado) return [];
     const horario = horarios.find((h) => Number(h.dia_semana) === weekdayMontevideo(date));
     if (!ex && !horario) return [];
@@ -444,16 +445,7 @@ function ReservarPage() {
                     </div>
                   </div>
                   <div className="w-1/2 pl-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVista("categorias");
-                        setServicio(null);
-                        setMetodoSena(null);
-                      }}
-                      className="text-sm mb-3"
-                      style={{ color: t.muted }}
-                    >
+                    <button type="button" onClick={() => { setVista("categorias"); setServicio(null); setMetodoSena(null); }} className="text-sm mb-3" style={{ color: t.muted }}>
                       ‹ Categorías
                     </button>
                     <h2 className="font-medium mb-3">{categoria}</h2>
