@@ -24,10 +24,7 @@ function MasInner() {
   const [tema, setTema] = useState(() => temaPack("auto", "barberia"));
 
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
     void supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       const { data: yo } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", data.user.id).maybeSingle();
@@ -49,7 +46,8 @@ function MasInner() {
 
       const equipo = rubro === "pestanas_unas" ? "Equipo" : "Barberos";
 
-           const dueño: Item[] = [
+      const dueño: Item[] = [
+        { href: `/dashboard/puesta${q}`, t: "Puesta a punto", d: "M5 13l4 4L19 7" },
         { href: `/dashboard${q}`, t: "Agenda", d: "M4 6h16M4 10h16M4 14h10" },
         { href: `/dashboard/nuevo${q}`, t: "Nuevo turno", d: "M12 5v14M5 12h14" },
         { href: `/dashboard/clientes${q}`, t: "Clientes", d: "M12 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 19c1.5-3 4-5 7-5s5.5 2 7 5" },
@@ -108,7 +106,7 @@ function MasInner() {
 
 export default function MasPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen p-6">Cargando…</main>}>
+    <Suspense fallback={<main className="min-h-screen" style={{ background: "#F5F0E8" }} />}>
       <MasInner />
     </Suspense>
   );
