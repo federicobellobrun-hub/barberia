@@ -75,6 +75,8 @@ export default function PanelReservo() {
   const [ajTitular, setAjTitular] = useState("Federico Bello");
   const [ajCuenta, setAjCuenta] = useState("4103259");
   const [ajMoneda, setAjMoneda] = useState("UYU");
+  const [ajManual, setAjManual] = useState("890");
+  const [ajAuto, setAjAuto] = useState("1490");
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -92,13 +94,15 @@ export default function PanelReservo() {
       .select("id,nombre,slug,activo,modo_whatsapp,rubro,plan,trial_hasta,plan_hasta,wa_mes,wa_enviados")
       .order("nombre");
     setLista((data as Barberia[] | null) ?? []);
-    const { data: aj } = await supabase.from("reservo_ajustes").select("whatsapp_cobranza,banco,titular,cuenta,moneda").eq("id", 1).maybeSingle();
+    const { data: aj } = await supabase.from("reservo_ajustes").select("whatsapp_cobranza,banco,titular,cuenta,moneda,precio_manual,precio_automatico").eq("id", 1).maybeSingle();
     if (aj) {
       setAjWa(aj.whatsapp_cobranza || "097344643");
       setAjBanco(aj.banco || "Itaú");
       setAjTitular(aj.titular || "Federico Bello");
       setAjCuenta(aj.cuenta || "4103259");
       setAjMoneda(aj.moneda || "UYU");
+      setAjManual(String(aj.precio_manual || 890));
+      setAjAuto(String(aj.precio_automatico || 1490));
     }
     setOk(true);
   }
@@ -130,6 +134,8 @@ export default function PanelReservo() {
       titular: ajTitular,
       cuenta: ajCuenta,
       moneda: ajMoneda,
+      precio_manual: Number(ajManual) || 890,
+      precio_automatico: Number(ajAuto) || 1490,
     });
     if (error) setMsg(error.message);
     else setMsg("Datos de cobranza guardados");
@@ -209,6 +215,8 @@ export default function PanelReservo() {
               <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Titular" value={ajTitular} onChange={(e) => setAjTitular(e.target.value)} />
               <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Cuenta" value={ajCuenta} onChange={(e) => setAjCuenta(e.target.value)} />
               <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Moneda" value={ajMoneda} onChange={(e) => setAjMoneda(e.target.value)} />
+              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Precio manual" value={ajManual} onChange={(e) => setAjManual(e.target.value)} />
+              <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Precio automático" value={ajAuto} onChange={(e) => setAjAuto(e.target.value)} />
               <button type="button" onClick={() => void guardarAjustes()} className="w-full rounded-full py-3 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
                 Guardar cobranza
               </button>
