@@ -88,24 +88,22 @@ export default function HomePage() {
       <div className="relative mx-auto max-w-md px-5 pt-6 pb-16">
         <header className="flex items-start justify-between mb-12">
           <Logo />
-          <div className="flex gap-4 mt-3">
-            <Link href="/probar" className="text-[13px] text-[#1C1712] underline underline-offset-4">
-              Probar 7 días
-            </Link>
-            <Link href="/login" className="text-[13px] text-[#9a9388] hover:text-[#1C1712]">
-              Ingresar
-            </Link>
-          </div>
+          <Link href="/login" className="mt-3 text-[13px] text-[#9a9388] hover:text-[#1C1712]">
+            Ingresar
+          </Link>
         </header>
 
         <h1 className="rise text-[34px] leading-[1.15] mb-4" style={{ fontFamily: "Georgia, Times, serif" }}>
           Apps de reservas para negocios locales.
         </h1>
-        <p className="rise text-sm text-[#7a7268] mb-4" style={{ animationDelay: ".08s" }}>
-          Agenda, clientes y avisos para tu local.
+        <p className="rise text-sm text-[#7a7268] mb-6" style={{ animationDelay: ".08s" }}>
+          Agenda, clientes y avisos. Manual $890 · Automático $1.490.
         </p>
-        <Link href="/precios" className="rise mb-10 block text-sm underline underline-offset-4" style={{ animationDelay: ".1s" }}>
-          Manual $890 · Automático $1.990 · Probar 7 días
+        <Link href="/probar" className="rise mb-4 block rounded-full py-4 text-center text-sm" style={{ background: "#1C1712", color: "#F5F0E8", animationDelay: ".1s" }}>
+          Probar 7 días
+        </Link>
+        <Link href="/precios" className="rise mb-10 block text-center text-sm text-[#7a7268] underline underline-offset-4" style={{ animationDelay: ".12s" }}>
+          Ver planes
         </Link>
 
         <p className="text-[11px] tracking-[0.16em] uppercase text-[#9a9388] mb-3">Nuestras apps</p>
@@ -114,7 +112,7 @@ export default function HomePage() {
           title="Barberías"
           text="Citas, clientes y servicios para tu barbería."
           href="/b/diano"
-          label="Explorar →"
+          label="Ver demo →"
           img="https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=600&q=80"
           delay=".16s"
         />
@@ -122,7 +120,7 @@ export default function HomePage() {
           title="Pestañas y uñas"
           text="Agenda para pestañas, uñas y estética."
           href="/b/vale-studio"
-          label="Explorar →"
+          label="Ver demo →"
           img="/pestanas.jpg"
           delay=".24s"
         />
