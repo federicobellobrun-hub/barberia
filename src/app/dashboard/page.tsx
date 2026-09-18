@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -82,6 +83,9 @@ function DashboardInner() {
   const [nombre, setNombre] = useState("Barbero");
   const [rol, setRol] = useState("");
   const [slug, setSlug] = useState("");
+  const [plan, setPlan] = useState("");
+  const [planHasta, setPlanHasta] = useState<string | null>(null);
+  const [trialHasta, setTrialHasta] = useState<string | null>(null);
   const [barberiaId, setBarberiaId] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
   const [copiado, setCopiado] = useState(false);
@@ -123,16 +127,33 @@ function DashboardInner() {
         setMiBarberoId(data.barbero_id);
         setFiltroBarbero(data.barbero_id);
       }
-      if (data?.rol === "superadmin" && shopSlug) {
-        const { data: shop } = await supabase.from("barberias").select("id, slug").eq("slug", shopSlug).maybeSingle();
+            if (data?.rol === "superadmin" && shopSlug) {
+        const { data: shop } = await supabase
+          .from("barberias")
+          .select("id, slug, plan, plan_hasta, trial_hasta")
+          .eq("slug", shopSlug)
+          .maybeSingle();
         if (shop) {
           setBarberiaId(shop.id);
           setSlug(shop.slug);
+          setPlan(shop.plan || "");
+          setPlanHasta(shop.plan_hasta || null);
+          setTrialHasta(shop.trial_hasta || null);
         }
       } else if (data?.barberia_id) {
         setBarberiaId(data.barberia_id);
-        const { data: shop } = await supabase.from("barberias").select("slug").eq("id", data.barberia_id).maybeSingle();
+        const { data: shop } = await supabase
+          .from("barberias")
+          .select("slug, plan, plan_hasta, trial_hasta")
+          .eq("id", data.barberia_id)
+          .maybeSingle();
         if (shop?.slug) setSlug(shop.slug);
+        if (shop) {
+          setPlan(shop.plan || "");
+          setPlanHasta(shop.plan_hasta || null);
+          setTrialHasta(shop.trial_hasta || null);
+        }
+      }
       }
       setListo(true);
     };
@@ -262,7 +283,21 @@ function DashboardInner() {
         <p className="text-sm" style={{ color: "var(--muted)" }}>
           Hola, {nombre}
         </p>
-        <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-3">Agenda</h1>
+                <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-3">Agenda</h1>
+        {(() => {
+          const hasta = plan === "trial" ? trialHasta : planHasta;
+          if (!hasta) return null;
+          const fechaVence = new Date(`${String(hasta).slice(0, 10)}T23:59:59-03:00`);
+          const dias = Math.ceil((fechaVence.getTime() - Date.now()) / 86400000);
+          if (dias > 5) return null;
+          return (
+            <Link href={`/dashboard/config${qShop}`} className="block rounded-2xl px-4 py-3 mb-4 text-sm" style={{ background: dias < 0 ? "#F3E4E0" : "#EFE8DC", border: "1px solid var(--line)" }}>
+              {dias < 0
+                ? "El plan venció. La agenda pública está pausada. Renová desde Configuración."
+                : `El plan vence en ${dias} día${dias === 1 ? "" : "s"}. Renová desde Configuración.`}
+            </Link>
+          );
+        })()}
 
         {urlClientes && (
           <div className="flex items-center justify-between gap-3 mb-5 px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 16 }}>
