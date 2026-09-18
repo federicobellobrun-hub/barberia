@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
@@ -120,14 +120,18 @@ function DashboardInner() {
         router.push("/login");
         return;
       }
-      const { data } = await supabase.from("usuarios").select("nombre, rol, barbero_id, barberia_id").eq("auth_user_id", user.id).maybeSingle();
+      const { data } = await supabase
+        .from("usuarios")
+        .select("nombre, rol, barbero_id, barberia_id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
       if (data?.nombre) setNombre(data.nombre);
       setRol(data?.rol || "");
       if (data?.rol === "barbero" && data.barbero_id) {
         setMiBarberoId(data.barbero_id);
         setFiltroBarbero(data.barbero_id);
       }
-            if (data?.rol === "superadmin" && shopSlug) {
+      if (data?.rol === "superadmin" && shopSlug) {
         const { data: shop } = await supabase
           .from("barberias")
           .select("id, slug, plan, plan_hasta, trial_hasta")
@@ -153,7 +157,6 @@ function DashboardInner() {
           setPlanHasta(shop.plan_hasta || null);
           setTrialHasta(shop.trial_hasta || null);
         }
-      }
       }
       setListo(true);
     };
@@ -185,7 +188,7 @@ function DashboardInner() {
         supabase.from("barberos").select("id, nombre").eq("barberia_id", barberiaId).eq("activo", true).order("nombre"),
       ]);
       if (turnosRes.error) setError(turnosRes.error.message);
-      setTurnos((turnosRes.data as Turno[]) || []);
+      setTurnos((turnosRes.data as unknown as Turno[]) || []);
       setBarberos((barberosRes.data as Barbero[]) || []);
       setTotalMes((pagosMesRes.data || []).reduce((acc: number, p: { monto: number }) => acc + Number(p.monto || 0), 0));
       const filtro = esBarbero && miBarberoId ? miBarberoId : filtroBarbero;
@@ -270,6 +273,9 @@ function DashboardInner() {
     router.push("/login");
   };
 
+  const hastaPlan = plan === "trial" ? trialHasta : planHasta;
+  const diasPlan = hastaPlan ? Math.ceil((new Date(`${String(hastaPlan).slice(0, 10)}T23:59:59-03:00`).getTime() - Date.now()) / 86400000) : null;
+
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-md mx-auto px-5 pt-5">
@@ -283,21 +289,15 @@ function DashboardInner() {
         <p className="text-sm" style={{ color: "var(--muted)" }}>
           Hola, {nombre}
         </p>
-                <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-3">Agenda</h1>
-        {(() => {
-          const hasta = plan === "trial" ? trialHasta : planHasta;
-          if (!hasta) return null;
-          const fechaVence = new Date(`${String(hasta).slice(0, 10)}T23:59:59-03:00`);
-          const dias = Math.ceil((fechaVence.getTime() - Date.now()) / 86400000);
-          if (dias > 5) return null;
-          return (
-            <Link href={`/dashboard/config${qShop}`} className="block rounded-2xl px-4 py-3 mb-4 text-sm" style={{ background: dias < 0 ? "#F3E4E0" : "#EFE8DC", border: "1px solid var(--line)" }}>
-              {dias < 0
-                ? "El plan venció. La agenda pública está pausada. Renová desde Configuración."
-                : `El plan vence en ${dias} día${dias === 1 ? "" : "s"}. Renová desde Configuración.`}
-            </Link>
-          );
-        })()}
+        <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-3">Agenda</h1>
+
+        {diasPlan !== null && diasPlan <= 5 && (
+          <Link href={`/dashboard/config${qShop}`} className="block rounded-2xl px-4 py-3 mb-4 text-sm" style={{ background: diasPlan < 0 ? "#F3E4E0" : "#EFE8DC", border: "1px solid var(--line)" }}>
+            {diasPlan < 0
+              ? "El plan venció. La agenda pública está pausada. Renová desde Configuración."
+              : `El plan vence en ${diasPlan} día${diasPlan === 1 ? "" : "s"}. Renová desde Configuración.`}
+          </Link>
+        )}
 
         {urlClientes && (
           <div className="flex items-center justify-between gap-3 mb-5 px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 16 }}>
