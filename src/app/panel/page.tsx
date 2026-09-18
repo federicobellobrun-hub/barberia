@@ -141,6 +141,22 @@ export default function PanelReservo() {
     else setMsg("Datos de cobranza guardados");
   }
 
+  async function bajarRespaldo() {
+    setMsg("");
+    const t = await token();
+    if (!t) return setMsg("Sesión vencida");
+    const res = await fetch("/api/admin/backup", { headers: { Authorization: "Bearer " + t } });
+    if (!res.ok) {
+      const json = (await res.json()) as { error?: string };
+      return setMsg(json.error || "No se pudo bajar el respaldo");
+    }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `reservo-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+  }
+
   async function marcarMesPago(b: Barberia) {
     const hasta = new Date();
     hasta.setDate(hasta.getDate() + 31);
@@ -219,6 +235,9 @@ export default function PanelReservo() {
               <input className="w-full rounded-xl px-3 py-3 bg-transparent" style={input} placeholder="Precio automático" value={ajAuto} onChange={(e) => setAjAuto(e.target.value)} />
               <button type="button" onClick={() => void guardarAjustes()} className="w-full rounded-full py-3 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
                 Guardar cobranza
+              </button>
+              <button type="button" onClick={() => void bajarRespaldo()} className="w-full rounded-full py-3 text-sm" style={{ border: "1px solid #1C1712" }}>
+                Descargar respaldo
               </button>
             </div>
 
