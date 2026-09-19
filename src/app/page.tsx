@@ -57,6 +57,7 @@ export default function HomePage() {
               y oficios.
             </p>
             <p className="mt-1 text-[13px] text-white/85">Turnos, recordatorios y clientes.</p>
+            <p className="mt-2 text-[12px] tracking-[0.08em] uppercase text-white/90">Ver demo →</p>
           </div>
         </Link>
 
@@ -69,6 +70,7 @@ export default function HomePage() {
               y profesionales.
             </p>
             <p className="mt-1 text-[13px] text-[#5c574e]">Organizá tu tiempo y tu clientela.</p>
+            <p className="mt-2 text-[12px] tracking-[0.08em] uppercase">Ver demo →</p>
           </div>
         </Link>
 
