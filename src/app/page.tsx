@@ -1,98 +1,72 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase";
 
 const WA = "https://wa.me/59897344643?text=" + encodeURIComponent("Hola Federico, consulta por Reservo Apps");
 
-function Logo() {
-  return (
-    <Link href="/" className="flex items-center gap-3">
-      <span
-        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[22px]"
-        style={{ border: "1.5px solid #1C1712", fontFamily: "Georgia, Times, serif" }}
-      >
-        R
-      </span>
-      <span className="text-[15px] tracking-[0.18em]" style={{ fontFamily: "Georgia, Times, serif" }}>
-        RESERVO APPS
-      </span>
-    </Link>
-  );
-}
-
 export default function HomePage() {
-  const [manual, setManual] = useState(890);
-  const [auto, setAuto] = useState(1490);
-
-  useEffect(() => {
-    const load = async () => {
-      const supabase = createClient();
-      const { data } = await supabase.from("reservo_ajustes").select("precio_manual, precio_automatico").eq("id", 1).maybeSingle();
-      if (data?.precio_manual) setManual(Number(data.precio_manual));
-      if (data?.precio_automatico) setAuto(Number(data.precio_automatico));
-    };
-    void load();
-  }, []);
-
   return (
-    <main className="min-h-screen relative" style={{ background: "#F5F0E8", color: "#1C1712" }}>
-      <div className="relative mx-auto max-w-md px-5 pt-6 pb-16">
-        <header className="flex items-center justify-between mb-12">
-          <Logo />
+    <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
+      <div className="mx-auto max-w-md px-6 pt-7 pb-16">
+        <header className="flex items-center justify-between mb-14">
+          <Link href="/" className="flex items-center gap-3">
+            <span
+              className="flex h-11 w-11 items-center justify-center rounded-full text-[20px]"
+              style={{ border: "1.5px solid #1C1712", fontFamily: "Georgia, Times, serif" }}
+            >
+              R
+            </span>
+            <span className="text-[13px] tracking-[0.16em]" style={{ fontFamily: "Georgia, Times, serif" }}>
+              RESERVO APPS
+            </span>
+          </Link>
           <Link href="/login" className="text-[13px] text-[#7a7268]">
             Ingresar
           </Link>
         </header>
 
-        <h1 className="text-[40px] leading-[1.05] mb-5" style={{ fontFamily: "Georgia, Times, serif" }}>
+        <h1 className="text-[42px] leading-[1.02] mb-5" style={{ fontFamily: "Georgia, Times, serif" }}>
           Reservá, avisá,
           <br />
           cobrá.
         </h1>
-        <p className="text-[17px] leading-6 text-[#7a7268] mb-2">Apps de reservas para negocios locales.</p>
-        <p className="text-sm text-[#7a7268] mb-8">Agenda, clientes, recordatorios y avisos.</p>
-
-        <Link href="/probar" className="mb-3 inline-flex rounded-full px-8 py-3.5 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
-          Probar 7 días
-        </Link>
-        <p className="text-xs text-[#9a9388] mb-10">
-          Manual ${manual.toLocaleString("es-UY")} · Automático ${auto.toLocaleString("es-UY")} ·{" "}
-          <Link href="/precios" className="underline underline-offset-2">
-            Ver planes
-          </Link>
+        <p className="text-[16px] leading-6 text-[#8a8378] mb-8">
+          Agenda para barberías y estudios.
+          <br />
+          WhatsApp el día antes.
         </p>
 
-        <Link href="/b/diano" className="relative mb-3 block h-[168px] overflow-hidden rounded-2xl">
-          <img src="https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1200&q=80" alt="Diano Barbershop" className="h-full w-full object-cover" />
-          <span className="absolute left-4 bottom-4 text-white text-lg" style={{ fontFamily: "Georgia, Times, serif", textShadow: "0 1px 8px rgba(0,0,0,.45)" }}>
+        <Link href="/probar" className="mb-10 inline-flex rounded-full px-8 py-3.5 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
+          Probar 7 días
+        </Link>
+
+        <Link href="/b/diano" className="relative mb-3 block h-[200px] overflow-hidden rounded-[22px]">
+          <img
+            src="https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1400&q=80"
+            alt="Diano"
+            className="h-full w-full object-cover"
+          />
+          <span
+            className="absolute left-5 bottom-5 text-white text-[22px]"
+            style={{ fontFamily: "Georgia, Times, serif", textShadow: "0 1px 10px rgba(0,0,0,.5)" }}
+          >
             Ver demo Diano
           </span>
         </Link>
 
-        <Link href="/b/vale-studio" className="relative mb-12 block h-[168px] overflow-hidden rounded-2xl">
+        <Link href="/b/vale-studio" className="relative mb-14 block h-[200px] overflow-hidden rounded-[22px]">
           <img src="/pestanas.jpg" alt="Vale Studio" className="h-full w-full object-cover" />
-          <span className="absolute left-4 bottom-4 text-[#1C1712] text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
+          <span className="absolute left-5 bottom-5 text-[#1C1712] text-[22px]" style={{ fontFamily: "Georgia, Times, serif" }}>
             Ver demo Vale Studio
           </span>
         </Link>
 
-        <footer className="text-center text-[11px] leading-5 text-[#9a9388]">
-          <p>
-            <Link href="/precios" className="underline underline-offset-2">Precios</Link>
-            {" · "}
-            <Link href="/legal/terminos" className="underline underline-offset-2">Términos</Link>
-            {" · "}
-            <Link href="/legal/privacidad" className="underline underline-offset-2">Privacidad</Link>
-          </p>
-          <p className="mt-4">
-            Reservo Apps es un producto de BELLO BRUN FEDERICO YAIR
-            <br />
-            RUT 040291740013
-            <br />
-            Montevideo 710 101, Juan Lacaze, Colonia
-          </p>
+        <footer className="text-center text-[12px] text-[#9a9388]">
+          <Link href="/precios">Precios</Link>
+          {" · "}
+          <Link href="/legal/terminos">Términos</Link>
+          {" · "}
+          <Link href="/legal/privacidad">Privacidad</Link>
         </footer>
       </div>
 
@@ -100,8 +74,7 @@ export default function HomePage() {
         href={WA}
         target="_blank"
         rel="noreferrer"
-        aria-label="WhatsApp"
-        className="fixed z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg"
+        className="fixed z-50 flex h-14 w-14 items-center justify-center rounded-full"
         style={{ right: 18, bottom: 22, background: "#1C1712", color: "#F5F0E8" }}
       >
         <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
