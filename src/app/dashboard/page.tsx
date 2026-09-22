@@ -118,7 +118,7 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen px-4 pb-24 pt-4">
-      <BrandHeader title="Agenda" />
+      <BrandHeader left={<span className="font-medium">Agenda</span>} />
       <div className="mb-4 flex items-center justify-between">
         <button onClick={() => setFecha(addDays(fecha, -1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>
           ‹
