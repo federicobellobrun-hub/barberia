@@ -1,11 +1,11 @@
-
 import { redirect } from "next/navigation";
 
-export default function Page({
+export default async function Page({
   searchParams,
 }: {
-  searchParams: { b?: string; shop?: string };
+  searchParams: Promise<{ b?: string; shop?: string }>;
 }) {
-  const b = searchParams.b || searchParams.shop || "";
-  redirect(b ? `/resena?b=${b}` : "/");
+  const params = await searchParams;
+  const b = params.b || params.shop || "";
+  redirect(b ? `/resena?b=${encodeURIComponent(b)}` : "/");
 }
