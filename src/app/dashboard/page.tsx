@@ -46,8 +46,8 @@ function horaUy(fechaHora: string) {
   });
 }
 
-function fechaUy(fechaHora: string) {
-  return new Date(fechaHora).toLocaleDateString("es-UY", {
+function fechaUy(value: string) {
+  return new Date(`${value}T12:00:00-03:00`).toLocaleDateString("es-UY", {
     weekday: "long",
     day: "numeric",
     month: "short",
@@ -66,65 +66,71 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      const { data: session } = await supabase.auth.getUser();
-      if (!session.user) {
-        router.replace("/login");
-        return;
-      }
-      const { data: me } = await supabase
-        .from("usuarios")
-        .select("barberia_id, rol, barbero_id")
-        .eq("auth_user_id", session.user.id)
-        .maybeSingle();
-      if (!me?.barberia_id) {
-        setError("Sin barbería");
-        setLoading(false);
-        return;
-      }
-      const soloBarbero = me.rol === "barbero";
-      setEsBarbero(soloBarbero);
-
-      const { data: bars } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", me.barberia_id).order("nombre");
-      setBarberos((bars as Barbero[]) || []);
-
-      const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
-      const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
-      let q = supabase
-        .from("turnos")
-        .select("id, barberia_id, barbero_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo), barberos(id, nombre)")
-        .eq("barberia_id", me.barberia_id)
-        .gte("fecha_hora", desde)
-        .lte("fecha_hora", hasta)
-        .order("fecha_hora");
-      if (soloBarbero && me.barbero_id) q = q.eq("barbero_id", me.barbero_id);
-      const { data, error: e } = await q;
-      if (e) setError(e.message);
-      setTurnos((data as unknown as Turno[]) || []);
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    const { data: session } = await supabase.auth.getUser();
+    if (!session.user) {
+      router.replace("/login");
+      return;
+    }
+    const { data: me } = await supabase
+      .from("usuarios")
+      .select("barberia_id, rol, barbero_id")
+      .eq("auth_user_id", session.user.id)
+      .maybeSingle();
+    if (!me?.barberia_id) {
+      setError("Sin barbería");
       setLoading(false);
-    };
+      return;
+    }
+    const soloBarbero = me.rol === "barbero";
+    setEsBarbero(soloBarbero);
+
+    const { data: bars } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", me.barberia_id).order("nombre");
+    setBarberos((bars as Barbero[]) || []);
+
+    const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
+    const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
+    let q = supabase
+      .from("turnos")
+      .select("id, barberia_id, barbero_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo), barberos(id, nombre)")
+      .eq("barberia_id", me.barberia_id)
+      .gte("fecha_hora", desde)
+      .lte("fecha_hora", hasta)
+      .order("fecha_hora");
+    if (soloBarbero && me.barbero_id) q = q.eq("barbero_id", me.barbero_id);
+    const { data, error: e } = await q;
+    if (e) setError(e.message);
+    setTurnos((data as unknown as Turno[]) || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
     void load();
-  }, [fecha, router, supabase]);
+  }, [fecha]);
+
+  const cambiarEstado = async (id: string, estado: string) => {
+    const { error: e } = await supabase.from("turnos").update({ estado }).eq("id", id);
+    if (e) setError(e.message);
+    else void load();
+  };
 
   const turnosFiltrados = useMemo(() => {
     if (filtroBarbero === "todos") return turnos;
     return turnos.filter((t) => t.barbero_id === filtroBarbero);
   }, [turnos, filtroBarbero]);
 
-  const labelFecha = fechaUy(`${fecha}T12:00:00-03:00`);
-
   return (
-    <main className="min-h-screen px-4 pb-24 pt-4">
+    <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
       <BrandHeader left={<span className="font-medium">Agenda</span>} />
+
       <div className="mb-4 flex items-center justify-between">
         <button onClick={() => setFecha(addDays(fecha, -1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>
           ‹
         </button>
         <div className="text-center">
-          <p className="font-medium capitalize">{labelFecha}</p>
+          <p className="font-medium capitalize">{fechaUy(fecha)}</p>
           <button onClick={() => setFecha(ymd(new Date()))} className="text-xs" style={{ color: "var(--muted)" }}>
             Hoy
           </button>
@@ -163,25 +169,51 @@ export default function DashboardPage() {
       )}
 
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
-      {loading && <p style={{ color: "var(--muted)" }}>Cargando...</p>}
-      {!loading && turnosFiltrados.length === 0 && <p style={{ color: "var(--muted)" }}>No hay turnos este día.</p>}
+      {loading && <p style={{ color: "var(--muted)" }}>Cargando agenda...</p>}
+      {!loading && turnosFiltrados.length === 0 && <p style={{ color: "var(--muted)" }}>No hay turnos este día. Cambiá con las flechas.</p>}
+
       {turnosFiltrados.map((t) => {
         const c = one(t.clientes);
         const s = one(t.servicios);
         const b = one(t.barberos);
+        const p = one(t.pagos);
         return (
           <article key={t.id} className="mb-3 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-medium">
-                  {horaUy(t.fecha_hora)} · {c?.nombre || "Cliente"}
-                </p>
+                <p className="text-lg font-medium">{horaUy(t.fecha_hora)}</p>
+                <p className="text-sm">{c?.nombre || "Cliente"}</p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
                   {s?.nombre || "Servicio"}
+                  {s?.precio != null ? ` · $${s.precio}` : ""}
                   {b?.nombre ? ` · ${b.nombre}` : ""}
                 </p>
+                {c?.telefono && <p className="text-xs" style={{ color: "var(--muted)" }}>{c.telefono}</p>}
               </div>
               <span className="text-[11px] uppercase">{t.estado}</span>
+            </div>
+            {p && <p className="mt-2 text-xs">Pago: {p.metodo} · ${p.monto}</p>}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {t.estado === "pendiente" && (
+                <button onClick={() => void cambiarEstado(t.id, "confirmado")} className="rounded-full px-3 py-1.5 text-xs" style={{ background: "var(--fg, #1A1612)", color: "var(--bg, #F6F1E8)" }}>
+                  Confirmar
+                </button>
+              )}
+              {t.estado !== "realizado" && t.estado !== "cancelado" && (
+                <button onClick={() => void cambiarEstado(t.id, "realizado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid var(--line)" }}>
+                  Realizado
+                </button>
+              )}
+              {t.estado !== "cancelado" && t.estado !== "no_vino" && (
+                <button onClick={() => void cambiarEstado(t.id, "no_vino")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid var(--line)" }}>
+                  No vino
+                </button>
+              )}
+              {t.estado !== "cancelado" && (
+                <button onClick={() => void cambiarEstado(t.id, "cancelado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid var(--line)" }}>
+                  Cancelar
+                </button>
+              )}
             </div>
           </article>
         );
