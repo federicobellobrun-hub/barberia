@@ -67,6 +67,8 @@ export default function DashboardPage() {
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [filtroBarbero, setFiltroBarbero] = useState("todos");
   const [esBarbero, setEsBarbero] = useState(false);
+  const [linkPublico, setLinkPublico] = useState("");
+  const [copiado, setCopiado] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -103,6 +105,9 @@ export default function DashboardPage() {
       }
       const soloBarbero = me.rol === "barbero";
       setEsBarbero(soloBarbero);
+
+      const { data: shop } = await supabase.from("barberias").select("slug").eq("id", me.barberia_id).maybeSingle();
+      if (shop?.slug) setLinkPublico(`https://${shop.slug}.reservoapps.com`);
 
       const { data: bars } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", me.barberia_id).order("nombre");
       setBarberos((bars as Barbero[]) || []);
@@ -160,6 +165,25 @@ export default function DashboardPage() {
   return (
     <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
       <BrandHeader left={<span className="font-medium">Agenda</span>} />
+
+      {!esBarbero && linkPublico && (
+        <div className="mb-3 rounded-2xl p-3 text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            Link para clientes
+          </p>
+          <p className="break-all">{linkPublico}</p>
+          <button
+            className="mt-2 text-xs underline"
+            onClick={async () => {
+              await navigator.clipboard.writeText(linkPublico);
+              setCopiado(true);
+              setTimeout(() => setCopiado(false), 1500);
+            }}
+          >
+            {copiado ? "Copiado" : "Copiar link"}
+          </button>
+        </div>
+      )}
 
       {!esBarbero && barberos.length > 1 && (
         <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
