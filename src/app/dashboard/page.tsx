@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, Suspense } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import BottomNav from "@/components/BottomNav";
@@ -28,9 +27,17 @@ function one<T>(value: T | T[] | null): T | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] || null : value;
 }
+
 function ymd(date: Date) {
   return date.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
 }
+
+function addDays(value: string, days: number) {
+  const d = new Date(`${value}T12:00:00-03:00`);
+  d.setDate(d.getDate() + days);
+  return ymd(d);
+}
+
 function horaUy(fechaHora: string) {
   return new Date(fechaHora).toLocaleTimeString("es-UY", {
     hour: "2-digit",
@@ -38,510 +45,164 @@ function horaUy(fechaHora: string) {
     timeZone: "America/Montevideo",
   });
 }
-function fechaCorta(fechaHora: string) {
-  return new Date(fechaHora).toLocaleDateString("es-UY", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "America/Montevideo",
-  });
-}
+
 function fechaUy(fechaHora: string) {
   return new Date(fechaHora).toLocaleDateString("es-UY", {
     weekday: "long",
     day: "numeric",
-    month: "long",
+    month: "short",
     timeZone: "America/Montevideo",
   });
 }
-function waNumber(telefono: string) {
-  const solo = telefono.replace(/\D/g, "");
-  if (solo.startsWith("598")) return solo;
-  if (solo.startsWith("0")) return `598${solo.slice(1)}`;
-  return `598${solo}`;
-}
-function abrirWhatsapp(telefono: string, texto: string) {
-  window.open(`https://wa.me/${waNumber(telefono)}?text=${encodeURIComponent(texto)}`, "_blank");
-}
-function nroTurno(id: string) {
-  return id.replace(/-/g, "").slice(-6).toUpperCase();
-}
-function linkPublico(slug: string) {
-  return `https://${slug}.reservoapps.com`;
-}
-async function avisoCambio(turnoId: string, tipo: "cancelado" | "movido") {
-  await fetch("/api/whatsapp/cambio", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ turnoId, tipo }),
-  });
-}
 
-function DashboardInner() {
-  const search = useSearchParams();
-  const shopSlug = search.get("shop");
-  const [nombre, setNombre] = useState("Barbero");
-  const [rol, setRol] = useState("");
-  const [slug, setSlug] = useState("");
-  const [plan, setPlan] = useState("");
-  const [planHasta, setPlanHasta] = useState<string | null>(null);
-  const [trialHasta, setTrialHasta] = useState<string | null>(null);
-  const [barberiaId, setBarberiaId] = useState<string | null>(null);
-  const [listo, setListo] = useState(false);
-  const [copiado, setCopiado] = useState(false);
-  const [miBarberoId, setMiBarberoId] = useState<string | null>(null);
+export default function DashboardPage() {
+  const router = useRouter();
+  const supabase = createClient();
   const [fecha, setFecha] = useState(ymd(new Date()));
-  const [mes, setMes] = useState(() => ymd(new Date()).slice(0, 7));
   const [turnos, setTurnos] = useState<Turno[]>([]);
-  const [diasConTurno, setDiasConTurno] = useState<string[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [filtroBarbero, setFiltroBarbero] = useState("todos");
-  const [totalMes, setTotalMes] = useState(0);
+  const [esBarbero, setEsBarbero] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [abierto, setAbierto] = useState<string | null>(null);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [nuevaFecha, setNuevaFecha] = useState("");
-  const [nuevaHora, setNuevaHora] = useState("");
-  const [nuevoBarbero, setNuevoBarbero] = useState("");
-  const router = useRouter();
-  const esBarbero = rol === "barbero";
-  const hoy = ymd(new Date());
-  const urlClientes = slug ? linkPublico(slug) : "";
-  const qShop = shopSlug ? `?shop=${shopSlug}` : "";
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const loadUser = async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login");
-        return;
-      }
-      const { data } = await supabase
-        .from("usuarios")
-        .select("nombre, rol, barbero_id, barberia_id")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
-      if (data?.nombre) setNombre(data.nombre);
-      setRol(data?.rol || "");
-      if (data?.rol === "barbero" && data.barbero_id) {
-        setMiBarberoId(data.barbero_id);
-        setFiltroBarbero(data.barbero_id);
-      }
-      if (data?.rol === "superadmin" && shopSlug) {
-        const { data: shop } = await supabase
-          .from("barberias")
-          .select("id, slug, plan, plan_hasta, trial_hasta")
-          .eq("slug", shopSlug)
-          .maybeSingle();
-        if (shop) {
-          setBarberiaId(shop.id);
-          setSlug(shop.slug);
-          setPlan(shop.plan || "");
-          setPlanHasta(shop.plan_hasta || null);
-          setTrialHasta(shop.trial_hasta || null);
-        }
-      } else if (data?.barberia_id) {
-        setBarberiaId(data.barberia_id);
-        const { data: shop } = await supabase
-          .from("barberias")
-          .select("slug, plan, plan_hasta, trial_hasta")
-          .eq("id", data.barberia_id)
-          .maybeSingle();
-        if (shop?.slug) setSlug(shop.slug);
-        if (shop) {
-          setPlan(shop.plan || "");
-          setPlanHasta(shop.plan_hasta || null);
-          setTrialHasta(shop.trial_hasta || null);
-        }
-      }
-      setListo(true);
-    };
-    void loadUser();
-  }, [router, shopSlug]);
-
-  useEffect(() => {
-    if (!listo || !barberiaId) return;
     const load = async () => {
       setLoading(true);
-      setError(null);
-      const supabase = createClient();
+      setError("");
+      const { data: session } = await supabase.auth.getUser();
+      if (!session.user) {
+        router.replace("/login");
+        return;
+      }
+      const { data: me } = await supabase
+        .from("usuarios")
+        .select("barberia_id, rol, barbero_id")
+        .eq("auth_user_id", session.user.id)
+        .maybeSingle();
+      if (!me?.barberia_id) {
+        setError("Sin barbería");
+        setLoading(false);
+        return;
+      }
+      const soloBarbero = me.rol === "barbero";
+      setEsBarbero(soloBarbero);
+
+      const { data: bars } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", me.barberia_id).order("nombre");
+      setBarberos((bars as Barbero[]) || []);
+
       const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
-      const inicioMes = new Date(`${mes}-01T00:00:00-03:00`);
-      const siguiente = new Date(inicioMes);
-      siguiente.setMonth(siguiente.getMonth() + 1);
-      const [turnosRes, mesRes, pagosMesRes, barberosRes] = await Promise.all([
-        supabase
-          .from("turnos")
-          .select("id, barberia_id, barbero_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo), barberos(nombre)")
-          .eq("barberia_id", barberiaId)
-          .gte("fecha_hora", desde)
-          .lte("fecha_hora", hasta)
-          .neq("estado", "cancelado")
-          .order("fecha_hora"),
-        supabase.from("turnos").select("fecha_hora, barbero_id").eq("barberia_id", barberiaId).gte("fecha_hora", inicioMes.toISOString()).lt("fecha_hora", siguiente.toISOString()).neq("estado", "cancelado"),
-        supabase.from("pagos").select("monto").eq("barberia_id", barberiaId).gte("pagado_at", inicioMes.toISOString()).lt("pagado_at", siguiente.toISOString()),
-        supabase.from("barberos").select("id, nombre").eq("barberia_id", barberiaId).eq("activo", true).order("nombre"),
-      ]);
-      if (turnosRes.error) setError(turnosRes.error.message);
-      setTurnos((turnosRes.data as unknown as Turno[]) || []);
-      setBarberos((barberosRes.data as Barbero[]) || []);
-      setTotalMes((pagosMesRes.data || []).reduce((acc: number, p: { monto: number }) => acc + Number(p.monto || 0), 0));
-      const filtro = esBarbero && miBarberoId ? miBarberoId : filtroBarbero;
-      const dias = Array.from(
-        new Set(
-          (mesRes.data || [])
-            .filter((t: { barbero_id: string | null }) => filtro === "todos" || t.barbero_id === filtro)
-            .map((t: { fecha_hora: string }) => ymd(new Date(t.fecha_hora)))
-        )
-      );
-      setDiasConTurno(dias);
+      let q = supabase
+        .from("turnos")
+        .select("id, barberia_id, barbero_id, fecha_hora, duracion_minutos, estado, clientes(nombre, telefono), servicios(nombre, precio), pagos(id, monto, metodo), barberos(id, nombre)")
+        .eq("barberia_id", me.barberia_id)
+        .gte("fecha_hora", desde)
+        .lte("fecha_hora", hasta)
+        .order("fecha_hora");
+      if (soloBarbero && me.barbero_id) q = q.eq("barbero_id", me.barbero_id);
+      const { data, error: e } = await q;
+      if (e) setError(e.message);
+      setTurnos((data as unknown as Turno[]) || []);
       setLoading(false);
     };
     void load();
-  }, [listo, barberiaId, fecha, mes, filtroBarbero, esBarbero, miBarberoId]);
+  }, [fecha, router, supabase]);
 
-  const filtroActivo = esBarbero && miBarberoId ? miBarberoId : filtroBarbero;
-  const turnosFiltrados = useMemo(
-    () => (filtroActivo === "todos" ? turnos : turnos.filter((t) => t.barbero_id === filtroActivo)),
-    [turnos, filtroActivo]
-  );
-  const totalDia = useMemo(() => turnosFiltrados.reduce((acc, t) => acc + Number(one(t.pagos)?.monto || 0), 0), [turnosFiltrados]);
+  const turnosFiltrados = useMemo(() => {
+    if (filtroBarbero === "todos") return turnos;
+    return turnos.filter((t) => t.barbero_id === filtroBarbero);
+  }, [turnos, filtroBarbero]);
 
-  const celdasMes = useMemo(() => {
-    const [y, m] = mes.split("-").map(Number);
-    const start = new Date(y, m - 1, 1).getDay();
-    const days = new Date(y, m, 0).getDate();
-    const cells: (string | null)[] = [];
-    for (let i = 0; i < start; i++) cells.push(null);
-    for (let d = 1; d <= days; d++) cells.push(`${mes}-${String(d).padStart(2, "0")}`);
-    return cells;
-  }, [mes]);
-
-  const mesLabel = new Date(`${mes}-01T12:00:00-03:00`).toLocaleDateString("es-UY", { month: "long", year: "numeric" });
-
-  const copiarLink = async () => {
-    if (!urlClientes) return;
-    await navigator.clipboard.writeText(urlClientes);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
-  };
-
-  const cambiarEstado = async (id: string, estado: string) => {
-    const supabase = createClient();
-    const { error: e } = await supabase.from("turnos").update({ estado }).eq("id", id);
-    if (e) return setError(e.message);
-    setTurnos((prev) => prev.map((t) => (t.id === id ? { ...t, estado } : t)));
-  };
-
-  const registrarPago = async (turno: Turno, metodo: "efectivo" | "transferencia") => {
-    const supabase = createClient();
-    const monto = Number(one(turno.servicios)?.precio || 0);
-    const { data, error: e } = await supabase
-      .from("pagos")
-      .insert({ barberia_id: turno.barberia_id, turno_id: turno.id, monto, metodo })
-      .select("id, monto, metodo")
-      .single();
-    if (e) return setError(e.message);
-    await supabase.from("turnos").update({ estado: "realizado" }).eq("id", turno.id);
-    setTurnos((prev) => prev.map((t) => (t.id === turno.id ? { ...t, pagos: data, estado: "realizado" } : t)));
-    setTotalMes((n) => n + monto);
-  };
-
-  const moverTurno = async (turno: Turno) => {
-    if (!nuevaFecha || !nuevaHora) return;
-    const supabase = createClient();
-    const fechaHora = new Date(`${nuevaFecha}T${nuevaHora}:00-03:00`).toISOString();
-    const { error: e } = await supabase
-      .from("turnos")
-      .update({ fecha_hora: fechaHora, estado: "confirmado", barbero_id: nuevoBarbero || turno.barbero_id })
-      .eq("id", turno.id);
-    if (e) return setError(e.message);
-    await avisoCambio(turno.id, "movido");
-    setEditId(null);
-    setFecha(nuevaFecha);
-    setMes(nuevaFecha.slice(0, 7));
-  };
-
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
-
-  const hastaPlan = plan === "trial" ? trialHasta : planHasta;
-  const diasPlan = hastaPlan ? Math.ceil((new Date(`${String(hastaPlan).slice(0, 10)}T23:59:59-03:00`).getTime() - Date.now()) / 86400000) : null;
+  const labelFecha = fechaUy(`${fecha}T12:00:00-03:00`);
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader
-          left={
-            <button onClick={() => void handleLogout()} className="text-sm" style={{ color: "var(--muted)" }}>
-              Salir
-            </button>
-          }
-        />
-        <p className="text-sm" style={{ color: "var(--muted)" }}>
-          Hola, {nombre}
-        </p>
-        <h1 className="text-[34px] font-semibold tracking-tight leading-9 mb-3">Agenda</h1>
-
-        {diasPlan !== null && diasPlan <= 5 && (
-          <Link href={`/dashboard/config${qShop}`} className="block rounded-2xl px-4 py-3 mb-4 text-sm" style={{ background: diasPlan < 0 ? "#F3E4E0" : "#EFE8DC", border: "1px solid var(--line)" }}>
-            {diasPlan < 0
-              ? "El plan venció. La agenda pública está pausada. Renová desde Configuración."
-              : `El plan vence en ${diasPlan} día${diasPlan === 1 ? "" : "s"}. Renová desde Configuración.`}
-          </Link>
-        )}
-
-        {urlClientes && (
-          <div className="flex items-center justify-between gap-3 mb-5 px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 16 }}>
-            <div className="min-w-0">
-              <p className="text-[10px] tracking-[0.16em] uppercase" style={{ color: "var(--muted)" }}>
-                Link para clientes
-              </p>
-              <p className="text-sm truncate">{urlClientes.replace("https://", "")}</p>
-            </div>
-            <button type="button" onClick={() => void copiarLink()} className="shrink-0 text-xs px-3 py-2 rounded-full" style={{ background: "#1c1712", color: "#f4efe6" }}>
-              {copiado ? "Copiado" : "Copiar"}
-            </button>
-          </div>
-        )}
-
-        {!esBarbero && barberos.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-            <button onClick={() => setFiltroBarbero("todos")} className="shrink-0 rounded-full px-4 py-2 text-sm" style={{ background: filtroBarbero === "todos" ? "#1c1712" : "var(--card)", color: filtroBarbero === "todos" ? "#fff" : "var(--text)", border: "1px solid var(--line)" }}>
-              Todos
-            </button>
-            {barberos.map((b) => (
-              <button key={b.id} onClick={() => setFiltroBarbero(b.id)} className="shrink-0 rounded-full px-4 py-2 text-sm" style={{ background: filtroBarbero === b.id ? "#1c1712" : "var(--card)", color: filtroBarbero === b.id ? "#fff" : "var(--text)", border: "1px solid var(--line)" }}>
-                {b.nombre}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="p-4 mb-5" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 16 }}>
-          <div className="flex items-center justify-between mb-3">
-            <button onClick={() => setMes((m) => { const d = new Date(`${m}-01T12:00:00-03:00`); d.setMonth(d.getMonth() - 1); return ymd(d).slice(0, 7); })}>‹</button>
-            <p className="text-sm font-medium capitalize">{mesLabel}</p>
-            <button onClick={() => setMes((m) => { const d = new Date(`${m}-01T12:00:00-03:00`); d.setMonth(d.getMonth() + 1); return ymd(d).slice(0, 7); })}>›</button>
-          </div>
-          <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: "var(--muted)" }}>
-            {["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"].map((d) => (
-              <span key={d}>{d}</span>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
-            {celdasMes.map((value, i) => {
-              if (!value) return <span key={i} />;
-              const sel = fecha === value;
-              const conTurno = diasConTurno.includes(value);
-              const esHoy = value === hoy;
-              return (
-                <button
-                  key={value}
-                  onClick={() => setFecha(value)}
-                  className="h-8 w-8 mx-auto rounded-full"
-                  style={{
-                    background: sel ? "#1c1712" : conTurno ? "var(--bg)" : "transparent",
-                    color: sel ? "#f4efe6" : esHoy ? "#8B3A3A" : "var(--text)",
-                    border: conTurno && !sel ? "1px solid var(--line)" : "none",
-                    fontWeight: esHoy || sel ? 600 : 400,
-                  }}
-                >
-                  {Number(value.slice(8))}
-                </button>
-              );
-            })}
-          </div>
+    <main className="min-h-screen px-4 pb-24 pt-4">
+      <BrandHeader title="Agenda" />
+      <div className="mb-4 flex items-center justify-between">
+        <button onClick={() => setFecha(addDays(fecha, -1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>
+          ‹
+        </button>
+        <div className="text-center">
+          <p className="font-medium capitalize">{labelFecha}</p>
+          <button onClick={() => setFecha(ymd(new Date()))} className="text-xs" style={{ color: "var(--muted)" }}>
+            Hoy
+          </button>
         </div>
-
-        {!esBarbero && (
-          <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>
-            Día ${totalDia} · Mes ${totalMes}
-          </p>
-        )}
-        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-        {loading && <p style={{ color: "var(--muted)" }}>Cargando...</p>}
-        {!loading && turnosFiltrados.length === 0 && <p style={{ color: "var(--muted)" }}>No hay turnos este día.</p>}
-
-        {turnosFiltrados.map((t) => {
-          const cliente = one(t.clientes);
-          const servicio = one(t.servicios);
-          const pago = one(t.pagos);
-          const profesional = one(t.barberos);
-          const extra = abierto === t.id;
-          return (
-            <article key={t.id} className="mb-3 overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 8 }}>
-              <div className="flex">
-                <div className="w-2 shrink-0" style={{ background: "#1c1712" }} />
-                <div className="flex-1 p-3">
-                  <div className="flex justify-between items-start gap-2">
-                    <p className="font-semibold">
-                      {horaUy(t.fecha_hora)} - {fechaCorta(t.fecha_hora)}
-                    </p>
-                    <p className="text-xs" style={{ color: "var(--muted)" }}>
-                      Nº {nroTurno(t.id)}
-                    </p>
-                  </div>
-                  <p className="text-sm mt-1">
-                    <span className="font-medium">Servicio:</span> {servicio?.nombre}
-                    {servicio?.precio ? ` $${servicio.precio}` : ""}
-                  </p>
-                  {profesional?.nombre && (
-                    <p className="text-sm">
-                      <span className="font-medium">Profesional:</span> {profesional.nombre}
-                    </p>
-                  )}
-                  <p className="text-sm capitalize">
-                    <span className="font-medium">Estado:</span> {t.estado.replace("_", " ")}
-                  </p>
-                  <div className="flex justify-between items-end">
-                    <p className="text-sm">
-                      <span className="font-medium">Nombre:</span> {cliente?.nombre || "Cliente"}
-                    </p>
-                    <button type="button" className="text-xs" style={{ color: "var(--muted)" }} onClick={() => setAbierto(extra ? null : t.id)}>
-                      {extra ? "(− info)" : "(+ info)"}
-                    </button>
-                  </div>
-
-                  {extra && (
-                    <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--line)" }}>
-                      {cliente?.telefono && <p className="text-sm mb-2">{cliente.telefono}</p>}
-                      <div className="flex flex-wrap gap-2">
-                        {t.estado === "pendiente" && (
-                          <button
-                            onClick={() => {
-                              void (async () => {
-                                await cambiarEstado(t.id, "confirmado");
-                                const res = await fetch("/api/whatsapp/reserva", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ turnoId: t.id, soloCliente: true }),
-                                });
-                                const data = await res.json();
-                                if (data.skipped === "manual" && cliente?.telefono) {
-                                  abrirWhatsapp(
-                                    cliente.telefono,
-                                    `Hola ${cliente.nombre}, te confirmamos el turno.\n\nServicio: ${servicio?.nombre}\nDía: ${fechaUy(t.fecha_hora)}\nHora: ${horaUy(t.fecha_hora)}`
-                                  );
-                                }
-                              })();
-                            }}
-                            className="text-xs px-3 py-2 rounded-full"
-                            style={{ background: "#1c1712", color: "#f4efe6" }}
-                          >
-                            Confirmar y avisar
-                          </button>
-                        )}
-                        {cliente?.telefono && (
-                          <button
-                            onClick={() =>
-                              abrirWhatsapp(
-                                cliente.telefono,
-                                `Hola ${cliente.nombre}, te recordamos tu turno.\n\n${servicio?.nombre}\n${fechaUy(t.fecha_hora)} · ${horaUy(t.fecha_hora)}`
-                              )
-                            }
-                            className="text-xs px-3 py-2 rounded-full"
-                            style={{ border: "1px solid var(--line)" }}
-                          >
-                            Recordatorio
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            setEditId(t.id);
-                            setNuevaFecha(ymd(new Date(t.fecha_hora)));
-                            setNuevaHora(horaUy(t.fecha_hora));
-                            setNuevoBarbero(t.barbero_id || "");
-                          }}
-                          className="text-xs px-3 py-2 rounded-full"
-                          style={{ border: "1px solid var(--line)" }}
-                        >
-                          Mover
-                        </button>
-                        <button onClick={() => void cambiarEstado(t.id, "no_asistio")} className="text-xs px-3 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>
-                          No vino
-                        </button>
-                        <button
-                          onClick={() => {
-                            void cambiarEstado(t.id, "cancelado");
-                            void avisoCambio(t.id, "cancelado");
-                          }}
-                          className="text-xs px-3 py-2 rounded-full text-red-500"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                      {editId === t.id && (
-                        <div className="grid grid-cols-2 gap-2 mt-3">
-                          <input type="date" value={nuevaFecha} onChange={(e) => setNuevaFecha(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-                          <input type="time" value={nuevaHora} onChange={(e) => setNuevaHora(e.target.value)} className="rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }} />
-                          {!esBarbero && barberos.length > 0 && (
-                            <select value={nuevoBarbero} onChange={(e) => setNuevoBarbero(e.target.value)} className="col-span-2 rounded-xl px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" }}>
-                              <option value="">Profesional</option>
-                              {barberos.map((b) => (
-                                <option key={b.id} value={b.id}>{b.nombre}</option>
-                              ))}
-                            </select>
-                          )}
-                          <button onClick={() => void moverTurno(t)} className="col-span-2 rounded-xl py-2 text-sm" style={{ background: "#1c1712", color: "#f4efe6" }}>
-                            Guardar y avisar
-                          </button>
-                        </div>
-                      )}
-                      {pago ? (
-                        <p className="text-sm mt-3" style={{ color: "var(--muted)" }}>
-                          Pagado · {pago.metodo} · ${pago.monto}
-                        </p>
-                      ) : (
-                        <div className="flex gap-2 mt-3">
-                          <button onClick={() => void registrarPago(t, "efectivo")} className="text-xs px-3 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>
-                            Efectivo
-                          </button>
-                          <button onClick={() => void registrarPago(t, "transferencia")} className="text-xs px-3 py-2 rounded-full" style={{ border: "1px solid var(--line)" }}>
-                            Transferencia
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </article>
-          );
-        })}
+        <button onClick={() => setFecha(addDays(fecha, 1))} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>
+          ›
+        </button>
       </div>
+
+      {!esBarbero && barberos.length > 1 && (
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+          <button
+            onClick={() => setFiltroBarbero("todos")}
+            className="shrink-0 rounded-full px-3 py-1.5 text-sm"
+            style={{
+              background: filtroBarbero === "todos" ? "var(--fg, #1A1612)" : "var(--card)",
+              color: filtroBarbero === "todos" ? "var(--bg, #F6F1E8)" : "inherit",
+            }}
+          >
+            Todos
+          </button>
+          {barberos.map((b) => (
+            <button
+              key={b.id}
+              onClick={() => setFiltroBarbero(b.id)}
+              className="shrink-0 rounded-full px-3 py-1.5 text-sm"
+              style={{
+                background: filtroBarbero === b.id ? "var(--fg, #1A1612)" : "var(--card)",
+                color: filtroBarbero === b.id ? "var(--bg, #F6F1E8)" : "inherit",
+              }}
+            >
+              {b.nombre}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+      {loading && <p style={{ color: "var(--muted)" }}>Cargando...</p>}
+      {!loading && turnosFiltrados.length === 0 && <p style={{ color: "var(--muted)" }}>No hay turnos este día.</p>}
+      {turnosFiltrados.map((t) => {
+        const c = one(t.clientes);
+        const s = one(t.servicios);
+        const b = one(t.barberos);
+        return (
+          <article key={t.id} className="mb-3 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">
+                  {horaUy(t.fecha_hora)} · {c?.nombre || "Cliente"}
+                </p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  {s?.nombre || "Servicio"}
+                  {b?.nombre ? ` · ${b.nombre}` : ""}
+                </p>
+              </div>
+              <span className="text-[11px] uppercase">{t.estado}</span>
+            </div>
+          </article>
+        );
+      })}
+
       <BottomNav
         items={
           esBarbero
             ? [
-                { href: `/dashboard${qShop}`, label: "Agenda", active: true },
-                { href: `/dashboard/nuevo${qShop}`, label: "Nuevo" },
-                { href: `/dashboard/mas${qShop}`, label: "Más" },
+                { href: "/dashboard", label: "Agenda", active: true },
+                { href: "/dashboard/nuevo", label: "Nuevo" },
+                { href: "/dashboard/mas", label: "Más" },
               ]
             : [
-                { href: `/dashboard${qShop}`, label: "Agenda", active: true },
-                { href: `/dashboard/clientes${qShop}`, label: "Clientes" },
-                { href: `/dashboard/catalogo${qShop}`, label: "Catálogo" },
-                { href: `/dashboard/mas${qShop}`, label: "Más" },
+                { href: "/dashboard", label: "Agenda", active: true },
+                { href: "/dashboard/clientes", label: "Clientes" },
+                { href: "/dashboard/catalogo", label: "Catálogo" },
+                { href: "/dashboard/mas", label: "Más" },
               ]
         }
       />
     </main>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <Suspense fallback={<main className="min-h-screen" style={{ background: "#F5F0E8" }} />}>
-      <DashboardInner />
-    </Suspense>
   );
 }
