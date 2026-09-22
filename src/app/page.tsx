@@ -216,25 +216,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="mt-20">
-          <h2 className="text-[32px] leading-9" style={{ fontFamily: "Georgia, Times, serif" }}>
-            Lo que dicen los dueños.
-          </h2>
-          <p className="mt-3 max-w-lg text-sm text-[#6f6a62]">
-            Cuando un local nos autorice la frase, va acá con nombre y rubro. Un testimonio verdadero vende. Uno inventado quema confianza.
-          </p>
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <article className="rounded-[24px] bg-white/70 p-5" style={{ border: "1px solid rgba(26,22,18,.08)" }}>
-              <p className="text-sm leading-6 text-[#6f6a62]">“Próximamente: la experiencia de una barbería usando la agenda.”</p>
-              <p className="mt-4 text-[13px]">Barbería · Uruguay</p>
-            </article>
-            <article className="rounded-[24px] bg-white/70 p-5" style={{ border: "1px solid rgba(26,22,18,.08)" }}>
-              <p className="text-sm leading-6 text-[#6f6a62]">“Próximamente: la experiencia de un estudio de estética.”</p>
-              <p className="mt-4 text-[13px]">Estética · Uruguay</p>
-            </article>
-          </div>
-        </section>
-
         <section className="mt-20 rounded-[28px] px-6 py-12 text-center" style={{ background: "#1A1612", color: "#F6F1E8" }}>
           <h2 className="text-[28px] md:text-[32px]" style={{ fontFamily: "Georgia, Times, serif" }}>
             Probá 7 días en tu local.
