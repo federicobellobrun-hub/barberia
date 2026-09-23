@@ -3,21 +3,13 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f3eee6;
-  --card: #fffcf7;
-  --text: #1c1712;
-  --muted: #7a7268;
-  --line: #d9d0c4;
-  --accent: #1c1712;
-}
-
-.dark {
-  --bg: #14110e;
-  --card: #1e1a16;
-  --text: #f4efe6;
-  --muted: #a89f93;
-  --line: #3a342c;
-  --accent: #f4efe6;
+  --bg: #f6f1e8;
+  --card: #fffbf5;
+  --text: #1a1612;
+  --fg: #1a1612;
+  --muted: #8a8378;
+  --line: #e6e0d4;
+  --accent: #1a1612;
 }
 
 html,
@@ -26,43 +18,20 @@ body {
   color: var(--text);
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, Inter, sans-serif;
-}
-
-.font-brand {
-  font-family: "Times New Roman", Georgia, serif;
-}
-:root, [data-tema="claro"] {
-  --bg: #F6F1E8;
-  --fg: #1A1612;
-  --card: #fff;
-  --line: #e6e0d4;
-  --muted: #8A8378;
-}
-[data-tema="oscuro"] {
-  --bg: #161310;
-  --fg: #F6F1E8;
-  --card: #231f1a;
-  --line: #3a342c;
-  --muted: #b8b0a4;
-}
-html, body {
-  background: var(--bg);
-  color: var(--fg);
-}
+.dark,
 html.oscuro,
 html[data-tema="oscuro"] {
   --bg: #161310;
-  --fg: #f6f1e8;
   --card: #231f1a;
-  --line: #3a342c;
+  --text: #f6f1e8;
+  --fg: #f6f1e8;
   --muted: #b8b0a4;
-  background: #161310;
-  color: #f6f1e8;
+  --line: #3a342c;
+  --accent: #f6f1e8;
 }
+
 html.oscuro body,
 html[data-tema="oscuro"] body {
-  background: #161310 !important;
-  color: #f6f1e8 !important;
+  background: #161310;
+  color: #f6f1e8;
 }
