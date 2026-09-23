@@ -1,187 +1,59 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import BrandHeader from "@/components/BrandHeader";
-import BottomNav from "@/components/BottomNav";
 import { createClient } from "@/lib/supabase";
-import { temaLocal, aplicarTema } from "@/lib/rubro";
+import BrandHeader from "@/components/BrandHeader";
 
-const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-
-type Shop = {
-  id: string;
-  direccion: string | null;
-  maps_url: string | null;
-  portada_url: string | null;
-  rubro: string | null;
-  estilo: string | null;
-  mostrar_resenas: boolean | null;
-  color_fondo: string | null;
-  color_boton: string | null;
-};
-
-function Pin() {
+function Ico({ path }: { path: string }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="inline-block mr-1 -mt-0.5">
-      <path d="M12 22s7-7.2 7-12a7 7 0 1 0-14 0c0 4.8 7 12 7 12z" />
-      <circle cx="12" cy="10" r="2.2" />
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d={path} />
     </svg>
   );
 }
 
-function Ornamento({ color }: { color: string }) {
-  return (
-    <div className="flex items-center justify-center gap-2 my-3">
-      <span className="h-px w-8" style={{ background: color, opacity: 0.45 }} />
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.2">
-        <path d="M12 3c2 3 2 5 0 8 2 0 5 1 7 3-4 0-6 1-7 4-1-3-3-4-7-4 2-2 5-3 7-3-2-3-2-5 0-8z" />
-      </svg>
-      <span className="h-px w-8" style={{ background: color, opacity: 0.35 }} />
-    </div>
-  );
-}
-
-export default function BarberiaHomePage() {
+export default function LocalHome() {
   const { slug } = useParams<{ slug: string }>();
-  const [shop, setShop] = useState<Shop | null>(null);
-  const [fotos, setFotos] = useState<{ id: string; url: string }[]>([]);
-  const [horarios, setHorarios] = useState<{ dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean }[]>([]);
-  const [promedio, setPromedio] = useState(0);
-  const [totalResenas, setTotalResenas] = useState(0);
-  const [verResenas, setVerResenas] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [rubro, setRubro] = useState(() => (typeof window === "undefined" ? "barberia" : localStorage.getItem("rubro_" + slug) || "barberia"));
-  const [estilo, setEstilo] = useState(() => (typeof window === "undefined" ? "auto" : localStorage.getItem("estilo_" + slug) || "auto"));
-  const [colorFondo, setColorFondo] = useState<string | null>(null);
-  const [colorBoton, setColorBoton] = useState<string | null>(null);
-  const t = temaLocal(estilo, rubro, colorFondo, colorBoton);
-  const rosa = t.pack === "rosa";
+  const supabase = createClient();
+  const [nombre, setNombre] = useState("");
+  const [rubro, setRubro] = useState("barberia");
 
   useEffect(() => {
-    aplicarTema(t, { fondo: colorFondo, boton: colorBoton });
-  }, [estilo, rubro, colorFondo, colorBoton]);
-
-  useEffect(() => {
-    if (slug) localStorage.setItem("barberia_slug", slug);
     const load = async () => {
-      const supabase = createClient();
-      const { data: b, error: e } = await supabase
-        .from("barberias")
-        .select("id, direccion, maps_url, portada_url, rubro, estilo, mostrar_resenas, color_fondo, color_boton")
-        .eq("slug", slug)
-        .maybeSingle();
-      if (e || !b) return setError("No se encontró la barbería");
-      setShop(b as Shop);
-      const r = (b as Shop).rubro || "barberia";
-      const pack = (b as Shop).estilo || "auto";
-      setRubro(r);
-      setEstilo(pack);
-      setColorFondo((b as Shop).color_fondo || null);
-      setColorBoton((b as Shop).color_boton || null);
-      setVerResenas((b as Shop).mostrar_resenas !== false);
-      localStorage.setItem("rubro_" + slug, r);
-      localStorage.setItem("estilo_" + slug, pack);
-      aplicarTema(temaLocal(pack, r, (b as Shop).color_fondo, (b as Shop).color_boton), { fondo: (b as Shop).color_fondo, boton: (b as Shop).color_boton });
-      const [f, h, n] = await Promise.all([
-        supabase.from("fotos").select("id, url").eq("barberia_id", b.id).eq("mostrar_inicio", true).order("created_at", { ascending: false }).limit(6),
-        supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin, activo").eq("barberia_id", b.id).order("dia_semana"),
-        supabase.from("resenas").select("puntaje").eq("barberia_id", b.id).eq("visible", true),
-      ]);
-      setFotos(f.data || []);
-      setHorarios(h.data || []);
-      const lista = n.data || [];
-      setTotalResenas(lista.length);
-      setPromedio(lista.length ? lista.reduce((a, x) => a + Number(x.puntaje), 0) / lista.length : 0);
+      if (!slug) return;
+      localStorage.setItem("barberia_slug", slug);
+      const { data } = await supabase.from("barberias").select("nombre, rubro").eq("slug", slug).maybeSingle();
+      setNombre(data?.nombre || slug);
+      setRubro(data?.rubro || "barberia");
     };
     void load();
-  }, [slug]);
+  }, [slug, supabase]);
 
-  const resumenHorario = useMemo(() => {
-    const abiertos = horarios.filter((h) => h.activo);
-    if (!abiertos.length) return null;
-    return `${abiertos.map((h) => dias[h.dia_semana]).join("–").replace(/–.+\–/, "–")} ${String(abiertos[0].hora_inicio).slice(0, 5)} – ${String(abiertos[0].hora_fin).slice(0, 5)}`;
-  }, [horarios]);
+  const cards = [
+    { href: "/reservar", t: rubro === "canina" ? "Reservar" : "Reservar", d: "Elegí día y hora", i: "M7 3v3M17 3v3M4 9h16M6 7h12v13H6z" },
+    { href: "/tienda", t: "Productos", d: "Ver el catálogo", i: "M3 7h18l-2 12H5L3 7zM8 7V5a4 4 0 0 1 8 0v2" },
+    { href: "/login", t: "Panel", d: "Dueño o equipo", i: "M12 15a3 3 0 1 0-3-3 3 3 0 0 0 3 3zM4 20v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2" },
+  ];
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: t.bg, color: t.text }}>
-      <div className="max-w-md mx-auto px-5 pt-4">
-        <BrandHeader />
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-        {shop?.portada_url && (
-          <div className="mb-6 overflow-hidden" style={{ borderRadius: rosa ? 22 : 8 }}>
-            <img src={shop.portada_url} alt="" className="w-full h-52 object-cover" />
-          </div>
-        )}
-        <p className="text-center text-[11px] tracking-[0.22em] uppercase" style={{ color: t.muted }}>
-          {rubro === "pestanas_unas" ? "Estudio" : rubro === "canina" ? "Peluquería" : rubro === "taller" ? "Taller" : "Barbería"}
-        </p>
-        {rosa && <Ornamento color={t.btn} />}
-        <h1 className="text-center mb-2" style={{ fontFamily: "Georgia, Times, serif", fontSize: rosa ? "38px" : "42px", lineHeight: 1.1 }}>
-          {t.cita}
-        </h1>
-        {verResenas && totalResenas > 0 && (
-          <Link href={`/resena?b=${slug}`} className="block text-center text-sm mb-3" style={{ color: t.muted }}>
-            {"★".repeat(Math.round(promedio))} {promedio.toFixed(1)} · {totalResenas} reseñas
-          </Link>
-        )}
-        {shop?.direccion && (
-          <p className="text-center text-[15px] mb-1">
-            <Pin />
-            {shop.direccion}
-          </p>
-        )}
-        {shop?.maps_url && (
-          <a href={shop.maps_url} target="_blank" rel="noreferrer" className="block text-center text-sm underline mb-6">
-            Cómo llegar →
-          </a>
-        )}
-        <Link href={`/reservar?b=${slug}`} className="block text-center py-3.5 text-[16px] mb-3" style={{ background: t.btn, color: t.btnText, borderRadius: rosa ? 999 : 8 }}>
-          Reservar
-        </Link>
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <Link href={`/tienda?b=${slug}`} className="py-3 text-center text-sm flex flex-col items-center justify-center gap-1" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M4 8h16l-1 11H5L4 8zM9 8V6a3 3 0 0 1 6 0v2" />
-            </svg>
-            Productos
-          </Link>
-          <Link href="/login" className="py-3 text-center text-sm flex flex-col items-center justify-center gap-1" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="5" y="11" width="14" height="10" rx="2" />
-              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-            </svg>
-            {t.panel}
-          </Link>
-        </div>
-        {verResenas && (
-          <Link href={`/resena?b=${slug}`} className="block text-center py-3 mb-6 text-sm" style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 999 : 8 }}>
-            Dejá tu reseña
-          </Link>
-        )}
-        {resumenHorario && (
-          <div className="px-4 py-3.5 mb-8" style={{ background: t.card, borderRadius: rosa ? 22 : 8 }}>
-            <p className="text-[10px] tracking-[0.18em] uppercase" style={{ color: t.muted }}>
-              Horario
-            </p>
-            <p className="text-[15px]">{resumenHorario}</p>
-          </div>
-        )}
-        {fotos.length > 0 && (
-          <section>
-            <h2 className="text-center text-xs tracking-[0.16em] uppercase mb-3" style={{ color: t.muted }}>
-              {t.galeria}
-            </h2>
-            <div className="grid grid-cols-2 gap-2">
-              {fotos.map((f) => (
-                <img key={f.id} src={f.url} alt="" className="h-36 w-full object-cover" style={{ borderRadius: rosa ? 18 : 8 }} />
-              ))}
+    <main className="mx-auto min-h-screen max-w-md px-4 pb-10 pt-4">
+      <BrandHeader />
+      <p className="mb-5 text-center text-sm" style={{ color: "var(--muted)" }}>
+        {nombre}
+      </p>
+      <div className="space-y-3">
+        {cards.map((c) => (
+          <Link key={c.href} href={c.href} className="flex items-center gap-4 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            <Ico path={c.i} />
+            <div>
+              <p className="font-medium">{c.t}</p>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>{c.d}</p>
             </div>
-          </section>
-        )}
+          </Link>
+        ))}
       </div>
-      <BottomNav items={[{ href: `/b/${slug}`, label: "Inicio", active: true }, { href: `/reservar?b=${slug}`, label: "Reservar" }, { href: `/tienda?b=${slug}`, label: "Tienda" }]} bg={t.bg} line={t.line} text={t.text} muted={t.muted} />
     </main>
   );
 }
