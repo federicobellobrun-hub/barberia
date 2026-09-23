@@ -6,10 +6,28 @@ import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 
-function Ico({ path }: { path: string }) {
+function Calendario() {
   return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <path d={path} />
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.35">
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+      <path d="M8 14h2M12 14h2M16 14h2M8 17h2M12 17h2" />
+    </svg>
+  );
+}
+function Bolso() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.35">
+      <path d="M4 8h16l-1.2 12H5.2L4 8z" />
+      <path d="M8 8V6a4 4 0 0 1 8 0v2" />
+    </svg>
+  );
+}
+function Persona() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.35">
+      <circle cx="12" cy="8" r="3.2" />
+      <path d="M5 20c1.2-3.5 3.5-5 7-5s5.8 1.5 7 5" />
     </svg>
   );
 }
@@ -17,42 +35,51 @@ function Ico({ path }: { path: string }) {
 export default function LocalHome() {
   const { slug } = useParams<{ slug: string }>();
   const supabase = createClient();
-  const [nombre, setNombre] = useState("");
-  const [rubro, setRubro] = useState("barberia");
+  const [ok, setOk] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       if (!slug) return;
-      localStorage.setItem("barberia_slug", slug);
-      const { data } = await supabase.from("barberias").select("nombre, rubro").eq("slug", slug).maybeSingle();
-      setNombre(data?.nombre || slug);
-      setRubro(data?.rubro || "barberia");
+      localStorage.setItem("barberia_slug", String(slug));
+      const { data } = await supabase.from("barberias").select("id").eq("slug", slug).maybeSingle();
+      setOk(Boolean(data));
     };
     void load();
   }, [slug, supabase]);
 
-  const cards = [
-    { href: "/reservar", t: rubro === "canina" ? "Reservar" : "Reservar", d: "Elegí día y hora", i: "M7 3v3M17 3v3M4 9h16M6 7h12v13H6z" },
-    { href: "/tienda", t: "Productos", d: "Ver el catálogo", i: "M3 7h18l-2 12H5L3 7zM8 7V5a4 4 0 0 1 8 0v2" },
-    { href: "/login", t: "Panel", d: "Dueño o equipo", i: "M12 15a3 3 0 1 0-3-3 3 3 0 0 0 3 3zM4 20v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2" },
-  ];
+  if (!ok) {
+    return (
+      <main className="px-4 py-10 text-center">
+        <p>No se encontró el local.</p>
+      </main>
+    );
+  }
 
   return (
-    <main className="mx-auto min-h-screen max-w-md px-4 pb-10 pt-4">
+    <main className="mx-auto min-h-screen max-w-md px-4 pb-12 pt-4">
       <BrandHeader />
-      <p className="mb-5 text-center text-sm" style={{ color: "var(--muted)" }}>
-        {nombre}
-      </p>
-      <div className="space-y-3">
-        {cards.map((c) => (
-          <Link key={c.href} href={c.href} className="flex items-center gap-4 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-            <Ico path={c.i} />
-            <div>
-              <p className="font-medium">{c.t}</p>
-              <p className="text-sm" style={{ color: "var(--muted)" }}>{c.d}</p>
-            </div>
-          </Link>
-        ))}
+      <div className="mt-2 space-y-3">
+        <Link href="/reservar" className="flex items-center gap-4 rounded-2xl px-4 py-5" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <Calendario />
+          <div>
+            <p className="text-[17px] font-medium">Reservar</p>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>Elegí día y hora</p>
+          </div>
+        </Link>
+        <Link href="/tienda" className="flex items-center gap-4 rounded-2xl px-4 py-5" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <Bolso />
+          <div>
+            <p className="text-[17px] font-medium">Productos</p>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>Ver el catálogo</p>
+          </div>
+        </Link>
+        <Link href="/login" className="flex items-center gap-4 rounded-2xl px-4 py-5" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <Persona />
+          <div>
+            <p className="text-[17px] font-medium">Panel</p>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>Dueño o equipo</p>
+          </div>
+        </Link>
       </div>
     </main>
   );
