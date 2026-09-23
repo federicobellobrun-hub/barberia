@@ -64,6 +64,7 @@ function IcoUser() {
     </svg>
   );
 }
+
 export default function ShopHome() {
   const supabase = createClient();
   const [shop, setShop] = useState<Shop | null>(null);
@@ -100,7 +101,10 @@ export default function ShopHome() {
       {shop?.portada_url ? (
         <img src={shop.portada_url} alt="" className="mb-5 h-52 w-full object-cover" style={{ borderRadius: 8 }} />
       ) : (
-        <div className="mb-5 flex h-36 items-center justify-center text-sm" style={{ background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, color: "var(--muted)" }}>
+        <div
+          className="mb-5 flex h-36 items-center justify-center text-sm"
+          style={{ background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, color: "var(--muted)" }}
+        >
           Cargá la foto de portada en Configuración
         </div>
       )}
@@ -111,31 +115,49 @@ export default function ShopHome() {
       {shop?.direccion && <p className="mt-2 text-center text-sm">⌖ {shop.direccion}</p>}
       {shop?.maps_url && (
         <p className="mt-1 text-center text-sm">
-          <a href={shop.maps_url} target="_blank" rel="noreferrer" className="underline">Cómo llegar →</a>
+          <a href={shop.maps_url} target="_blank" rel="noreferrer" className="underline">
+            Cómo llegar →
+          </a>
         </p>
       )}
 
-      <Link href="/reservar" className="mt-5 block py-3.5 text-center text-lg" style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999, fontFamily: "Georgia, Times, serif" }}>
-        Reservar
+      <Link
+        href="/reservar"
+        className="mt-5 flex items-center justify-center gap-2 py-3.5 text-center text-lg"
+        style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999, fontFamily: "Georgia, Times, serif" }}
+      >
+        <IcoCal /> Reservar
       </Link>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Link href="/tienda" className="py-3 text-center text-sm" style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}>
-          Productos
+        <Link
+          href="/tienda"
+          className="flex items-center justify-center gap-2 py-3 text-sm"
+          style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}
+        >
+          <IcoBag /> Productos
         </Link>
-        <Link href="/login" className="py-3 text-center text-sm" style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}>
-          {panelTxt}
+        <Link
+          href="/login"
+          className="flex items-center justify-center gap-2 py-3 text-sm"
+          style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}
+        >
+          <IcoUser /> {panelTxt}
         </Link>
       </div>
 
       <div className="mt-3 px-4 py-3" style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}>
-        <p className="text-[10px] tracking-[0.16em]" style={{ color: "var(--muted)" }}>HORARIO</p>
+        <p className="text-[10px] tracking-[0.16em]" style={{ color: "var(--muted)" }}>
+          HORARIO
+        </p>
         <p className="text-sm">{shop?.horario_texto || "Lun–Sáb 9:00 – 20:00"}</p>
       </div>
 
       {trabajos.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-3 text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>Trabajos realizados</h2>
+          <h2 className="mb-3 text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>
+            Trabajos realizados
+          </h2>
           <div className="grid grid-cols-2 gap-2">
             {trabajos.map((url) => (
               <img key={url} src={url} alt="" className="h-36 w-full object-cover" style={{ borderRadius: 8 }} />
@@ -146,9 +168,18 @@ export default function ShopHome() {
 
       <nav className="fixed bottom-0 left-0 right-0 border-t" style={{ background: "var(--bg)", borderColor: "var(--line)" }}>
         <div className="mx-auto flex max-w-md items-center justify-around py-3 text-[11px]">
-          <Link href="/" className="flex flex-col items-center gap-1"><IcoHome />Inicio</Link>
-          <Link href="/reservar" className="flex flex-col items-center gap-1"><IcoCal />Reservar</Link>
-          <Link href="/tienda" className="flex flex-col items-center gap-1"><IcoBag />Tienda</Link>
+          <Link href="/" className="flex flex-col items-center gap-1">
+            <IcoHome />
+            Inicio
+          </Link>
+          <Link href="/reservar" className="flex flex-col items-center gap-1">
+            <IcoCal />
+            Reservar
+          </Link>
+          <Link href="/tienda" className="flex flex-col items-center gap-1">
+            <IcoBag />
+            Tienda
+          </Link>
         </div>
       </nav>
     </main>
