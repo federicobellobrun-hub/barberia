@@ -42,10 +42,7 @@ export async function POST(req: Request) {
 
     if (accion === "plan") {
       const modo = body.plan === "automatico" ? "automatico" : "manual";
-      const { error } = await sb
-        .from("barberias")
-        .update({ plan: body.plan, modo_whatsapp: modo })
-        .eq("id", body.id);
+      const { error } = await sb.from("barberias").update({ plan: body.plan, modo_whatsapp: modo }).eq("id", body.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ ok: true });
     }
@@ -65,6 +62,28 @@ export async function POST(req: Request) {
         .eq("id", body.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ ok: true, hasta: hasta.toISOString() });
+    }
+
+    if (accion === "rubro") {
+      const { error } = await sb.from("barberias").update({ rubro: body.rubro }).eq("id", body.id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (accion === "clave") {
+      const { data: u } = await sb
+        .from("usuarios")
+        .select("auth_user_id, email")
+        .eq("barberia_id", body.id)
+        .neq("rol", "superadmin")
+        .limit(1)
+        .maybeSingle();
+      if (!u?.auth_user_id) return NextResponse.json({ error: "Ese local no tiene usuario" }, { status: 400 });
+      const pass = String(body.password || "");
+      if (pass.length < 6) return NextResponse.json({ error: "Clave de 6+" }, { status: 400 });
+      const { error } = await sb.auth.admin.updateUserById(u.auth_user_id, { password: pass });
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ ok: true, email: u.email });
     }
 
     const nombre = String(body.nombre || "").trim();
@@ -99,7 +118,12 @@ export async function POST(req: Request) {
       rol: "owner",
     });
     if (e3) return NextResponse.json({ error: e3.message }, { status: 400 });
-    return NextResponse.json({ ok: true, slug: shop.slug, email, link: `https://${shop.slug}.reservoapps.com` });
+    return NextResponse.json({
+      ok: true,
+      slug: shop.slug,
+      email,
+      link: `https://${shop.slug}.reservoapps.com`,
+    });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Error" }, { status: 500 });
   }
