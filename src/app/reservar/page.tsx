@@ -20,7 +20,6 @@ type Shop = {
   nombre: string;
   mp_sena_url: string | null;
   cuenta_banco: string | null;
-  whatsapp_pedidos: string | null;
 };
 
 function slugActual() {
@@ -33,6 +32,17 @@ function slugActual() {
   return new URLSearchParams(window.location.search).get("b") || localStorage.getItem("barberia_slug") || "";
 }
 
+function ymd(d: Date) {
+  return d.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
+}
+function hoyStr() {
+  return ymd(new Date());
+}
+function normCat(v: string | null) {
+  if (!v) return "";
+  const t = v.trim().toLowerCase();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
+}
 function slotsDelDia() {
   const out: string[] = [];
   for (let h = 9; h <= 20; h++) {
@@ -51,6 +61,10 @@ export default function ReservarPage() {
   const [categoria, setCategoria] = useState<string | null>(null);
   const [servicio, setServicio] = useState<Servicio | null>(null);
   const [barbero, setBarbero] = useState("");
+  const [mes, setMes] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
   const [nombre, setNombre] = useState("");
@@ -66,7 +80,7 @@ export default function ReservarPage() {
       localStorage.setItem("barberia_slug", slug);
       const { data: s } = await supabase
         .from("barberias")
-        .select("id, nombre, mp_sena_url, cuenta_banco, whatsapp_pedidos")
+        .select("id, nombre, mp_sena_url, cuenta_banco")
         .eq("slug", slug)
         .maybeSingle();
       if (!s) return;
@@ -116,13 +130,33 @@ export default function ReservarPage() {
   }, [shop, fecha, barbero, supabase]);
 
   const categorias = useMemo(() => {
-    const set = new Set(servicios.map((x) => x.categoria).filter(Boolean) as string[]);
-    return Array.from(set);
+    const map = new Map<string, number>();
+    servicios.forEach((s) => {
+      const n = normCat(s.categoria);
+      if (!n) return;
+      map.set(n, (map.get(n) || 0) + 1);
+    });
+    return Array.from(map.entries());
   }, [servicios]);
   const usarCat = categorias.length > 0;
-  const lista = usarCat && categoria ? servicios.filter((x) => x.categoria === categoria) : servicios;
+  const lista = usarCat && categoria ? servicios.filter((x) => normCat(x.categoria) === categoria) : servicios;
   const pideSenia = Boolean(servicio?.senia && Number(servicio.senia) > 0);
   const horasLibres = slotsDelDia().filter((h) => !ocupados.includes(h));
+
+  const celdas = useMemo(() => {
+    const first = new Date(mes.getFullYear(), mes.getMonth(), 1);
+    const start = first.getDay();
+    const days = new Date(mes.getFullYear(), mes.getMonth() + 1, 0).getDate();
+    const arr: { n: number | null; value: string | null; past: boolean }[] = [];
+    for (let i = 0; i < start; i++) arr.push({ n: null, value: null, past: true });
+    const hoy = hoyStr();
+    for (let n = 1; n <= days; n++) {
+      const value = ymd(new Date(mes.getFullYear(), mes.getMonth(), n));
+      arr.push({ n, value, past: value < hoy });
+    }
+    return arr;
+  }, [mes]);
+  const mesLabel = mes.toLocaleDateString("es-UY", { month: "long", year: "numeric" });
 
   const clienteId = async () => {
     if (!shop) throw new Error("Sin local");
@@ -139,14 +173,8 @@ export default function ReservarPage() {
 
   const reservar = async () => {
     setError("");
-    if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) {
-      setError("Completá los datos");
-      return;
-    }
-    if (pideSenia && !pago) {
-      setError("Elegí cómo pagás la seña");
-      return;
-    }
+    if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) return setError("Completá los datos");
+    if (pideSenia && !pago) return setError("Elegí cómo pagás la seña");
     try {
       const cid = await clienteId();
       const { data: turno, error } = await supabase
@@ -166,16 +194,12 @@ export default function ReservarPage() {
         .select("id")
         .single();
       if (error || !turno) throw new Error(error?.message || "No se pudo reservar");
-      await fetch("/api/whatsapp/reserva", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ turnoId: turno.id }),
-      });
+      await fetch("/api/whatsapp/reserva", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ turnoId: turno.id }) });
       if (pideSenia && pago === "mp" && shop.mp_sena_url) {
         window.location.href = shop.mp_sena_url;
         return;
       }
-      setOk(pideSenia ? "Reserva pedida. Queda pendiente hasta que confirmen la seña." : "Reserva confirmada");
+      setOk(pideSenia ? "Reserva pedida. Queda pendiente hasta confirmar la seña." : "Reserva confirmada");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     }
@@ -186,9 +210,7 @@ export default function ReservarPage() {
       <main className="mx-auto max-w-md px-4 py-10 text-center">
         <BrandHeader />
         <p className="mt-8 text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>{ok}</p>
-        {pideSenia && pago === "transferencia" && shop?.cuenta_banco && (
-          <p className="mt-4 text-sm">Transferí ${servicio?.senia} a:<br />{shop.cuenta_banco}</p>
-        )}
+        {pideSenia && pago === "transferencia" && shop?.cuenta_banco && <p className="mt-4 text-sm">Transferí ${servicio?.senia} a:<br />{shop.cuenta_banco}</p>}
         <Link href="/" className="mt-6 inline-block underline">Volver</Link>
       </main>
     );
@@ -201,9 +223,19 @@ export default function ReservarPage() {
 
       {usarCat && !categoria && !servicio && (
         <div className="space-y-3">
-          {categorias.map((c) => (
-            <button key={c} onClick={() => setCategoria(c)} className="block w-full px-4 py-5 text-left" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
-              <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>{c}</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>Elegí una categoría</p>
+          {categorias.map(([c, n]) => (
+            <button
+              key={c}
+              onClick={() => setCategoria(c)}
+              className="flex w-full items-center justify-between px-5 py-5 text-left"
+              style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 16 }}
+            >
+              <span>
+                <p className="text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>{c}</p>
+                <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{n} servicio{n > 1 ? "s" : ""}</p>
+              </span>
+              <span style={{ color: "var(--muted)" }}>→</span>
             </button>
           ))}
         </div>
@@ -230,36 +262,65 @@ export default function ReservarPage() {
 
       {servicio && (
         <div>
-          <button onClick={() => setServicio(null)} className="mb-3 text-sm underline">← Servicios</button>
+          <button onClick={() => setServicio(null)} className="mb-3 text-sm underline">← Cambiar servicio</button>
           <p className="text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>{servicio.nombre}</p>
           <p className="text-sm" style={{ color: "var(--muted)" }}>${servicio.precio} · {servicio.duracion_minutos} min</p>
-          {pideSenia && <p className="mt-2 text-sm">Este servicio pide seña de ${servicio.senia}. Queda pendiente hasta confirmarla en el panel.</p>}
 
           {barberos.length > 1 && (
             <select value={barbero} onChange={(e) => setBarbero(e.target.value)} className="mt-4 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
               <option value="">Cualquiera</option>
-              {barberos.map((b) => (
-                <option key={b.id} value={b.id}>{b.nombre}</option>
-              ))}
+              {barberos.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>
           )}
 
-          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
+          <div className="mt-6">
+            <p className="mb-3 text-sm" style={{ color: "var(--muted)" }}>Seleccionar día</p>
+            <div className="flex items-center justify-between px-2">
+              <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>‹</button>
+              <p className="capitalize" style={{ fontFamily: "Georgia, Times, serif" }}>{mesLabel}</p>
+              <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
+            </div>
+            <div className="mt-3 grid grid-cols-7 text-center text-[11px]" style={{ color: "var(--muted)" }}>
+              {["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"].map((d) => <span key={d}>{d}</span>)}
+            </div>
+            <div className="mt-2 grid grid-cols-7 gap-y-2 text-center text-sm">
+              {celdas.map((c, i) =>
+                !c.n ? (
+                  <span key={i} />
+                ) : (
+                  <button
+                    key={c.value}
+                    type="button"
+                    disabled={c.past}
+                    onClick={() => setFecha(c.value!)}
+                    className="mx-auto flex h-9 w-9 items-center justify-center"
+                    style={{
+                      borderRadius: 999,
+                      opacity: c.past ? 0.28 : 1,
+                      background: fecha === c.value ? "var(--text)" : "transparent",
+                      color: fecha === c.value ? "var(--bg)" : "inherit",
+                    }}
+                  >
+                    {c.n}
+                  </button>
+                )
+              )}
+            </div>
+          </div>
 
           {fecha && (
-            <div className="mt-3">
-              <p className="mb-2 text-sm" style={{ color: "var(--muted)" }}>Horarios</p>
-              {horasLibres.length === 0 && <p className="text-sm">No hay turnos ese día.</p>}
-              <div className="grid grid-cols-3 gap-2">
+            <div className="mt-6">
+              <p className="mb-3 text-sm">Horarios disponibles para {fecha.slice(8)}/{fecha.slice(5, 7)}</p>
+              {horasLibres.length === 0 && <p className="text-sm" style={{ color: "var(--muted)" }}>No hay turnos ese día.</p>}
+              <div className="flex flex-wrap gap-2">
                 {horasLibres.map((h) => (
                   <button
                     key={h}
                     type="button"
                     onClick={() => setHora(h)}
-                    className="py-2 text-sm"
+                    className="min-w-[88px] rounded-xl px-4 py-2 text-sm"
                     style={{
                       border: "1px solid var(--line)",
-                      borderRadius: 8,
                       background: hora === h ? "var(--text)" : "var(--card)",
                       color: hora === h ? "var(--bg)" : "inherit",
                     }}
@@ -271,18 +332,14 @@ export default function ReservarPage() {
             </div>
           )}
 
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="mt-5 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
           <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
 
           {pideSenia && (
             <div className="mt-4 space-y-2">
               <p className="text-sm">¿Cómo pagás la seña?</p>
-              <button type="button" onClick={() => setPago("mp")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "mp" ? "var(--text)" : "var(--card)", color: pago === "mp" ? "var(--bg)" : "inherit" }}>
-                Mercado Pago
-              </button>
-              <button type="button" onClick={() => setPago("transferencia")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "transferencia" ? "var(--text)" : "var(--card)", color: pago === "transferencia" ? "var(--bg)" : "inherit" }}>
-                Transferencia
-              </button>
+              <button type="button" onClick={() => setPago("mp")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "mp" ? "var(--text)" : "var(--card)", color: pago === "mp" ? "var(--bg)" : "inherit" }}>Mercado Pago</button>
+              <button type="button" onClick={() => setPago("transferencia")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "transferencia" ? "var(--text)" : "var(--card)", color: pago === "transferencia" ? "var(--bg)" : "inherit" }}>Transferencia</button>
             </div>
           )}
 
