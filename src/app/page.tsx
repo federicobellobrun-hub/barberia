@@ -3,10 +3,37 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
+import ShopHome from "@/components/ShopHome";
 
 const HORAS = ["09:00", "09:30", "10:00", "11:00", "11:30", "12:00", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"];
 
-export default function HomePage() {
+function slugDeHost() {
+  if (typeof window === "undefined") return null;
+  const host = window.location.hostname.replace(/^www\./, "");
+  if (host === "reservoapps.com" || host === "localhost") return null;
+  if (!host.endsWith(".reservoapps.com")) return null;
+  const sub = host.replace(/\.reservoapps\.com$/, "");
+  if (!sub || sub === "www") return null;
+  return sub;
+}
+
+export default function Page() {
+  const [shop, setShop] = useState(false);
+  const [listo, setListo] = useState(false);
+
+  useEffect(() => {
+    const slug = slugDeHost();
+    if (slug) localStorage.setItem("barberia_slug", slug);
+    setShop(Boolean(slug));
+    setListo(true);
+  }, []);
+
+  if (!listo) return null;
+  if (shop) return <ShopHome />;
+  return <Landing />;
+}
+
+function Landing() {
   const [manual, setManual] = useState(890);
   const [auto, setAuto] = useState(1490);
 
@@ -63,9 +90,7 @@ export default function HomePage() {
 
       <section id="agenda" className="mx-auto grid max-w-6xl items-center gap-10 px-6 pb-16 pt-8 md:grid-cols-2">
         <div>
-          <p className="text-[11px] tracking-[0.18em]" style={{ color: "#8A8378" }}>
-            RESERVAS ONLINE · URUGUAY
-          </p>
+          <p className="text-[11px] tracking-[0.18em]" style={{ color: "#8A8378" }}>RESERVAS ONLINE · URUGUAY</p>
           <h1 className="mt-4 text-5xl leading-[1.05]" style={{ fontFamily: "Georgia, Times, serif" }}>
             Apps de reservas
             <br />
@@ -84,9 +109,7 @@ export default function HomePage() {
               Ver la agenda
             </a>
           </div>
-          <p className="mt-3 text-xs" style={{ color: "#8A8378" }}>
-            Sin tarjeta. Te dejamos la agenda lista el mismo día.
-          </p>
+          <p className="mt-3 text-xs" style={{ color: "#8A8378" }}>Sin tarjeta. Te dejamos la agenda lista el mismo día.</p>
         </div>
         <div className="rounded-3xl bg-white p-5" style={{ border: "1px solid #ece6d8" }}>
           <div className="flex items-start justify-between">
@@ -94,17 +117,11 @@ export default function HomePage() {
               <p className="font-medium">Diano Barbería</p>
               <p className="text-xs" style={{ color: "#8A8378" }}>Miércoles 12 · Ciudad Vieja</p>
             </div>
-            <span className="rounded-full px-3 py-1 text-[11px]" style={{ background: "#F4EFE4" }}>
-              Corte + barba
-            </span>
+            <span className="rounded-full px-3 py-1 text-[11px]" style={{ background: "#F4EFE4" }}>Corte + barba</span>
           </div>
           <div className="mt-4 grid grid-cols-6 gap-2">
             {HORAS.map((h) => (
-              <span
-                key={h}
-                className="rounded-xl py-2 text-center text-[11px]"
-                style={{ background: h === "11:30" ? "#1A1612" : "#F7F3EA", color: h === "11:30" ? "#F4EFE4" : "#1A1612" }}
-              >
+              <span key={h} className="rounded-xl py-2 text-center text-[11px]" style={{ background: h === "11:30" ? "#1A1612" : "#F7F3EA", color: h === "11:30" ? "#F4EFE4" : "#1A1612" }}>
                 {h}
               </span>
             ))}
@@ -115,9 +132,7 @@ export default function HomePage() {
               <br />
               Recordatorio enviado 1 hora antes por WhatsApp
             </p>
-            <span className="rounded-full px-3 py-1 text-[10px]" style={{ background: "#1A1612", color: "#F4EFE4" }}>
-              CONFIRMADO
-            </span>
+            <span className="rounded-full px-3 py-1 text-[10px]" style={{ background: "#1A1612", color: "#F4EFE4" }}>CONFIRMADO</span>
           </div>
         </div>
       </section>
@@ -175,9 +190,7 @@ export default function HomePage() {
               <li>Link para tu Instagram</li>
               <li>Ficha de clientes</li>
             </ul>
-            <Link href="/probar" className="mt-8 block rounded-full py-3 text-center text-sm" style={{ border: "1px solid #d4cdc0" }}>
-              Probar 7 días
-            </Link>
+            <Link href="/probar" className="mt-8 block rounded-full py-3 text-center text-sm" style={{ border: "1px solid #d4cdc0" }}>Probar 7 días</Link>
           </div>
           <div className="rounded-3xl p-8" style={{ background: "#1A1612", color: "#F4EFE4" }}>
             <div className="flex items-center justify-between">
@@ -193,9 +206,7 @@ export default function HomePage() {
               <li>Lista de espera y control de ausencias</li>
               <li>Servicios ilimitados</li>
             </ul>
-            <Link href="/probar" className="mt-8 block rounded-full py-3 text-center text-sm" style={{ background: "#F4EFE4", color: "#1A1612" }}>
-              Probar 7 días
-            </Link>
+            <Link href="/probar" className="mt-8 block rounded-full py-3 text-center text-sm" style={{ background: "#F4EFE4", color: "#1A1612" }}>Probar 7 días</Link>
           </div>
         </div>
       </section>
@@ -204,9 +215,7 @@ export default function HomePage() {
         <div className="rounded-3xl px-8 py-14 text-center" style={{ background: "#1A1612", color: "#F4EFE4" }}>
           <h2 className="text-4xl" style={{ fontFamily: "Georgia, Times, serif" }}>Probá 7 días en tu local.</h2>
           <p className="mx-auto mt-3 max-w-md text-sm opacity-80">Te armamos la agenda con tus servicios y horarios. Si no te sirve, la cancelás.</p>
-          <Link href="/probar" className="mt-6 inline-block rounded-full px-6 py-3 text-sm" style={{ background: "#F4EFE4", color: "#1A1612" }}>
-            Probar 7 días
-          </Link>
+          <Link href="/probar" className="mt-6 inline-block rounded-full px-6 py-3 text-sm" style={{ background: "#F4EFE4", color: "#1A1612" }}>Probar 7 días</Link>
         </div>
       </section>
 
