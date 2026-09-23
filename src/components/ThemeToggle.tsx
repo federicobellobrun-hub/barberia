@@ -7,12 +7,13 @@ function aplicar(oscuro: boolean) {
   root.classList.toggle("oscuro", oscuro);
   root.setAttribute("data-tema", oscuro ? "oscuro" : "claro");
   root.style.setProperty("--bg", oscuro ? "#161310" : "#F6F1E8");
+  root.style.setProperty("--text", oscuro ? "#F6F1E8" : "#1A1612");
   root.style.setProperty("--fg", oscuro ? "#F6F1E8" : "#1A1612");
-  root.style.setProperty("--card", oscuro ? "#231f1a" : "#ffffff");
+  root.style.setProperty("--card", oscuro ? "#231f1a" : "#fffbf5");
   root.style.setProperty("--line", oscuro ? "#3a342c" : "#e6e0d4");
   root.style.setProperty("--muted", oscuro ? "#b8b0a4" : "#8A8378");
-  document.body.style.background = oscuro ? "#161310" : "";
-  document.body.style.color = oscuro ? "#F6F1E8" : "";
+  document.body.style.background = oscuro ? "#161310" : "#F6F1E8";
+  document.body.style.color = oscuro ? "#F6F1E8" : "#1A1612";
 }
 
 export default function ThemeToggle() {
@@ -34,7 +35,7 @@ export default function ThemeToggle() {
         aplicar(next);
       }}
       className="rounded-full px-3 py-1.5 text-xs"
-      style={{ border: "1px solid var(--line)" }}
+      style={{ border: "1px solid var(--line)", color: "var(--text)" }}
     >
       {oscuro ? "Claro" : "Oscuro"}
     </button>
