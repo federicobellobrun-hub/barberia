@@ -54,7 +54,7 @@ export default function CaninaPage() {
 
   const guardar = async () => {
     setMsg("");
-    await supabase
+    const { error: e1 } = await supabase
       .from("barberias")
       .update({
         canina_cupo_grande_manana: manana,
@@ -62,8 +62,12 @@ export default function CaninaPage() {
         canina_un_grande_por_dia: unDia,
       })
       .eq("id", shopId);
+    if (e1) {
+      setMsg(e1.message);
+      return;
+    }
     for (const r of recargos) {
-      await supabase.from("recargos").upsert({
+      const { error } = await supabase.from("recargos").upsert({
         id: r.id,
         barberia_id: shopId,
         clave: r.clave,
@@ -71,6 +75,10 @@ export default function CaninaPage() {
         monto: Number(r.monto),
         activo: r.activo,
       });
+      if (error) {
+        setMsg(error.message);
+        return;
+      }
     }
     setMsg("Guardado");
   };
@@ -81,10 +89,12 @@ export default function CaninaPage() {
       <h1 className="mb-4 text-xl">Peluquería canina</h1>
       <section className="mb-4 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
         <p className="font-medium">Cupos perro grande</p>
-        <label className="mt-3 block text-sm">Mañana
+        <label className="mt-3 block text-sm">
+          Mañana
           <input className="mt-1 w-full rounded-xl px-3 py-2" type="number" value={manana} onChange={(e) => setManana(Number(e.target.value))} />
         </label>
-        <label className="mt-3 block text-sm">Tarde
+        <label className="mt-3 block text-sm">
+          Tarde
           <input className="mt-1 w-full rounded-xl px-3 py-2" type="number" value={tarde} onChange={(e) => setTarde(Number(e.target.value))} />
         </label>
         <label className="mt-3 flex items-center gap-2 text-sm">
