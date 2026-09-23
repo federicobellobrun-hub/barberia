@@ -1,260 +1,195 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
-import ReservaCanina from "@/components/ReservaCanina";
 
-type Shop = {
-  id: string;
-  nombre: string;
-  slug: string;
-  rubro: string | null;
-  whatsapp_pedidos?: string | null;
-  modo_whatsapp?: string | null;
-  canina_cupo_grande_manana?: number | null;
-  canina_cupo_grande_tarde?: number | null;
-  canina_un_grande_por_dia?: boolean | null;
-};
 type Servicio = {
   id: string;
   nombre: string;
   precio: number;
   duracion_minutos: number;
-  categoria?: string | null;
-  activo?: boolean;
+  categoria: string | null;
+  imagen_url: string | null;
+  senia: number | null;
 };
 type Barbero = { id: string; nombre: string };
 
 function slugActual() {
-  if (typeof window === "undefined") return "diano";
+  if (typeof window === "undefined") return "";
   const host = window.location.hostname.replace(/^www\./, "");
   if (host.endsWith(".reservoapps.com")) {
     const sub = host.replace(/\.reservoapps\.com$/, "");
     if (sub && sub !== "www") return sub;
   }
-  const q = new URLSearchParams(window.location.search).get("b");
-  if (q) return q;
-  const path = window.location.pathname;
-  if (path.startsWith("/b/")) return path.split("/")[2];
-  return localStorage.getItem("barberia_slug") || "diano";
+  return new URLSearchParams(window.location.search).get("b") || localStorage.getItem("barberia_slug") || "";
 }
-
-function horaUy(fechaHora: string) {
-  return new Date(fechaHora).toLocaleTimeString("es-UY", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Montevideo",
-  });
-}
-
-const HORAS = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00"];
 
 export default function ReservarPage() {
   const supabase = createClient();
-  const [shop, setShop] = useState<Shop | null>(null);
-  const [error, setError] = useState("");
+  const [shopId, setShopId] = useState("");
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
-  const [servicioId, setServicioId] = useState("");
-  const [barberoId, setBarberoId] = useState("");
+  const [categoria, setCategoria] = useState<string | null>(null);
+  const [servicio, setServicio] = useState<Servicio | null>(null);
+  const [barbero, setBarbero] = useState("");
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
-  const [ocupadas, setOcupadas] = useState<string[]>([]);
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
-  const [msg, setMsg] = useState("");
+  const [ok, setOk] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const load = async () => {
       const slug = slugActual();
+      if (!slug) return;
       localStorage.setItem("barberia_slug", slug);
-      const { data, error: e } = await supabase
-        .from("barberias")
-        .select("id, nombre, slug, rubro, whatsapp_pedidos, modo_whatsapp, canina_cupo_grande_manana, canina_cupo_grande_tarde, canina_un_grande_por_dia")
-        .eq("slug", slug)
-        .maybeSingle();
-      if (e) setError(e.message);
-      if (!data) {
-        setError("No se encontró la barbería");
-        return;
-      }
-      setShop(data as Shop);
-      const { data: s } = await supabase.from("servicios").select("id, nombre, precio, duracion_minutos, categoria, activo").eq("barberia_id", data.id).eq("activo", true);
+      const { data: shop } = await supabase.from("barberias").select("id").eq("slug", slug).maybeSingle();
+      if (!shop) return;
+      setShopId(shop.id);
+      const { data: s } = await supabase.from("servicios").select("id, nombre, precio, duracion_minutos, categoria, imagen_url, senia").eq("barberia_id", shop.id).eq("activo", true);
       setServicios((s as Servicio[]) || []);
-      const { data: b } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", data.id).order("nombre");
+      const { data: b } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", shop.id).eq("activo", true);
       setBarberos((b as Barbero[]) || []);
     };
     void load();
   }, [supabase]);
 
-  useEffect(() => {
-    if (!shop || !fecha) return;
-    const load = async () => {
-      const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
-      const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
-      let q = supabase
-        .from("turnos")
-        .select("fecha_hora")
-        .eq("barberia_id", shop.id)
-        .gte("fecha_hora", desde)
-        .lte("fecha_hora", hasta)
-        .in("estado", ["pendiente", "confirmado", "realizado"]);
-      if (barberoId) q = q.eq("barbero_id", barberoId);
-      const { data } = await q;
-      setOcupadas((data || []).map((t) => horaUy(t.fecha_hora)));
-    };
-    void load();
-  }, [shop, fecha, barberoId, supabase]);
-
-  const servicio = servicios.find((s) => s.id === servicioId);
   const categorias = useMemo(() => {
     const set = new Set(servicios.map((s) => s.categoria).filter(Boolean) as string[]);
     return Array.from(set);
   }, [servicios]);
-  const [cat, setCat] = useState("");
-  const lista = cat ? servicios.filter((s) => s.categoria === cat) : servicios;
-  const libres = HORAS.filter((h) => !ocupadas.includes(h));
+
+  const usarCategorias = categorias.length > 0;
+  const lista = usarCategorias && categoria ? servicios.filter((s) => s.categoria === categoria) : servicios;
 
   const reservar = async () => {
-    if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) {
-      setMsg("Completá todos los datos");
+    setError("");
+    if (!servicio || !fecha || !hora || !nombre || !telefono) {
+      setError("Completá los datos");
       return;
     }
-    setMsg("");
-    const { data: cli, error: e1 } = await supabase
-      .from("clientes")
-      .insert({ barberia_id: shop.id, nombre, telefono })
-      .select("id")
-      .single();
+    const { data: cli, error: e1 } = await supabase.from("clientes").insert({ barberia_id: shopId, nombre, telefono }).select("id").single();
     if (e1 || !cli) {
-      const { data: exist } = await supabase.from("clientes").select("id").eq("barberia_id", shop.id).eq("telefono", telefono).maybeSingle();
-      if (!exist) {
-        setMsg(e1?.message || "No se pudo guardar el cliente");
-        return;
-      }
-      await crearTurno(exist.id);
+      setError(e1?.message || "No se pudo crear el cliente");
       return;
     }
-    await crearTurno(cli.id);
-  };
-
-  const crearTurno = async (clienteId: string) => {
-    if (!shop || !servicio || !fecha || !hora) return;
-    const { data: turno, error } = await supabase
+    const { data: turno, error: e2 } = await supabase
       .from("turnos")
       .insert({
-        barberia_id: shop.id,
-        cliente_id: clienteId,
+        barberia_id: shopId,
+        cliente_id: cli.id,
         servicio_id: servicio.id,
-        barbero_id: barberoId || null,
+        barbero_id: barbero || null,
         fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
-        duracion_minutos: servicio.duracion_minutos || 30,
-        estado: "pendiente",
+        duracion_minutos: servicio.duracion_minutos,
+        estado: servicio.senia && servicio.senia > 0 ? "pendiente" : "confirmado",
       })
       .select("id")
       .single();
-    if (error) {
-      setMsg(error.message);
+    if (e2 || !turno) {
+      setError(e2?.message || "No se pudo reservar");
       return;
     }
-    setMsg("Reserva lista");
-    if (turno?.id) {
-      fetch("/api/whatsapp/reserva", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: turno.id }),
-      }).catch(() => null);
-    }
+    await fetch("/api/whatsapp/reserva", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ turnoId: turno.id }) });
+    setOk("Reserva enviada");
   };
 
-  if (error) {
+  if (ok) {
     return (
-      <main className="mx-auto max-w-md px-4 py-10">
-        <p>{error}</p>
-      </main>
-    );
-  }
-  if (!shop) {
-    return (
-      <main className="mx-auto max-w-md px-4 py-10">
-        <p>Cargando reserva...</p>
-      </main>
-    );
-  }
-
-  if (shop.rubro === "canina") {
-    return (
-      <main className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-4">
+      <main className="mx-auto max-w-md px-4 py-10 text-center">
         <BrandHeader />
-        <ReservaCanina
-          shop={{
-            id: shop.id,
-            nombre: shop.nombre,
-            canina_cupo_grande_manana: shop.canina_cupo_grande_manana ?? 1,
-            canina_cupo_grande_tarde: shop.canina_cupo_grande_tarde ?? 1,
-            canina_un_grande_por_dia: shop.canina_un_grande_por_dia ?? false,
-          }}
-        />
+        <p className="mt-8 text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>{ok}</p>
+        <Link href="/" className="mt-6 inline-block underline">Volver</Link>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-4">
+    <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
       <BrandHeader />
-      <h1 className="mb-4 text-xl">Reservar</h1>
+      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
 
-      {categorias.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          <button onClick={() => setCat("")} className="rounded-full px-3 py-1.5 text-sm" style={{ background: !cat ? "#1A1612" : "var(--card)", color: !cat ? "#F6F1E8" : "inherit" }}>
-            Todos
-          </button>
+      {usarCategorias && !categoria && !servicio && (
+        <div className="space-y-3">
+          <p className="mb-2 text-sm" style={{ color: "var(--muted)" }}>Elegí una categoría</p>
           {categorias.map((c) => (
-            <button key={c} onClick={() => setCat(c)} className="rounded-full px-3 py-1.5 text-sm" style={{ background: cat === c ? "#1A1612" : "var(--card)", color: cat === c ? "#F6F1E8" : "inherit" }}>
-              {c}
+            <button key={c} onClick={() => setCategoria(c)} className="block w-full px-4 py-5 text-left" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+              <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>{c}</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>{servicios.filter((s) => s.categoria === c).length} servicios</p>
             </button>
           ))}
         </div>
       )}
 
-      <div className="mb-4 space-y-2">
-        {lista.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => setServicioId(s.id)}
-            className="block w-full rounded-2xl p-3 text-left"
-            style={{ border: servicioId === s.id ? "2px solid #1A1612" : "1px solid var(--line)", background: "var(--card)" }}
-          >
-            <p className="font-medium">{s.nombre}</p>
-            <p className="text-sm">${s.precio} · {s.duracion_minutos} min</p>
-          </button>
-        ))}
-      </div>
-
-      {barberos.length > 1 && (
-        <select className="mb-3 w-full rounded-xl px-3 py-2" value={barberoId} onChange={(e) => setBarberoId(e.target.value)}>
-          <option value="">Cualquier profesional</option>
-          {barberos.map((b) => (
-            <option key={b.id} value={b.id}>{b.nombre}</option>
-          ))}
-        </select>
+      {usarCategorias && categoria && !servicio && (
+        <div className="animate-[slide_.35s_ease]">
+          <button onClick={() => setCategoria(null)} className="mb-3 text-sm underline">← Categorías</button>
+          <div className="space-y-3">
+            {lista.map((s) => (
+              <button key={s.id} onClick={() => setServicio(s)} className="flex w-full gap-3 px-3 py-3 text-left" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+                {s.imagen_url && <img src={s.imagen_url} alt="" className="h-16 w-16 object-cover" style={{ borderRadius: 8 }} />}
+                <span>
+                  <p className="font-medium">{s.nombre}</p>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>${s.precio} · {s.duracion_minutos} min</p>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
-      <input className="mb-3 w-full rounded-xl px-3 py-2" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-      <div className="mb-4 flex flex-wrap gap-2">
-        {libres.map((h) => (
-          <button key={h} onClick={() => setHora(h)} className="rounded-full px-3 py-1.5 text-sm" style={{ background: hora === h ? "#1A1612" : "var(--card)", color: hora === h ? "#F6F1E8" : "inherit" }}>
-            {h}
+      {!usarCategorias && !servicio && (
+        <div className="space-y-3">
+          {servicios.map((s) => (
+            <button key={s.id} onClick={() => setServicio(s)} className="flex w-full gap-3 px-3 py-3 text-left" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+              {s.imagen_url && <img src={s.imagen_url} alt="" className="h-16 w-16 object-cover" style={{ borderRadius: 8 }} />}
+              <span>
+                <p className="font-medium">{s.nombre}</p>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>${s.precio} · {s.duracion_minutos} min</p>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {servicio && (
+        <div>
+          <button
+            onClick={() => {
+              setServicio(null);
+              if (!usarCategorias) setCategoria(null);
+            }}
+            className="mb-3 text-sm underline"
+          >
+            ← Servicios
           </button>
-        ))}
-      </div>
-      <input className="mb-2 w-full rounded-xl px-3 py-2" placeholder="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-      <input className="mb-4 w-full rounded-xl px-3 py-2" placeholder="WhatsApp" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
-      <button onClick={() => void reservar()} className="w-full rounded-full py-3 text-sm" style={{ background: "#1A1612", color: "#F6F1E8" }}>
-        Confirmar reserva
-      </button>
-      {msg && <p className="mt-3 text-sm">{msg}</p>}
+          {servicio.imagen_url && <img src={servicio.imagen_url} alt="" className="mb-3 h-40 w-full object-cover" style={{ borderRadius: 12 }} />}
+          <p className="text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>{servicio.nombre}</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>${servicio.precio} · {servicio.duracion_minutos} min</p>
+          {servicio.senia ? <p className="mt-2 text-sm">Requiere seña ${servicio.senia}</p> : null}
+
+          {barberos.length > 1 && (
+            <select value={barbero} onChange={(e) => setBarbero(e.target.value)} className="mt-4 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+              <option value="">Cualquiera</option>
+              {barberos.map((b) => (
+                <option key={b.id} value={b.id}>{b.nombre}</option>
+              ))}
+            </select>
+          )}
+          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
+          <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
+          <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
+          <button onClick={reservar} className="mt-4 w-full py-3" style={{ background: "#1A1612", color: "#F6F1E8", borderRadius: 999 }}>
+            Confirmar reserva
+          </button>
+        </div>
+      )}
+
+      <style>{`@keyframes slide { from { transform: translateX(24px); opacity:.4 } to { transform:none; opacity:1 } }`}</style>
     </main>
   );
 }
