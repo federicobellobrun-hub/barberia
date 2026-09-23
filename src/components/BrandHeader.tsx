@@ -33,17 +33,27 @@ function aplicarTema(oscuro: boolean) {
     ? `
     html.oscuro, html.oscuro body, html.oscuro #__next, html.oscuro main {
       background: #161310 !important;
-      color: #F6F1E8 !important;
+      color: #F3EBDD !important;
     }
-    html.oscuro header, html.oscuro article, html.oscuro section, html.oscuro nav {
-      background-color: #231f1a !important;
-      color: #F6F1E8 !important;
-      border-color: #4a4338 !important;
+    html.oscuro header,
+    html.oscuro article,
+    html.oscuro section,
+    html.oscuro nav,
+    html.oscuro .rounded-xl,
+    html.oscuro .rounded-2xl,
+    html.oscuro .rounded-3xl {
+      background-color: #2a241c !important;
+      color: #F3EBDD !important;
+      border-color: #5a5246 !important;
     }
-    html.oscuro p, html.oscuro span, html.oscuro a, html.oscuro button, html.oscuro label {
-      color: #F6F1E8 !important;
+    html.oscuro p, html.oscuro span, html.oscuro a, html.oscuro button,
+    html.oscuro label, html.oscuro b, html.oscuro h1, html.oscuro h2 {
+      color: #F3EBDD !important;
     }
   `
+    : "";
+  document.body.style.setProperty("background", oscuro ? "#161310" : "#F6F1E8", "important");
+}
     : "";
   document.body.style.setProperty("background", oscuro ? "#161310" : "#F6F1E8", "important");
 }
