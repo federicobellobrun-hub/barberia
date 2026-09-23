@@ -8,6 +8,7 @@ type Shop = {
   id: string;
   nombre: string;
   logo_url: string | null;
+  portada_url: string | null;
   direccion: string | null;
   maps_url: string | null;
   horario_texto: string | null;
@@ -74,7 +75,7 @@ function IcoReloj() {
 export default function ShopHome() {
   const supabase = createClient();
   const [shop, setShop] = useState<Shop | null>(null);
-  const [foto, setFoto] = useState<string | null>(null);
+  const [trabajos, setTrabajos] = useState<string[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -83,18 +84,13 @@ export default function ShopHome() {
       localStorage.setItem("barberia_slug", slug);
       const { data } = await supabase
         .from("barberias")
-        .select("id, nombre, logo_url, direccion, maps_url, horario_texto, rubro")
+        .select("id, nombre, logo_url, portada_url, direccion, maps_url, horario_texto, rubro")
         .eq("slug", slug)
         .maybeSingle();
       if (!data) return;
       setShop(data as Shop);
-      const { data: portada } = await supabase.from("fotos").select("url").eq("barberia_id", data.id).eq("mostrar_inicio", true).limit(1);
-      if (portada?.[0]?.url) {
-        setFoto(portada[0].url);
-        return;
-      }
-      const { data: cualquiera } = await supabase.from("fotos").select("url").eq("barberia_id", data.id).limit(1);
-      setFoto(cualquiera?.[0]?.url || data.logo_url || null);
+      const { data: fotos } = await supabase.from("fotos").select("url").eq("barberia_id", data.id);
+      setTrabajos((fotos || []).map((f) => f.url).filter(Boolean));
     };
     void load();
   }, [supabase]);
@@ -102,7 +98,7 @@ export default function ShopHome() {
   const partes = (shop?.nombre || "").trim().split(" ");
   const principal = partes[0] || "";
   const resto = partes.slice(1).join(" ");
-  const panelTxt = shop?.rubro === "pestanas_unas" || shop?.rubro === "canina" ? "Panel del equipo" : "Panel del barbero";
+  const panelTxt = shop?.rubro === "barberia" ? "Panel del barbero" : "Panel del equipo";
 
   return (
     <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-3">
@@ -116,8 +112,8 @@ export default function ShopHome() {
             </span>
           )}
         </Link>
-        <Link href="/" className="min-w-0 text-left">
-          <p className="truncate tracking-[0.08em]" style={{ fontFamily: "Georgia, Times, serif", fontSize: "26px", lineHeight: 1 }}>
+        <Link href="/" className="min-w-0">
+          <p className="truncate" style={{ fontFamily: "Georgia, Times, serif", fontSize: "26px", lineHeight: 1 }}>
             {principal}
           </p>
           <p className="mt-1 flex items-center gap-2 text-[10px] tracking-[0.28em]">
@@ -144,11 +140,11 @@ export default function ShopHome() {
         </button>
       </header>
 
-      {foto ? (
-        <img src={foto} alt="" className="mb-5 h-52 w-full object-cover" style={{ borderRadius: 8 }} />
+      {shop?.portada_url ? (
+        <img src={shop.portada_url} alt="" className="mb-5 h-52 w-full object-cover" style={{ borderRadius: 8 }} />
       ) : (
         <div className="mb-5 flex h-52 items-center justify-center text-sm" style={{ background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, color: "var(--muted)" }}>
-          Subí una foto en Galería y marcá “mostrar en inicio”
+          Cargá la foto de portada en Configuración
         </div>
       )}
 
@@ -184,6 +180,19 @@ export default function ShopHome() {
           <p className="text-sm">{shop?.horario_texto || "Lun–Sáb 9:00 – 20:00"}</p>
         </div>
       </div>
+
+      {trabajos.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>
+            Trabajos realizados
+          </h2>
+          <div className="grid grid-cols-2 gap-2">
+            {trabajos.map((url) => (
+              <img key={url} src={url} alt="" className="h-36 w-full object-cover" style={{ borderRadius: 8 }} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <nav className="fixed bottom-0 left-0 right-0 border-t" style={{ background: "var(--bg)", borderColor: "var(--line)" }}>
         <div className="mx-auto flex max-w-md items-center justify-around py-3 text-[11px]">
