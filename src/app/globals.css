@@ -51,3 +51,18 @@ html, body {
   background: var(--bg);
   color: var(--fg);
 }
+html.oscuro,
+html[data-tema="oscuro"] {
+  --bg: #161310;
+  --fg: #f6f1e8;
+  --card: #231f1a;
+  --line: #3a342c;
+  --muted: #b8b0a4;
+  background: #161310;
+  color: #f6f1e8;
+}
+html.oscuro body,
+html[data-tema="oscuro"] body {
+  background: #161310 !important;
+  color: #f6f1e8 !important;
+}
