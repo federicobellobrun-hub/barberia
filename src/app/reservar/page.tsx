@@ -18,8 +18,8 @@ type Barbero = { id: string; nombre: string };
 type Shop = {
   id: string;
   nombre: string;
-  mp_sena_url: string | null;
-  cuenta_banco: string | null;
+  mercado_pago_url: string | null;
+  datos_cuenta: string | null;
 };
 
 function slugActual() {
@@ -80,7 +80,7 @@ export default function ReservarPage() {
       localStorage.setItem("barberia_slug", slug);
       const { data: s } = await supabase
         .from("barberias")
-        .select("id, nombre, mp_sena_url, cuenta_banco")
+        .select("id, nombre, mercado_pago_url, datos_cuenta")
         .eq("slug", slug)
         .maybeSingle();
       if (!s) return;
@@ -177,7 +177,6 @@ export default function ReservarPage() {
     setError("");
     if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) return setError("Completá los datos");
     if (pideSenia && !pago) return setError("Elegí cómo pagás la seña");
-    const pendiente = pideSenia && pago !== "mp";
     try {
       const cid = await clienteId();
       const { data: turno, error } = await supabase
@@ -189,10 +188,10 @@ export default function ReservarPage() {
           barbero_id: barbero || null,
           fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
           duracion_minutos: servicio.duracion_minutos,
-          estado: pendiente ? "pendiente" : "confirmado",
+          estado: pideSenia ? "pendiente" : "confirmado",
           senia_monto: pideSenia ? Number(servicio.senia) : 0,
           senia_metodo: pideSenia ? pago : null,
-          senia_pagada: pideSenia && pago === "mp",
+          senia_pagada: false,
         })
         .select("id")
         .single();
@@ -202,11 +201,7 @@ export default function ReservarPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ turnoId: turno.id }),
       });
-      if (pideSenia && pago === "mp" && shop.mp_sena_url) {
-        window.location.href = shop.mp_sena_url;
-        return;
-      }
-      setOk(pendiente ? "Pedido enviado. Queda pendiente hasta confirmar la seña." : "Reserva confirmada");
+      setOk(pideSenia ? "Pedido enviado. Queda pendiente hasta confirmar la seña." : "Reserva confirmada");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     }
@@ -217,10 +212,21 @@ export default function ReservarPage() {
       <main className="mx-auto max-w-md px-4 py-10 text-center">
         <BrandHeader />
         <p className="mt-8 text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>{ok}</p>
-        {pideSenia && pago === "transferencia" && shop?.cuenta_banco && (
-          <p className="mt-4 text-sm">Transferí ${servicio?.senia} a:<br />{shop.cuenta_banco}</p>
+        {pideSenia && pago === "transferencia" && shop?.datos_cuenta && (
+          <p className="mt-4 text-sm">Transferí ${servicio?.senia} a:<br />{shop.datos_cuenta}</p>
         )}
-        <Link href="/" className="mt-6 inline-block underline">Volver</Link>
+        {pideSenia && pago === "mp" && shop?.mercado_pago_url && (
+          <a
+            href={shop.mercado_pago_url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-5 inline-block px-6 py-3"
+            style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999 }}
+          >
+            Ir a pagar la seña
+          </a>
+        )}
+        <Link href="/" className="mt-6 block underline">Volver</Link>
       </main>
     );
   }
@@ -290,7 +296,9 @@ export default function ReservarPage() {
           <button onClick={() => setServicio(null)} className="mb-3 text-sm underline">← Cambiar servicio</button>
           <p className="text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>{servicio.nombre}</p>
           <p className="text-sm" style={{ color: "var(--muted)" }}>${servicio.precio} · {servicio.duracion_minutos} min</p>
-          {pideSenia && <p className="mt-2 text-sm">Seña ${servicio.senia}. Si transferís, Vale confirma cuando ve el pago.</p>}
+          {pideSenia && (
+            <p className="mt-2 text-sm">Seña ${servicio.senia}. El turno queda pendiente hasta que el local confirme el pago.</p>
+          )}
 
           {barberos.length > 1 && (
             <select value={barbero} onChange={(e) => setBarbero(e.target.value)} className="mt-4 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
@@ -361,14 +369,18 @@ export default function ReservarPage() {
 
           {pideSenia && (
             <div className="mt-4 space-y-2">
-              <p className="text-sm">¿Cómo pagás la seña?</p>
-              <button type="button" onClick={() => setPago("mp")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "mp" ? "var(--text)" : "var(--card)", color: pago === "mp" ? "var(--bg)" : "inherit" }}>Mercado Pago</button>
-              <button type="button" onClick={() => setPago("transferencia")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "transferencia" ? "var(--text)" : "var(--card)", color: pago === "transferencia" ? "var(--bg)" : "inherit" }}>Transferencia</button>
+              <p className="text-sm">¿Cómo pagás la seña de ${servicio?.senia}?</p>
+              <button type="button" onClick={() => setPago("mp")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "mp" ? "var(--text)" : "var(--card)", color: pago === "mp" ? "var(--bg)" : "inherit" }}>
+                Mercado Pago
+              </button>
+              <button type="button" onClick={() => setPago("transferencia")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "transferencia" ? "var(--text)" : "var(--card)", color: pago === "transferencia" ? "var(--bg)" : "inherit" }}>
+                Transferencia
+              </button>
             </div>
           )}
 
           <button onClick={() => void reservar()} className="mt-4 w-full py-3" style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999 }}>
-            {pideSenia && pago !== "mp" ? "Pedir reserva" : "Confirmar reserva"}
+            {pideSenia ? "Pedir reserva" : "Confirmar reserva"}
           </button>
         </div>
       )}
