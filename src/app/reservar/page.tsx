@@ -1,625 +1,260 @@
 "use client";
 
-import { useEffect, useMemo, useState, Suspense } from "react";
-import type { FormEvent } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
-import BottomNav from "@/components/BottomNav";
-import { temaLocal, aplicarTema } from "@/lib/rubro";
+import ReservaCanina from "@/components/ReservaCanina";
 
+type Shop = {
+  id: string;
+  nombre: string;
+  slug: string;
+  rubro: string | null;
+  whatsapp_pedidos?: string | null;
+  modo_whatsapp?: string | null;
+  canina_cupo_grande_manana?: number | null;
+  canina_cupo_grande_tarde?: number | null;
+  canina_un_grande_por_dia?: boolean | null;
+};
 type Servicio = {
   id: string;
-  barberia_id: string;
   nombre: string;
-  descripcion: string | null;
-  duracion_minutos: number;
   precio: number;
-  imagen_url: string | null;
-  categoria: string | null;
-  sena: number | null;
+  duracion_minutos: number;
+  categoria?: string | null;
+  activo?: boolean;
 };
-type Barbero = { id: string; nombre: string; foto_url: string | null };
-type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; barbero_id?: string | null };
-type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean };
-type Excepcion = { fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean; barbero_id?: string | null };
-type Turno = { fecha_hora: string; duracion_minutos: number; barbero_id: string | null };
-type PagoShop = {
-  whatsapp_pedidos: string | null;
-  datos_cuenta: string | null;
-  mercado_pago_url: string | null;
-  pedido_sena: boolean | null;
-};
+type Barbero = { id: string; nombre: string };
 
-function ymdMontevideo(date: Date) {
-  return date.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
-}
-function weekdayMontevideo(date: Date) {
-  const wd = date.toLocaleDateString("en-US", { weekday: "short", timeZone: "America/Montevideo" });
-  return { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[wd] ?? date.getDay();
-}
-function toMinutes(hhmm: string) {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
-}
-function fromMinutes(mins: number) {
-  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
-}
-function slugDeHost() {
-  if (typeof window === "undefined") return null;
+function slugActual() {
+  if (typeof window === "undefined") return "diano";
   const host = window.location.hostname.replace(/^www\./, "");
-  if (host === "reservoapps.com" || host === "localhost") return null;
-  if (!host.endsWith(".reservoapps.com")) return null;
-  return host.replace(/\.reservoapps\.com$/, "") || null;
-}
-function waNumber(telefono: string) {
-  const solo = telefono.replace(/\D/g, "");
-  if (solo.startsWith("598")) return solo;
-  if (solo.startsWith("0")) return `598${solo.slice(1)}`;
-  return `598${solo}`;
-}
-function linkHttps(url: string) {
-  const u = url.trim();
-  if (!u) return "";
-  if (/^https?:\/\//i.test(u)) return u;
-  return `https://${u}`;
+  if (host.endsWith(".reservoapps.com")) {
+    const sub = host.replace(/\.reservoapps\.com$/, "");
+    if (sub && sub !== "www") return sub;
+  }
+  const q = new URLSearchParams(window.location.search).get("b");
+  if (q) return q;
+  const path = window.location.pathname;
+  if (path.startsWith("/b/")) return path.split("/")[2];
+  return localStorage.getItem("barberia_slug") || "diano";
 }
 
-function ReservarPage() {
-  const search = useSearchParams();
-  const slug = search.get("b") || slugDeHost() || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null) || "diano";
+function horaUy(fechaHora: string) {
+  return new Date(fechaHora).toLocaleTimeString("es-UY", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Montevideo",
+  });
+}
 
-  const [barberiaId, setBarberiaId] = useState<string | null>(null);
-  const [rubro, setRubro] = useState(() => (typeof window === "undefined" ? "barberia" : localStorage.getItem("rubro_" + slug) || "barberia"));
-  const [estilo, setEstilo] = useState(() => (typeof window === "undefined" ? "auto" : localStorage.getItem("estilo_" + slug) || "auto"));
-  const [colorFondo, setColorFondo] = useState<string | null>(null);
-  const [colorBoton, setColorBoton] = useState<string | null>(null);
-  const [pago, setPago] = useState<PagoShop | null>(null);
-  const [trialVencida, setTrialVencida] = useState(false);
+const HORAS = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00"];
+
+export default function ReservarPage() {
+  const supabase = createClient();
+  const [shop, setShop] = useState<Shop | null>(null);
+  const [error, setError] = useState("");
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
-  const [horariosLocal, setHorariosLocal] = useState<Horario[]>([]);
-  const [horariosBarbero, setHorariosBarbero] = useState<Horario[]>([]);
-  const [excepciones, setExcepciones] = useState<Excepcion[]>([]);
-  const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
-  const [turnos, setTurnos] = useState<Turno[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [categoria, setCategoria] = useState<string | null>(null);
-  const [vista, setVista] = useState<"categorias" | "servicios">("categorias");
-  const [servicio, setServicio] = useState<Servicio | null>(null);
-  const [metodoSena, setMetodoSena] = useState<"cuenta" | "mp" | null>(null);
-  const [barbero, setBarbero] = useState<Barbero | null>(null);
+  const [servicioId, setServicioId] = useState("");
+  const [barberoId, setBarberoId] = useState("");
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
+  const [ocupadas, setOcupadas] = useState<string[]>([]);
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
-  const [enviando, setEnviando] = useState(false);
-  const [ok, setOk] = useState(false);
-  const [esperaOk, setEsperaOk] = useState(false);
-  const [mes, setMes] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-
-  const t = temaLocal(estilo, rubro, colorFondo, colorBoton);
-  const rosa = t.pack === "rosa";
-  const radio = rosa ? 999 : 16;
-  const mpLink = pago?.mercado_pago_url ? linkHttps(pago.mercado_pago_url) : "";
+  const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    aplicarTema(t, { fondo: colorFondo, boton: colorBoton });
-  }, [estilo, rubro, colorFondo, colorBoton]);
-
-  useEffect(() => {
-    if (slug && slug !== "reservoapps.com") localStorage.setItem("barberia_slug", slug);
     const load = async () => {
-      try {
-        const supabase = createClient();
-        const { data: shop, error: shopErr } = await supabase
-          .from("barberias")
-          .select("id, slug, rubro, estilo, whatsapp_pedidos, datos_cuenta, mercado_pago_url, pedido_sena, plan, trial_hasta, plan_hasta, color_fondo, color_boton")
-          .eq("slug", slug)
-          .maybeSingle();
-        if (shopErr || !shop) throw new Error("No se encontró el local");
-        setBarberiaId(shop.id);
-        const trialCaida = shop.plan === "trial" && !!shop.trial_hasta && new Date(shop.trial_hasta) < new Date();
-        const planCaido = !!shop.plan_hasta && new Date(`${shop.plan_hasta}T23:59:59-03:00`) < new Date();
-        setTrialVencida(shop.slug !== "diano" && (trialCaida || planCaido));
-        const r = shop.rubro || "barberia";
-        const pack = shop.estilo || "auto";
-        setRubro(r);
-        setEstilo(pack);
-        setColorFondo(shop.color_fondo || null);
-        setColorBoton(shop.color_boton || null);
-        localStorage.setItem("rubro_" + slug, r);
-        localStorage.setItem("estilo_" + slug, pack);
-        aplicarTema(temaLocal(pack, r, shop.color_fondo, shop.color_boton), { fondo: shop.color_fondo, boton: shop.color_boton });
-        setPago({
-          whatsapp_pedidos: shop.whatsapp_pedidos,
-          datos_cuenta: shop.datos_cuenta,
-          mercado_pago_url: shop.mercado_pago_url,
-          pedido_sena: shop.pedido_sena,
-        });
-        const desde = new Date();
-        const hasta = new Date();
-        hasta.setDate(hasta.getDate() + 40);
-        const [servRes, barRes, horRes, horBarRes, bloqRes, turRes, excRes] = await Promise.all([
-          supabase.from("servicios").select("id, barberia_id, nombre, descripcion, duracion_minutos, precio, imagen_url, categoria, sena").eq("barberia_id", shop.id).eq("activo", true).order("orden"),
-          supabase.from("barberos").select("id, nombre, foto_url").eq("barberia_id", shop.id).eq("activo", true).order("nombre"),
-          supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin").eq("barberia_id", shop.id).eq("activo", true),
-          supabase.from("horario_barbero").select("dia_semana, hora_inicio, hora_fin, barbero_id").eq("barberia_id", shop.id).eq("activo", true),
-          supabase.from("bloqueos").select("fecha_inicio, fecha_fin, todo_el_dia").eq("barberia_id", shop.id),
-          supabase.from("turnos").select("fecha_hora, duracion_minutos, barbero_id").eq("barberia_id", shop.id).in("estado", ["pendiente", "confirmado", "realizado"]).gte("fecha_hora", desde.toISOString()).lte("fecha_hora", hasta.toISOString()),
-          supabase.from("horario_excepcion").select("fecha, hora_inicio, hora_fin, cerrado, barbero_id").eq("barberia_id", shop.id),
-        ]);
-        if (servRes.error) throw new Error(servRes.error.message);
-        setServicios((servRes.data as Servicio[]) || []);
-        setBarberos(barRes.data || []);
-        setHorariosLocal(horRes.data || []);
-        setHorariosBarbero(horBarRes.data || []);
-        setBloqueos(bloqRes.data || []);
-        setTurnos(turRes.data || []);
-        setExcepciones((excRes.data as Excepcion[]) || []);
-        if ((barRes.data || []).length === 1) setBarbero(barRes.data![0]);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error al cargar");
+      const slug = slugActual();
+      localStorage.setItem("barberia_slug", slug);
+      const { data, error: e } = await supabase
+        .from("barberias")
+        .select("id, nombre, slug, rubro, whatsapp_pedidos, modo_whatsapp, canina_cupo_grande_manana, canina_cupo_grande_tarde, canina_un_grande_por_dia")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (e) setError(e.message);
+      if (!data) {
+        setError("No se encontró la barbería");
+        return;
       }
+      setShop(data as Shop);
+      const { data: s } = await supabase.from("servicios").select("id, nombre, precio, duracion_minutos, categoria, activo").eq("barberia_id", data.id).eq("activo", true);
+      setServicios((s as Servicio[]) || []);
+      const { data: b } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", data.id).order("nombre");
+      setBarberos((b as Barbero[]) || []);
     };
     void load();
-  }, [slug]);
+  }, [supabase]);
 
-  const horarios = useMemo(() => {
-    if (!barbero) return horariosLocal;
-    const propios = horariosBarbero.filter((h) => h.barbero_id === barbero.id);
-    return propios.length ? propios : horariosLocal;
-  }, [barbero, horariosLocal, horariosBarbero]);
-
-  const hayCategorias = useMemo(() => servicios.some((s) => Boolean(s.categoria?.trim())), [servicios]);
-  const categorias = useMemo(() => {
-    if (!hayCategorias) return [["Servicios", servicios]] as [string, Servicio[]][];
-    const map = new Map<string, Servicio[]>();
-    for (const s of servicios) {
-      const k = s.categoria?.trim() || "Servicios";
-      map.set(k, [...(map.get(k) || []), s]);
-    }
-    return Array.from(map.entries());
-  }, [servicios, hayCategorias]);
-  const listaCat = hayCategorias ? categorias.find(([n]) => n === categoria)?.[1] || [] : servicios;
-  const pideSena = Boolean(pago?.pedido_sena && servicio && Number(servicio.sena || 0) > 0);
-
-  const celdasMes = useMemo(() => {
-    const year = mes.getFullYear();
-    const month = mes.getMonth();
-    const start = new Date(year, month, 1).getDay();
-    const days = new Date(year, month + 1, 0).getDate();
-    const cells: (string | null)[] = [];
-    for (let i = 0; i < start; i++) cells.push(null);
-    for (let d = 1; d <= days; d++) cells.push(ymdMontevideo(new Date(year, month, d)));
-    return cells;
-  }, [mes]);
-
-  const horariosDelDia = useMemo(() => {
-    if (!servicio || !fecha) return [];
-    const date = new Date(`${fecha}T12:00:00-03:00`);
-    const exsDia = excepciones.filter((e) => String(e.fecha).slice(0, 10) === fecha);
-    const ex = (barbero && exsDia.find((e) => e.barbero_id === barbero.id)) || exsDia.find((e) => !e.barbero_id) || null;
-    if (ex?.cerrado) return [];
-    const horario = horarios.find((h) => Number(h.dia_semana) === weekdayMontevideo(date));
-    if (!ex && !horario) return [];
-    const start = toMinutes((ex?.hora_inicio || horario?.hora_inicio || "").slice(0, 5));
-    const end = toMinutes((ex?.hora_fin || horario?.hora_fin || "").slice(0, 5));
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
-    const dayStart = new Date(`${fecha}T00:00:00-03:00`);
-    const dayEnd = new Date(`${fecha}T23:59:59-03:00`);
-    if (bloqueos.some((b) => b.todo_el_dia && new Date(b.fecha_inicio) <= dayEnd && new Date(b.fecha_fin) >= dayStart)) return [];
-    const dur = servicio.duracion_minutos;
-    const slots: string[] = [];
-    for (let mins = start; mins + dur <= end; mins += 30) {
-      const hhmm = fromMinutes(mins);
-      const slotStart = new Date(`${fecha}T${hhmm}:00-03:00`);
-      const slotEnd = new Date(slotStart.getTime() + dur * 60000);
-      const chocaBloqueo = bloqueos.some((b) => !b.todo_el_dia && new Date(b.fecha_inicio) < slotEnd && new Date(b.fecha_fin) > slotStart);
-      const chocaTurno = turnos.some((turno) => {
-        if (barbero && turno.barbero_id && turno.barbero_id !== barbero.id) return false;
-        const ini = new Date(turno.fecha_hora);
-        return ini < slotEnd && new Date(ini.getTime() + turno.duracion_minutos * 60000) > slotStart;
-      });
-      if (chocaBloqueo || chocaTurno) continue;
-      if (slotStart.getTime() < Date.now() + 30 * 60000) continue;
-      slots.push(hhmm);
-    }
-    return slots;
-  }, [servicio, barbero, fecha, horarios, bloqueos, turnos, excepciones]);
-
-  const textoSena = () => {
-    if (!servicio) return "";
-    let msg = `Hola, soy ${nombre || "cliente"}. Pedí ${servicio.nombre} el ${fecha} a las ${hora}.`;
-    if (pideSena) msg += ` Envío seña $${servicio.sena}.`;
-    if (metodoSena === "cuenta" && pago?.datos_cuenta) msg += `\n\nVoy a transferir:\n${pago.datos_cuenta}`;
-    if (metodoSena === "mp" && mpLink) msg += `\n\nPago por Mercado Pago:\n${mpLink}`;
-    return msg;
-  };
-
-  const abrirWhatsapp = () => {
-    const tel = pago?.whatsapp_pedidos;
-    if (!tel) return;
-    window.open(`https://wa.me/${waNumber(tel)}?text=${encodeURIComponent(textoSena())}`, "_blank");
-  };
-
-  const guardar = async (e: FormEvent) => {
-    e.preventDefault();
-    if (trialVencida) return setError("La agenda está pausada.");
-    if (!servicio || !fecha || !hora) return;
-    if (barberos.length > 0 && !barbero) return setError(rosa ? "Elegí una profesional" : "Elegí un barbero");
-    if (pideSena && !metodoSena) return setError("Elegí cómo pagar la seña");
-    setEnviando(true);
-    setError(null);
-    try {
-      const supabase = createClient();
-      const fechaHora = new Date(`${fecha}T${hora}:00-03:00`).toISOString();
-      const { error: rpcError } = await supabase.rpc("crear_reserva", {
-        p_barberia_id: servicio.barberia_id,
-        p_servicio_id: servicio.id,
-        p_nombre: nombre.trim(),
-        p_telefono: telefono.trim(),
-        p_fecha_hora: fechaHora,
-        p_duracion_minutos: servicio.duracion_minutos,
-        p_barbero_id: barbero?.id || null,
-      });
-      if (rpcError) throw new Error(rpcError.message);
-      const { data: creado } = await supabase
+  useEffect(() => {
+    if (!shop || !fecha) return;
+    const load = async () => {
+      const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
+      const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
+      let q = supabase
         .from("turnos")
-        .select("id")
-        .eq("barberia_id", servicio.barberia_id)
-        .eq("fecha_hora", fechaHora)
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (creado?.id && !pideSena) {
-        await supabase.from("turnos").update({ estado: "confirmado" }).eq("id", creado.id);
-        await fetch("/api/whatsapp/reserva", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ turnoId: creado.id }),
-        });
+        .select("fecha_hora")
+        .eq("barberia_id", shop.id)
+        .gte("fecha_hora", desde)
+        .lte("fecha_hora", hasta)
+        .in("estado", ["pendiente", "confirmado", "realizado"]);
+      if (barberoId) q = q.eq("barbero_id", barberoId);
+      const { data } = await q;
+      setOcupadas((data || []).map((t) => horaUy(t.fecha_hora)));
+    };
+    void load();
+  }, [shop, fecha, barberoId, supabase]);
+
+  const servicio = servicios.find((s) => s.id === servicioId);
+  const categorias = useMemo(() => {
+    const set = new Set(servicios.map((s) => s.categoria).filter(Boolean) as string[]);
+    return Array.from(set);
+  }, [servicios]);
+  const [cat, setCat] = useState("");
+  const lista = cat ? servicios.filter((s) => s.categoria === cat) : servicios;
+  const libres = HORAS.filter((h) => !ocupadas.includes(h));
+
+  const reservar = async () => {
+    if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) {
+      setMsg("Completá todos los datos");
+      return;
+    }
+    setMsg("");
+    const { data: cli, error: e1 } = await supabase
+      .from("clientes")
+      .insert({ barberia_id: shop.id, nombre, telefono })
+      .select("id")
+      .single();
+    if (e1 || !cli) {
+      const { data: exist } = await supabase.from("clientes").select("id").eq("barberia_id", shop.id).eq("telefono", telefono).maybeSingle();
+      if (!exist) {
+        setMsg(e1?.message || "No se pudo guardar el cliente");
+        return;
       }
-      setOk(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo reservar");
-    } finally {
-      setEnviando(false);
+      await crearTurno(exist.id);
+      return;
+    }
+    await crearTurno(cli.id);
+  };
+
+  const crearTurno = async (clienteId: string) => {
+    if (!shop || !servicio || !fecha || !hora) return;
+    const { data: turno, error } = await supabase
+      .from("turnos")
+      .insert({
+        barberia_id: shop.id,
+        cliente_id: clienteId,
+        servicio_id: servicio.id,
+        barbero_id: barberoId || null,
+        fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
+        duracion_minutos: servicio.duracion_minutos || 30,
+        estado: "pendiente",
+      })
+      .select("id")
+      .single();
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
+    setMsg("Reserva lista");
+    if (turno?.id) {
+      fetch("/api/whatsapp/reserva", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: turno.id }),
+      }).catch(() => null);
     }
   };
 
-  const anotarEspera = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!servicio || !barberiaId) return;
-    const supabase = createClient();
-    const { error: waitError } = await supabase.from("lista_espera").insert({
-      barberia_id: barberiaId,
-      servicio_id: servicio.id,
-      nombre,
-      telefono,
-      fecha,
-    });
-    if (waitError) setError(waitError.message);
-    else setEsperaOk(true);
-  };
-
-  const hoy = ymdMontevideo(new Date());
-  const mesLabel = mes.toLocaleDateString("es-UY", { month: "long", year: "numeric" });
-  const nav = (
-    <BottomNav
-      items={[
-        { href: `/b/${slug}`, label: "Inicio" },
-        { href: `/reservar?b=${slug}`, label: "Reservar", active: true },
-        { href: `/tienda?b=${slug}`, label: "Tienda" },
-      ]}
-      bg={t.bg}
-      line={t.line}
-      text={t.text}
-      muted={t.muted}
-    />
-  );
-
-  const TarjetaServicio = ({ s }: { s: Servicio }) => {
-    const activo = servicio?.id === s.id;
+  if (error) {
     return (
-      <button
-        type="button"
-        onClick={() => {
-          setServicio(s);
-          setMetodoSena(null);
-          setHora("");
-        }}
-        className="w-full flex gap-3 text-left overflow-hidden"
-        style={{ background: t.card, border: activo ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
-      >
-        {s.imagen_url ? (
-          <img src={s.imagen_url} alt="" className="h-20 w-20 object-cover shrink-0" />
-        ) : (
-          <div className="h-20 w-20 shrink-0 flex items-center justify-center text-xl" style={{ background: t.bg, color: t.btn }}>
-            {t.icono}
-          </div>
-        )}
-        <div className="py-3 pr-3 min-w-0">
-          <p className="font-medium">{s.nombre}</p>
-          {s.descripcion && (
-            <p className="text-xs mt-0.5 truncate" style={{ color: t.muted }}>
-              {s.descripcion}
-            </p>
-          )}
-          <p className="text-sm" style={{ color: t.muted }}>
-            ${s.precio} · {s.duracion_minutos} min
-          </p>
-        </div>
-      </button>
+      <main className="mx-auto max-w-md px-4 py-10">
+        <p>{error}</p>
+      </main>
     );
-  };
-
-  if (ok && servicio) {
+  }
+  if (!shop) {
     return (
-      <main className="min-h-screen px-6 py-16 text-center pb-28" style={{ background: t.bg, color: t.text }}>
-        <h1 className="text-4xl tracking-tight" style={{ fontFamily: "Georgia, Times, serif" }}>
-          {pideSena ? "Reserva pedida" : "Turno reservado"}
-        </h1>
-        <p className="mt-4">
-          {servicio.nombre}
-          {barbero ? ` · ${barbero.nombre}` : ""} · {fecha} · {hora}
-        </p>
-        {pideSena && (
-          <div className="mt-6 text-left max-w-sm mx-auto p-4 space-y-3" style={{ background: t.card, borderRadius: 16 }}>
-            <p className="font-medium">Seña ${servicio.sena}</p>
-            <p className="text-sm" style={{ color: t.muted }}>
-              El turno no queda confirmado hasta que reciban la seña y lo confirmen en la agenda.
-            </p>
-            {metodoSena === "cuenta" && pago?.datos_cuenta && <p className="text-sm whitespace-pre-wrap">{pago.datos_cuenta}</p>}
-            {metodoSena === "mp" && mpLink && (
-              <a href={mpLink} target="_blank" rel="noreferrer" className="block text-center py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
-                Pagar seña en Mercado Pago
-              </a>
-            )}
-            {pago?.whatsapp_pedidos && (
-              <button type="button" onClick={abrirWhatsapp} className="w-full py-3 font-medium" style={{ background: t.card, color: t.text, border: `1px solid ${t.line}`, borderRadius: radio }}>
-                Enviar comprobante por WhatsApp
-              </button>
-            )}
-          </div>
-        )}
-        <Link href={`/b/${slug}`} className="inline-block mt-8">
-          Volver
-        </Link>
-        {nav}
+      <main className="mx-auto max-w-md px-4 py-10">
+        <p>Cargando reserva...</p>
+      </main>
+    );
+  }
+
+  if (shop.rubro === "canina") {
+    return (
+      <main className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-4">
+        <BrandHeader />
+        <ReservaCanina
+          shop={{
+            id: shop.id,
+            nombre: shop.nombre,
+            canina_cupo_grande_manana: shop.canina_cupo_grande_manana ?? 1,
+            canina_cupo_grande_tarde: shop.canina_cupo_grande_tarde ?? 1,
+            canina_un_grande_por_dia: shop.canina_un_grande_por_dia ?? false,
+          }}
+        />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: t.bg, color: t.text }}>
-      <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader />
-        <h1 className="text-[34px] tracking-tight leading-9" style={{ fontFamily: "Georgia, Times, serif" }}>
-          {t.cita}
-        </h1>
-        <p className="mt-2 mb-5" style={{ color: t.muted }}>
-          {hayCategorias ? "Elegí categoría y servicio" : "Elegí servicio"}
-        </p>
-        {error && <p className="mb-6 text-red-500 text-sm">{error}</p>}
+    <main className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-4">
+      <BrandHeader />
+      <h1 className="mb-4 text-xl">Reservar</h1>
 
-        {trialVencida && (
-          <div className="rounded-2xl px-4 py-4 mb-5" style={{ background: t.card, border: `1px solid ${t.line}` }}>
-            <p className="text-sm font-medium mb-1">La agenda está pausada</p>
-            <p className="text-xs leading-5" style={{ color: t.muted }}>
-              El plan venció. El dueño lo activa de nuevo desde Configuración.
-            </p>
-          </div>
-        )}
+      {categorias.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          <button onClick={() => setCat("")} className="rounded-full px-3 py-1.5 text-sm" style={{ background: !cat ? "#1A1612" : "var(--card)", color: !cat ? "#F6F1E8" : "inherit" }}>
+            Todos
+          </button>
+          {categorias.map((c) => (
+            <button key={c} onClick={() => setCat(c)} className="rounded-full px-3 py-1.5 text-sm" style={{ background: cat === c ? "#1A1612" : "var(--card)", color: cat === c ? "#F6F1E8" : "inherit" }}>
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
 
-        {!trialVencida && (
-          <>
-            {!hayCategorias ? (
-              <div className="space-y-2 mb-4">
-                {servicios.map((s) => (
-                  <TarjetaServicio key={s.id} s={s} />
-                ))}
-              </div>
-            ) : (
-              <div className="relative overflow-hidden mb-4">
-                <div className="flex" style={{ width: "200%", transform: vista === "servicios" ? "translateX(-50%)" : "translateX(0)", transition: "transform 320ms ease" }}>
-                  <div className="w-1/2 pr-1">
-                    <div className="grid grid-cols-2 gap-2">
-                      {categorias.map(([nombreCat, items]) => (
-                        <button
-                          key={nombreCat}
-                          type="button"
-                          onClick={() => {
-                            setCategoria(nombreCat);
-                            setServicio(null);
-                            setMetodoSena(null);
-                            setHora("");
-                            setVista("servicios");
-                          }}
-                          className="p-4 text-left"
-                          style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
-                        >
-                          <p className="font-medium">{nombreCat}</p>
-                          <p className="text-xs mt-1" style={{ color: t.muted }}>
-                            {items.length} servicios
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="w-1/2 pl-1">
-                    <button type="button" onClick={() => { setVista("categorias"); setServicio(null); setMetodoSena(null); }} className="text-sm mb-3" style={{ color: t.muted }}>
-                      ‹ Categorías
-                    </button>
-                    <h2 className="font-medium mb-3">{categoria}</h2>
-                    <div className="space-y-2">
-                      {listaCat.map((s) => (
-                        <TarjetaServicio key={s.id} s={s} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {servicio && (
-              <div className="mb-5 p-4" style={{ background: t.card, borderRadius: 16, border: `1px solid ${t.line}` }}>
-                {servicio.imagen_url && <img src={servicio.imagen_url} alt="" className="h-36 w-full object-cover rounded-xl mb-3" />}
-                <p className="text-lg font-medium">{servicio.nombre}</p>
-                {servicio.descripcion && (
-                  <p className="text-sm mt-1" style={{ color: t.muted }}>
-                    {servicio.descripcion}
-                  </p>
-                )}
-                <p className="text-sm mt-1" style={{ color: t.muted }}>
-                  {servicio.duracion_minutos} min · ${servicio.precio}
-                </p>
-                {pideSena ? (
-                  <>
-                    <p className="mt-3 font-medium">Requiere seña ${servicio.sena}</p>
-                    {pago?.datos_cuenta && (
-                      <button type="button" onClick={() => setMetodoSena("cuenta")} className="w-full text-left p-3 mb-2 mt-2" style={{ border: metodoSena === "cuenta" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
-                        Transferencia / cuenta
-                      </button>
-                    )}
-                    {mpLink && (
-                      <button type="button" onClick={() => setMetodoSena("mp")} className="w-full text-left p-3" style={{ border: metodoSena === "mp" ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: 12 }}>
-                        Mercado Pago
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-sm mt-2" style={{ color: t.muted }}>
-                    Sin seña
-                  </p>
-                )}
-              </div>
-            )}
-
-            {servicio && (!pideSena || metodoSena) && barberos.length > 0 && (
-              <>
-                <h2 className="font-medium mb-3">{rosa ? "Elegí profesional" : "Elegí barbero"}</h2>
-                <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
-                  {barberos.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => {
-                        setBarbero(b);
-                        setHora("");
-                      }}
-                      className="shrink-0 p-3 w-28 text-center"
-                      style={{ background: t.card, border: barbero?.id === b.id ? `1.5px solid ${t.btn}` : `1px solid ${t.line}`, borderRadius: rosa ? 18 : 16 }}
-                    >
-                      {b.foto_url ? (
-                        <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full mx-auto mb-2" />
-                      ) : (
-                        <div className="h-14 w-14 rounded-full mx-auto mb-2 flex items-center justify-center" style={{ background: t.bg }}>
-                          {b.nombre.slice(0, 1)}
-                        </div>
-                      )}
-                      <p className="text-sm font-medium leading-4">{b.nombre}</p>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {servicio && (!pideSena || metodoSena) && (
-              <>
-                <h2 className="font-medium mb-3">Elegí día y hora</h2>
-                <div className="p-4 mb-3" style={{ background: t.card, borderRadius: rosa ? 22 : 16 }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>
-                      ‹
-                    </button>
-                    <p className="text-sm font-medium capitalize">{mesLabel}</p>
-                    <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>
-                      ›
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-7 text-center text-[11px] mb-2" style={{ color: t.muted }}>
-                    {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
-                      <span key={i}>{d}</span>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
-                    {celdasMes.map((value, i) => {
-                      if (!value) return <span key={i} />;
-                      const activoDia = fecha === value;
-                      const pasado = value < hoy;
-                      return (
-                        <button
-                          key={value}
-                          type="button"
-                          disabled={pasado}
-                          onClick={() => {
-                            setFecha(value);
-                            setHora("");
-                            setEsperaOk(false);
-                          }}
-                          className="h-8 w-8 mx-auto rounded-full"
-                          style={{ background: activoDia ? t.btn : "transparent", color: activoDia ? t.btnText : pasado ? t.line : t.text }}
-                        >
-                          {Number(value.slice(8))}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {servicio && (!pideSena || metodoSena) && fecha && (
-              <div className="mb-6">
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {horariosDelDia.map((h) => (
-                    <button key={h} type="button" onClick={() => setHora(h)} className="shrink-0 px-3 py-2 text-sm font-medium" style={{ background: hora === h ? t.btn : t.card, color: hora === h ? t.btnText : t.text, borderRadius: radio }}>
-                      {h}
-                    </button>
-                  ))}
-                </div>
-                {horariosDelDia.length === 0 && (
-                  <div className="mt-3">
-                    <p className="text-sm mb-3">No hay horarios ese día.</p>
-                    {esperaOk ? (
-                      <p className="text-sm">Quedaste en lista de espera.</p>
-                    ) : (
-                      <form onSubmit={anotarEspera} className="space-y-2">
-                        <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
-                        <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
-                        <button className="w-full py-3 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
-                          Anotarme en lista de espera
-                        </button>
-                      </form>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {servicio && (!pideSena || metodoSena) && fecha && hora && (
-              <form onSubmit={guardar} className="space-y-3 mb-4">
-                <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
-                <input required value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="w-full px-4 py-3" style={{ background: t.card, color: t.text, borderRadius: radio }} />
-                <button disabled={enviando} className="w-full py-4 font-medium" style={{ background: t.btn, color: t.btnText, borderRadius: radio }}>
-                  {enviando ? "Enviando..." : pideSena ? "Pedir reserva (queda pendiente de seña)" : "Confirmar reserva"}
-                </button>
-              </form>
-            )}
-          </>
-        )}
+      <div className="mb-4 space-y-2">
+        {lista.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setServicioId(s.id)}
+            className="block w-full rounded-2xl p-3 text-left"
+            style={{ border: servicioId === s.id ? "2px solid #1A1612" : "1px solid var(--line)", background: "var(--card)" }}
+          >
+            <p className="font-medium">{s.nombre}</p>
+            <p className="text-sm">${s.precio} · {s.duracion_minutos} min</p>
+          </button>
+        ))}
       </div>
-      {nav}
-    </main>
-  );
-}
 
-export default function ReservarPageWrapper() {
-  return (
-    <Suspense fallback={<main className="min-h-screen" style={{ background: "#FDF7F9" }} />}>
-      <ReservarPage />
-    </Suspense>
+      {barberos.length > 1 && (
+        <select className="mb-3 w-full rounded-xl px-3 py-2" value={barberoId} onChange={(e) => setBarberoId(e.target.value)}>
+          <option value="">Cualquier profesional</option>
+          {barberos.map((b) => (
+            <option key={b.id} value={b.id}>{b.nombre}</option>
+          ))}
+        </select>
+      )}
+
+      <input className="mb-3 w-full rounded-xl px-3 py-2" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+      <div className="mb-4 flex flex-wrap gap-2">
+        {libres.map((h) => (
+          <button key={h} onClick={() => setHora(h)} className="rounded-full px-3 py-1.5 text-sm" style={{ background: hora === h ? "#1A1612" : "var(--card)", color: hora === h ? "#F6F1E8" : "inherit" }}>
+            {h}
+          </button>
+        ))}
+      </div>
+      <input className="mb-2 w-full rounded-xl px-3 py-2" placeholder="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+      <input className="mb-4 w-full rounded-xl px-3 py-2" placeholder="WhatsApp" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+      <button onClick={() => void reservar()} className="w-full rounded-full py-3 text-sm" style={{ background: "#1A1612", color: "#F6F1E8" }}>
+        Confirmar reserva
+      </button>
+      {msg && <p className="mt-3 text-sm">{msg}</p>}
+    </main>
   );
 }
