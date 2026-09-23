@@ -30,8 +30,21 @@ export default function HomePage() {
   return (
     <main className="min-h-screen" style={{ background: "#F6F1E8", color: "#1A1612" }}>
       <header className="mx-auto flex max-w-5xl items-center justify-between px-5 py-5">
-        <Link href="/" className="text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>
-          Reservo Apps
+        <Link href="/" className="flex items-center gap-3">
+          <span
+            className="flex h-11 w-11 items-center justify-center rounded-full text-lg"
+            style={{ border: "1.5px solid #1A1612", fontFamily: "Georgia, Times, serif" }}
+          >
+            R
+          </span>
+          <span>
+            <span className="block leading-none" style={{ fontFamily: "Georgia, Times, serif", fontSize: "22px" }}>
+              Reservo Apps
+            </span>
+            <span className="mt-1 block text-[10px] tracking-[0.16em]" style={{ color: "#8A8378" }}>
+              APPS DE RESERVA PARA NEGOCIOS LOCALES
+            </span>
+          </span>
         </Link>
         <nav className="flex items-center gap-4 text-sm">
           <Link href="/precios">Precios</Link>
@@ -45,10 +58,7 @@ export default function HomePage() {
 
       <section className="mx-auto max-w-5xl px-5 pb-12 pt-8 md:grid md:grid-cols-2 md:items-center md:gap-10">
         <div>
-          <p className="text-xs tracking-[0.18em]" style={{ color: "#8A8378" }}>
-            APPS DE RESERVA PARA NEGOCIOS LOCALES
-          </p>
-          <h1 className="mt-4 text-4xl leading-tight md:text-5xl" style={{ fontFamily: "Georgia, Times, serif" }}>
+          <h1 className="text-4xl leading-tight md:text-5xl" style={{ fontFamily: "Georgia, Times, serif" }}>
             Tu negocio. Tus clientes. Tu agenda. Todo en un solo lugar.
           </h1>
           <p className="mt-4 max-w-md" style={{ color: "#5c564c" }}>
@@ -102,15 +112,19 @@ export default function HomePage() {
           Mirá una demo
         </h2>
         <div className="grid gap-4 md:grid-cols-2">
-          <Link href="https://diano.reservoapps.com" className="overflow-hidden rounded-2xl" style={{ background: "#fff", border: "1px solid #e6e0d4" }}>
-            <img src="/IMG_9774.jpeg" alt="Diano" className="h-56 w-full object-cover transition group-hover:scale-105" />
+          <Link href="https://diano.reservoapps.com" className="group overflow-hidden rounded-2xl" style={{ background: "#fff", border: "1px solid #e6e0d4" }}>
+            <div className="overflow-hidden">
+              <img src="/IMG_9774.jpeg" alt="Diano" className="h-56 w-full object-cover transition duration-500 group-hover:scale-110" />
+            </div>
             <div className="p-4">
               <p className="font-medium">Diano Barbershop</p>
               <p className="text-sm" style={{ color: "#8A8378" }}>Ver demo barbería →</p>
             </div>
           </Link>
-          <Link href="https://vale-studio.reservoapps.com" className="overflow-hidden rounded-2xl" style={{ background: "#fff", border: "1px solid #e6e0d4" }}>
-            <img src="/IMG_9775.jpeg" alt="Vale" className="h-56 w-full object-cover" />
+          <Link href="https://vale-studio.reservoapps.com" className="group overflow-hidden rounded-2xl" style={{ background: "#fff", border: "1px solid #e6e0d4" }}>
+            <div className="overflow-hidden">
+              <img src="/IMG_9775.jpeg" alt="Vale" className="h-56 w-full object-cover transition duration-500 group-hover:scale-110" />
+            </div>
             <div className="p-4">
               <p className="font-medium">Vale Studio</p>
               <p className="text-sm" style={{ color: "#8A8378" }}>Ver demo pestañas y uñas →</p>
@@ -173,15 +187,6 @@ export default function HomePage() {
           <Link href="/terminos">Términos</Link>
         </div>
       </footer>
-
-      <a
-        href="https://wa.me/59897344643"
-        className="fixed bottom-5 right-5 flex h-14 w-14 items-center justify-center rounded-full text-white"
-        style={{ background: "#25D366" }}
-        aria-label="WhatsApp"
-      >
-        WA
-      </a>
     </main>
   );
 }
