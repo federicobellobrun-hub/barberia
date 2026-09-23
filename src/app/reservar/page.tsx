@@ -177,6 +177,7 @@ export default function ReservarPage() {
     setError("");
     if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) return setError("Completá los datos");
     if (pideSenia && !pago) return setError("Elegí cómo pagás la seña");
+    const pendiente = pideSenia && pago !== "mp";
     try {
       const cid = await clienteId();
       const { data: turno, error } = await supabase
@@ -188,10 +189,10 @@ export default function ReservarPage() {
           barbero_id: barbero || null,
           fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
           duracion_minutos: servicio.duracion_minutos,
-          estado: pideSenia ? "pendiente" : "confirmado",
+          estado: pendiente ? "pendiente" : "confirmado",
           senia_monto: pideSenia ? Number(servicio.senia) : 0,
           senia_metodo: pideSenia ? pago : null,
-          senia_pagada: false,
+          senia_pagada: pideSenia && pago === "mp",
         })
         .select("id")
         .single();
@@ -205,7 +206,7 @@ export default function ReservarPage() {
         window.location.href = shop.mp_sena_url;
         return;
       }
-      setOk(pideSenia ? "Reserva pedida. Queda pendiente hasta confirmar la seña." : "Reserva confirmada");
+      setOk(pendiente ? "Pedido enviado. Queda pendiente hasta confirmar la seña." : "Reserva confirmada");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     }
@@ -262,9 +263,7 @@ export default function ReservarPage() {
 
       {((usarCat && categoria) || !usarCat) && !servicio && (
         <div>
-          {usarCat && (
-            <button onClick={() => setCategoria(null)} className="mb-3 text-sm underline">← Categorías</button>
-          )}
+          {usarCat && <button onClick={() => setCategoria(null)} className="mb-3 text-sm underline">← Categorías</button>}
           <div className="space-y-3">
             {lista.map((s) => (
               <button
@@ -291,19 +290,12 @@ export default function ReservarPage() {
           <button onClick={() => setServicio(null)} className="mb-3 text-sm underline">← Cambiar servicio</button>
           <p className="text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>{servicio.nombre}</p>
           <p className="text-sm" style={{ color: "var(--muted)" }}>${servicio.precio} · {servicio.duracion_minutos} min</p>
-          {pideSenia && <p className="mt-2 text-sm">Seña ${servicio.senia}. Queda pendiente hasta confirmarla en el panel.</p>}
+          {pideSenia && <p className="mt-2 text-sm">Seña ${servicio.senia}. Si transferís, Vale confirma cuando ve el pago.</p>}
 
           {barberos.length > 1 && (
-            <select
-              value={barbero}
-              onChange={(e) => setBarbero(e.target.value)}
-              className="mt-4 w-full rounded-xl px-3 py-3"
-              style={{ background: "var(--card)", border: "1px solid var(--line)" }}
-            >
+            <select value={barbero} onChange={(e) => setBarbero(e.target.value)} className="mt-4 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
               <option value="">Cualquiera</option>
-              {barberos.map((b) => (
-                <option key={b.id} value={b.id}>{b.nombre}</option>
-              ))}
+              {barberos.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>
           )}
 
@@ -319,9 +311,7 @@ export default function ReservarPage() {
             </div>
             <div className="mt-2 grid grid-cols-7 gap-y-2 text-center text-sm">
               {celdas.map((c, i) =>
-                !c.n ? (
-                  <span key={i} />
-                ) : (
+                !c.n ? <span key={i} /> : (
                   <button
                     key={c.value}
                     type="button"
@@ -372,17 +362,13 @@ export default function ReservarPage() {
           {pideSenia && (
             <div className="mt-4 space-y-2">
               <p className="text-sm">¿Cómo pagás la seña?</p>
-              <button type="button" onClick={() => setPago("mp")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "mp" ? "var(--text)" : "var(--card)", color: pago === "mp" ? "var(--bg)" : "inherit" }}>
-                Mercado Pago
-              </button>
-              <button type="button" onClick={() => setPago("transferencia")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "transferencia" ? "var(--text)" : "var(--card)", color: pago === "transferencia" ? "var(--bg)" : "inherit" }}>
-                Transferencia
-              </button>
+              <button type="button" onClick={() => setPago("mp")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "mp" ? "var(--text)" : "var(--card)", color: pago === "mp" ? "var(--bg)" : "inherit" }}>Mercado Pago</button>
+              <button type="button" onClick={() => setPago("transferencia")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "transferencia" ? "var(--text)" : "var(--card)", color: pago === "transferencia" ? "var(--bg)" : "inherit" }}>Transferencia</button>
             </div>
           )}
 
           <button onClick={() => void reservar()} className="mt-4 w-full py-3" style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999 }}>
-            {pideSenia ? "Pedir reserva" : "Confirmar reserva"}
+            {pideSenia && pago !== "mp" ? "Pedir reserva" : "Confirmar reserva"}
           </button>
         </div>
       )}
