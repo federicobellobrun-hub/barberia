@@ -3,56 +3,65 @@
 import Link from "next/link";
 import BrandHeader from "@/components/BrandHeader";
 
-function Calendario() {
+function IcoReserva() {
   return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.35">
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M3 10h18M8 3v4M16 3v4M8 14h2M12 14h2M16 14h2M8 17h2M12 17h2" />
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25">
+      <rect x="3.5" y="4.5" width="17" height="16" rx="1.2" />
+      <path d="M3.5 9.5h17M8 3v3.5M16 3v3.5" />
+      <path d="M8 13h.01M12 13h.01M16 13h.01M8 16.5h.01M12 16.5h.01" />
     </svg>
   );
 }
-function Bolso() {
+function IcoTienda() {
   return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.35">
-      <path d="M4 8h16l-1.2 12H5.2L4 8zM8 8V6a4 4 0 0 1 8 0v2" />
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25">
+      <path d="M4 8h16l-1.4 11.2H5.4L4 8z" />
+      <path d="M9 8V6.2A3 3 0 0 1 12 3.5 3 3 0 0 1 15 6.2V8" />
     </svg>
   );
 }
-function Persona() {
+function IcoPanel() {
   return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.35">
-      <circle cx="12" cy="8" r="3.2" />
-      <path d="M5 20c1.2-3.5 3.5-5 7-5s5.8 1.5 7 5" />
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25">
+      <circle cx="12" cy="8" r="3" />
+      <path d="M5.2 19.5c.8-3.2 3.2-4.8 6.8-4.8s6 1.6 6.8 4.8" />
     </svg>
   );
 }
 
+const cards = [
+  { href: "/reservar", t: "Reservar", d: "Elegí día y hora", Ico: IcoReserva },
+  { href: "/tienda", t: "Productos", d: "Ver el catálogo", Ico: IcoTienda },
+  { href: "/login", t: "Panel", d: "Dueño o equipo", Ico: IcoPanel },
+];
+
 export default function ShopHome() {
   return (
-    <main className="mx-auto min-h-screen max-w-md px-4 pb-12 pt-4">
+    <main className="mx-auto min-h-screen max-w-md px-4 pb-8 pt-2">
       <BrandHeader />
-      <div className="mt-2 space-y-3">
-        <Link href="/reservar" className="flex items-center gap-4 rounded-2xl px-4 py-5" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <Calendario />
-          <div>
-            <p className="text-[17px] font-medium">Reservar</p>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>Elegí día y hora</p>
-          </div>
-        </Link>
-        <Link href="/tienda" className="flex items-center gap-4 rounded-2xl px-4 py-5" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <Bolso />
-          <div>
-            <p className="text-[17px] font-medium">Productos</p>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>Ver el catálogo</p>
-          </div>
-        </Link>
-        <Link href="/login" className="flex items-center gap-4 rounded-2xl px-4 py-5" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <Persona />
-          <div>
-            <p className="text-[17px] font-medium">Panel</p>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>Dueño o equipo</p>
-          </div>
-        </Link>
+      <div className="mt-1 space-y-2.5">
+        {cards.map((c) => (
+          <Link
+            key={c.href}
+            href={c.href}
+            className="flex items-center gap-4 px-4 py-4"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "10px",
+            }}
+          >
+            <c.Ico />
+            <div>
+              <p className="text-[18px] leading-none" style={{ fontFamily: "Georgia, Times, serif" }}>
+                {c.t}
+              </p>
+              <p className="mt-1 text-[13px]" style={{ color: "var(--muted)" }}>
+                {c.d}
+              </p>
+            </div>
+          </Link>
+        ))}
       </div>
     </main>
   );
