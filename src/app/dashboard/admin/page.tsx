@@ -2,176 +2,119 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createBrowserClient } from "@supabase/ssr";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase";
 
-type Barberia = {
-  id: string;
-  nombre: string;
-  slug: string;
-  activo: boolean | null;
-  modo_whatsapp: string | null;
-};
+type Shop = { id: string; nombre: string; slug: string; plan: string | null; activo: boolean | null; rubro: string | null };
 
 export default function AdminPage() {
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
-  const [ok, setOk] = useState(false);
-  const [lista, setLista] = useState<Barberia[]>([]);
-  const [msg, setMsg] = useState("");
+  const router = useRouter();
+  const supabase = createClient();
+  const [shops, setShops] = useState<Shop[]>([]);
   const [nombre, setNombre] = useState("");
   const [slug, setSlug] = useState("");
-  const [modo, setModo] = useState("manual");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rubro, setRubro] = useState("canina");
+  const [plan, setPlan] = useState("trial");
+  const [msg, setMsg] = useState("");
+  const [link, setLink] = useState("");
 
-  async function cargar() {
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) {
-      window.location.href = "/login";
+  const load = async () => {
+    const { data: session } = await supabase.auth.getUser();
+    if (!session.user) {
+      router.replace("/login");
       return;
     }
-    const { data: yo } = await supabase
-      .from("usuarios")
-      .select("rol")
-      .eq("auth_user_id", auth.user.id)
-      .maybeSingle();
-    if (yo?.rol !== "superadmin") {
-      window.location.href = "/dashboard";
+    const { data: me } = await supabase.from("usuarios").select("rol").eq("auth_user_id", session.user.id).maybeSingle();
+    if (me?.rol !== "superadmin") {
+      router.replace("/dashboard");
       return;
     }
-    setOk(true);
-    const { data } = await supabase
-      .from("barberias")
-      .select("id,nombre,slug,activo,modo_whatsapp")
-      .order("nombre");
-    setLista((data as Barberia[]) || []);
-  }
+    const { data } = await supabase.from("barberias").select("id, nombre, slug, plan, activo, rubro").order("nombre");
+    setShops((data as Shop[]) || []);
+  };
 
   useEffect(() => {
-    cargar();
+    void load();
   }, []);
 
-  async function guardar(b: Barberia, patch: Partial<Barberia>) {
+  const crear = async () => {
     setMsg("");
-    const { error } = await supabase.from("barberias").update(patch).eq("id", b.id);
-    if (error) setMsg(error.message);
-    else cargar();
-  }
-
-  async function crear(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg("");
-    const s = slug
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
-    if (!nombre.trim() || !s) {
-      setMsg("Nombre y enlace son obligatorios");
-      return;
-    }
-    const { data: existe } = await supabase.from("barberias").select("id").eq("slug", s).maybeSingle();
-    if (existe) {
-      setMsg("Ese enlace ya está en uso. Probá otro, por ejemplo " + s + "-2");
-      return;
-    }
-    const { error } = await supabase.from("barberias").insert({
-      nombre: nombre.trim(),
-      slug: s,
-      activo: true,
-      modo_whatsapp: modo,
+    setLink("");
+    const res = await fetch("/api/admin/locales", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre, slug, email, password, rubro, plan }),
     });
-    if (error) {
-      if (error.message.includes("barberias_slug_key")) {
-        setMsg("Ese enlace ya está en uso");
-      } else setMsg(error.message);
+    const data = await res.json();
+    if (!res.ok) {
+      setMsg(data.error || "Error");
       return;
     }
+    setMsg(`Creada. Entrá con ${email}`);
+    setLink(data.link || "");
     setNombre("");
     setSlug("");
-    setModo("manual");
-    cargar();
-  }
+    setEmail("");
+    setPassword("");
+    void load();
+  };
 
-  if (!ok) return <p className="p-6">Cargando…</p>;
+  const borrar = async (id: string, nombreShop: string) => {
+    if (!confirm(`¿Sacar ${nombreShop}? No van a poder entrar.`)) return;
+    const res = await fetch("/api/admin/locales", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const data = await res.json();
+    if (!res.ok) setMsg(data.error || "Error al borrar");
+    else void load();
+  };
 
   return (
-    <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
-      <div className="mx-auto max-w-md px-5 py-8">
-        <Link href="/dashboard" className="text-sm text-[#7a7268]">
-          ← Panel
-        </Link>
-        <h1 className="mt-4 text-3xl" style={{ fontFamily: "Georgia, Times, serif" }}>
-          Panel Reservo Apps
-        </h1>
-        <p className="text-sm text-[#7a7268] mb-8">Activá locales y el modo de WhatsApp.</p>
+    <main className="mx-auto min-h-screen max-w-md px-4 py-6">
+      <Link href="/panel" className="text-sm">← Panel</Link>
+      <h1 className="mt-3 text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>Locales</h1>
 
-        {lista.map((b) => (
-          <article key={b.id} className="rounded-2xl p-4 mb-3" style={{ border: "1px solid #ddd4c8" }}>
-            <p className="font-medium">{b.nombre}</p>
-            <p className="text-xs text-[#7a7268] mb-3">/b/{b.slug}</p>
-            <div className="flex flex-wrap gap-2 mb-3">
-              <button
-                className="rounded-full px-3 py-1 text-xs"
-                style={{
-                  background: b.activo === false ? "#EFE8DC" : "#1C1712",
-                  color: b.activo === false ? "#1C1712" : "#F5F0E8",
-                }}
-                onClick={() => guardar(b, { activo: !(b.activo !== false) })}
-              >
-                {b.activo === false ? "Activar" : "Activa"}
+      <section className="mt-4 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+        <p className="font-medium">Nueva agenda</p>
+        <input className="mt-3 w-full rounded-xl px-3 py-2 text-sm" placeholder="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+        <input className="mt-2 w-full rounded-xl px-3 py-2 text-sm" placeholder="Link (opcional) ej. luna-canina" value={slug} onChange={(e) => setSlug(e.target.value)} />
+        <input className="mt-2 w-full rounded-xl px-3 py-2 text-sm" placeholder="Email del dueño" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input className="mt-2 w-full rounded-xl px-3 py-2 text-sm" placeholder="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <select className="mt-2 w-full rounded-xl px-3 py-2 text-sm" value={rubro} onChange={(e) => setRubro(e.target.value)}>
+          <option value="barberia">Barbería</option>
+          <option value="cejas_unas">Pestañas / uñas</option>
+          <option value="canina">Peluquería canina</option>
+        </select>
+        <select className="mt-2 w-full rounded-xl px-3 py-2 text-sm" value={plan} onChange={(e) => setPlan(e.target.value)}>
+          <option value="trial">Prueba 7 días</option>
+          <option value="manual">Manual</option>
+          <option value="automatico">Automático</option>
+        </select>
+        <button onClick={() => void crear()} className="mt-3 w-full rounded-full py-3 text-sm" style={{ background: "#1A1612", color: "#F6F1E8" }}>
+          Crear y generar acceso
+        </button>
+        {msg && <p className="mt-2 text-sm">{msg}</p>}
+        {link && <p className="mt-1 break-all text-sm">{link}</p>}
+      </section>
+
+      <div className="mt-6 space-y-3">
+        {shops.map((s) => (
+          <article key={s.id} className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            <p className="font-medium">{s.nombre}</p>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
+              {s.slug} · {s.rubro} · {s.plan} {s.activo === false ? "· inactiva" : ""}
+            </p>
+            {s.activo !== false && (
+              <button onClick={() => void borrar(s.id, s.nombre)} className="mt-2 text-xs underline">
+                Desactivar / sacar
               </button>
-              <select
-                className="rounded-full px-3 py-1 text-xs bg-transparent"
-                style={{ border: "1px solid #ddd4c8" }}
-                value={b.modo_whatsapp || "manual"}
-                onChange={(e) => guardar(b, { modo_whatsapp: e.target.value })}
-              >
-                <option value="manual">WhatsApp manual</option>
-                <option value="automatico">WhatsApp automático</option>
-              </select>
-            </div>
-            <Link href={`/b/${b.slug}`} className="text-xs underline">
-              Abrir local
-            </Link>
+            )}
           </article>
         ))}
-
-        <form onSubmit={crear} className="mt-10 space-y-3">
-          <p className="text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
-            Nueva barbería
-          </p>
-          <input
-            className="w-full rounded-xl px-3 py-3 bg-transparent"
-            style={{ border: "1px solid #ddd4c8" }}
-            placeholder="Nombre"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-          />
-          <input
-            className="w-full rounded-xl px-3 py-3 bg-transparent"
-            style={{ border: "1px solid #ddd4c8" }}
-            placeholder="enlace (ej: valecejas)"
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-          />
-          <select
-            className="w-full rounded-xl px-3 py-3 bg-transparent"
-            style={{ border: "1px solid #ddd4c8" }}
-            value={modo}
-            onChange={(e) => setModo(e.target.value)}
-          >
-            <option value="manual">WhatsApp manual</option>
-            <option value="automatico">WhatsApp automático</option>
-          </select>
-          <button className="w-full rounded-full py-3 text-sm" style={{ background: "#1C1712", color: "#F5F0E8" }}>
-            Crear barbería
-          </button>
-          {msg && <p className="text-sm text-red-700">{msg}</p>}
-        </form>
       </div>
     </main>
   );
