@@ -82,10 +82,13 @@ export default function ShopHome() {
         .maybeSingle();
       if (!data) return;
       setShop(data as Shop);
-      const tema = TEMAS[data.estilo || ""] || TEMAS[data.rubro || ""] || TEMAS.barberia;
-      const root = document.documentElement;
-      Object.entries(tema).forEach(([k, v]) => root.style.setProperty(k, v));
-      root.style.background = tema["--bg"];
+      const oscuro = localStorage.getItem("tema") === "oscuro";
+      if (!oscuro) {
+        const tema = TEMAS[data.estilo || ""] || TEMAS[data.rubro || ""] || TEMAS.barberia;
+        const root = document.documentElement;
+        Object.entries(tema).forEach(([k, v]) => root.style.setProperty(k, v));
+        root.style.background = tema["--bg"];
+      }
       const { data: fotos } = await supabase.from("fotos").select("url").eq("barberia_id", data.id);
       setTrabajos((fotos || []).map((f) => f.url).filter(Boolean));
     };
@@ -123,7 +126,7 @@ export default function ShopHome() {
 
       <Link
         href="/reservar"
-        className="mt-5 flex items-center justify-center gap-2 py-3.5 text-center text-lg"
+        className="mt-5 flex items-center justify-center gap-2 py-3.5 text-lg"
         style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999, fontFamily: "Georgia, Times, serif" }}
       >
         <IcoCal /> Reservar
