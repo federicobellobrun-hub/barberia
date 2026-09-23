@@ -1,197 +1,58 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 
 type Servicio = {
   id: string;
   nombre: string;
-  descripcion: string | null;
-  duracion_minutos: number;
   precio: number;
-  activo: boolean;
-  imagen_url: string | null;
+  duracion_minutos: number;
   categoria: string | null;
-  sena: number | null;
+  activo: boolean;
 };
 
-function shopActual() {
-  if (typeof window === "undefined") return null;
-  const q = new URLSearchParams(window.location.search).get("shop");
-  if (q) {
-    localStorage.setItem("admin_shop", q);
-    return q;
-  }
-  return localStorage.getItem("admin_shop");
-}
-
 export default function CatalogoPage() {
-  const [barberiaId, setBarberiaId] = useState<string | null>(null);
-  const [rubro, setRubro] = useState("barberia");
-  const [servicios, setServicios] = useState<Servicio[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [sNombre, setSNombre] = useState("");
-  const [sDetalle, setSDetalle] = useState("");
-  const [sCategoria, setSCategoria] = useState("");
-  const [sDuracion, setSDuracion] = useState("30");
-  const [sPrecio, setSPrecio] = useState("");
-  const [sSena, setSSena] = useState("0");
-  const router = useRouter();
-  const rosa = rubro === "pestanas_unas";
-  const shopSlug = shopActual();
-  const shopQ = shopSlug ? `?shop=${shopSlug}` : "";
+  const supabase = createClient();
+  const [items, setItems] = useState<Servicio[]>([]);
+  const [error, setError] = useState("");
 
-  const load = async (id: string) => {
-    const supabase = createClient();
-    const { data, error: e } = await supabase
-      .from("servicios")
-      .select("id, nombre, descripcion, duracion_minutos, precio, activo, imagen_url, categoria, sena")
-      .eq("barberia_id", id)
-      .order("orden");
-    if (e) setError(e.message);
-    setServicios((data as Servicio[]) || []);
+  const load = async () => {
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user) return;
+    const { data: yo } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", u.user.id).maybeSingle();
+    if (!yo?.barberia_id) return;
+    const { data } = await supabase.from("servicios").select("id, nombre, precio, duracion_minutos, categoria, activo").eq("barberia_id", yo.barberia_id).order("nombre");
+    setItems((data as Servicio[]) || []);
   };
 
   useEffect(() => {
-    const init = async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
+    void load();
+  }, []);
 
-      const slug = shopActual();
-      const { data } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", user.id).maybeSingle();
-
-      let id = data?.barberia_id as string | null;
-      if (data?.rol === "superadmin" && slug) {
-        const { data: shop } = await supabase.from("barberias").select("id, rubro").eq("slug", slug).maybeSingle();
-        if (shop) {
-          id = shop.id;
-          setRubro(shop.rubro || "barberia");
-        }
-      } else if (id) {
-        const { data: shop } = await supabase.from("barberias").select("rubro").eq("id", id).maybeSingle();
-        setRubro(shop?.rubro || "barberia");
-      }
-
-      if (!id) return setError("Este usuario no tiene local");
-      setBarberiaId(id);
-      await load(id);
-    };
-    void init();
-  }, [router]);
-
-  const addServicio = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!barberiaId) return;
-    const supabase = createClient();
-    const { error: e1 } = await supabase.from("servicios").insert({
-      barberia_id: barberiaId,
-      nombre: sNombre,
-      descripcion: sDetalle.trim() || null,
-      categoria: sCategoria.trim() || null,
-      duracion_minutos: Number(sDuracion),
-      precio: Number(sPrecio),
-      sena: Number(sSena) || 0,
-      activo: true,
-      orden: servicios.length + 1,
-    });
-    if (e1) return setError(e1.message);
-    setSNombre("");
-    setSDetalle("");
-    setSCategoria("");
-    setSDuracion("30");
-    setSPrecio("");
-    setSSena("0");
-    await load(barberiaId);
+  const borrar = async (id: string) => {
+    if (!confirm("¿Borrar este servicio?")) return;
+    const { error } = await supabase.from("servicios").delete().eq("id", id);
+    if (error) setError(error.message);
+    else setItems((prev) => prev.filter((x) => x.id !== id));
   };
-
-  const updateServicio = async (s: Servicio) => {
-    const supabase = createClient();
-    const { error: e1 } = await supabase
-      .from("servicios")
-      .update({
-        nombre: s.nombre,
-        descripcion: s.descripcion?.trim() || null,
-        categoria: s.categoria,
-        duracion_minutos: s.duracion_minutos,
-        precio: s.precio,
-        sena: s.sena || 0,
-        activo: s.activo,
-      })
-      .eq("id", s.id);
-    if (e1) setError(e1.message);
-  };
-
-  const subirFotoServicio = async (servicioId: string, file: File) => {
-    if (!barberiaId) return;
-    const supabase = createClient();
-    const path = `${barberiaId}/servicios/${servicioId}-${Date.now()}-${file.name}`;
-    const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
-    if (upErr) return setError(upErr.message);
-    const { data } = supabase.storage.from("fotos").getPublicUrl(path);
-    const { error: e1 } = await supabase.from("servicios").update({ imagen_url: data.publicUrl }).eq("id", servicioId);
-    if (e1) setError(e1.message);
-    else await load(barberiaId);
-  };
-
-  const ocultarServicio = async (id: string, activo: boolean) => {
-    if (!barberiaId) return;
-    const supabase = createClient();
-    const { error: e1 } = await supabase.from("servicios").update({ activo }).eq("id", id);
-    if (e1) setError(e1.message);
-    else await load(barberiaId);
-  };
-
-  const campo = "w-full rounded-xl px-3 py-3";
-  const estilo = { background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" };
 
   return (
-    <main className="min-h-screen pb-24" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="max-w-md mx-auto px-5 pt-5">
-        <BrandHeader left={<Link href={`/dashboard/mas${shopQ}`}>‹</Link>} />
-        <h1 className="text-[34px] font-semibold tracking-tight mb-2">Catálogo</h1>
-        <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>
-          Servicios, categorías y seña
-        </p>
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-
-        <form onSubmit={addServicio} className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <input required value={sNombre} onChange={(e) => setSNombre(e.target.value)} placeholder={rosa ? "Nombre. Ej: Lifting" : "Nombre. Ej: Corte fade"} className={campo} style={estilo} />
-          <input value={sDetalle} onChange={(e) => setSDetalle(e.target.value)} maxLength={80} placeholder={rosa ? "Detalle. Ej: 2D, pelo a pelo" : "Detalle. Ej: máquina + tijera"} className={campo} style={estilo} />
-          <input value={sCategoria} onChange={(e) => setSCategoria(e.target.value)} placeholder={rosa ? "Categoría. Ej: Pestañas" : "Categoría. Ej: Cortes"} className={campo} style={estilo} />
-          <div className="grid grid-cols-3 gap-2">
-            <input required value={sDuracion} onChange={(e) => setSDuracion(e.target.value)} placeholder="Min" className="rounded-xl px-3 py-3" style={estilo} />
-            <input required value={sPrecio} onChange={(e) => setSPrecio(e.target.value)} placeholder="Precio" className="rounded-xl px-3 py-3" style={estilo} />
-            <input value={sSena} onChange={(e) => setSSena(e.target.value)} placeholder="Seña" className="rounded-xl px-3 py-3" style={estilo} />
-          </div>
-          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
-            Agregar servicio
-          </button>
-        </form>
-
-        {servicios.map((s) => (
-          <div key={s.id} className="rounded-2xl p-4 mb-3 space-y-2" style={{ background: "var(--card)", border: "1px solid var(--line)", opacity: s.activo ? 1 : 0.55 }}>
-            {s.imagen_url && <img src={s.imagen_url} alt="" className="h-36 w-full object-cover rounded-xl" />}
-            <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && void subirFotoServicio(s.id, e.target.files[0])} />
-            <input value={s.nombre} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, nombre: e.target.value } : x)))} onBlur={() => void updateServicio(s)} className={campo} style={estilo} />
-            <input value={s.descripcion || ""} maxLength={80} placeholder="Detalle del servicio" onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, descripcion: e.target.value } : x)))} onBlur={() => void updateServicio(s)} className={campo} style={estilo} />
-            <input value={s.categoria || ""} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, categoria: e.target.value } : x)))} onBlur={() => void updateServicio(s)} className={campo} style={estilo} />
-            <div className="grid grid-cols-3 gap-2">
-              <input value={s.duracion_minutos} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, duracion_minutos: Number(e.target.value) } : x)))} onBlur={() => void updateServicio(s)} className="rounded-xl px-3 py-3" style={estilo} />
-              <input value={s.precio} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, precio: Number(e.target.value) } : x)))} onBlur={() => void updateServicio(s)} className="rounded-xl px-3 py-3" style={estilo} />
-              <input value={s.sena || 0} onChange={(e) => setServicios((prev) => prev.map((x) => (x.id === s.id ? { ...x, sena: Number(e.target.value) } : x)))} onBlur={() => void updateServicio(s)} className="rounded-xl px-3 py-3" style={estilo} />
+    <main className="mx-auto max-w-md px-4 pb-24 pt-4">
+      <BrandHeader />
+      <h1 className="mb-4 text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>Servicios</h1>
+      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+      <div className="space-y-2">
+        {items.map((s) => (
+          <div key={s.id} className="flex items-center justify-between px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+            <div>
+              <p className="font-medium">{s.nombre}</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                ${s.precio} · {s.duracion_minutos} min {s.categoria ? `· ${s.categoria}` : ""}
+              </p>
             </div>
-            <p className="text-[11px]" style={{ color: "var(--muted)" }}>
-              Minutos · Precio · Seña
-            </p>
-            <button type="button" onClick={() => void ocultarServicio(s.id, !s.activo)} className="text-xs" style={{ color: "var(--muted)" }}>
-              {s.activo ? "Ocultar" : "Mostrar"}
-            </button>
+            <button onClick={() => void borrar(s.id)} className="text-sm text-red-500">Borrar</button>
           </div>
         ))}
       </div>
