@@ -54,9 +54,6 @@ function aplicarTema(oscuro: boolean) {
     : "";
   document.body.style.setProperty("background", oscuro ? "#161310" : "#F6F1E8", "important");
 }
-    : "";
-  document.body.style.setProperty("background", oscuro ? "#161310" : "#F6F1E8", "important");
-}
 
 export default function BrandHeader({ left }: { left?: React.ReactNode }) {
   const pathname = usePathname() || "/";
