@@ -33,3 +33,21 @@ body {
 .font-brand {
   font-family: "Times New Roman", Georgia, serif;
 }
+:root, [data-tema="claro"] {
+  --bg: #F6F1E8;
+  --fg: #1A1612;
+  --card: #fff;
+  --line: #e6e0d4;
+  --muted: #8A8378;
+}
+[data-tema="oscuro"] {
+  --bg: #161310;
+  --fg: #F6F1E8;
+  --card: #231f1a;
+  --line: #3a342c;
+  --muted: #b8b0a4;
+}
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+}
