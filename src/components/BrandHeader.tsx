@@ -38,17 +38,22 @@ function aplicarTema(oscuro: boolean) {
     html.oscuro header,
     html.oscuro article,
     html.oscuro section,
-    html.oscuro nav,
-    html.oscuro .rounded-xl,
-    html.oscuro .rounded-2xl,
-    html.oscuro .rounded-3xl {
+    html.oscuro nav {
       background-color: #2a241c !important;
       color: #F3EBDD !important;
-      border-color: #5a5246 !important;
+      border-color: #6a6154 !important;
     }
-    html.oscuro p, html.oscuro span, html.oscuro a, html.oscuro button,
-    html.oscuro label, html.oscuro b, html.oscuro h1, html.oscuro h2 {
+    html.oscuro article *,
+    html.oscuro section *,
+    html.oscuro header *,
+    html.oscuro nav * {
       color: #F3EBDD !important;
+    }
+    html.oscuro svg {
+      stroke: #F3EBDD !important;
+    }
+    html.oscuro img {
+      opacity: 1 !important;
     }
   `
     : "";
@@ -154,16 +159,14 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
           <span className="h-px w-10" style={{ background: "currentColor", opacity: 0.35 }} />
         </div>
         {resto ? (
-          <p className="text-[11px] uppercase tracking-[0.32em]" style={{ color: "var(--muted)" }}>
-            {resto}
-          </p>
+          <p className="text-[11px] uppercase tracking-[0.32em]">{resto}</p>
         ) : null}
       </Link>
       <div className="flex w-16 justify-end">
         <button
           type="button"
           className="rounded-full px-3 py-1.5 text-xs"
-          style={{ border: "1px solid var(--line)" }}
+          style={{ border: "1px solid currentColor" }}
           onClick={() => {
             const next = !oscuro;
             setOscuro(next);
