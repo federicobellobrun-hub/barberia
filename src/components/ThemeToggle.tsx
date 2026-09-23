@@ -1,21 +1,31 @@
 "use client";
 
-import { useTheme } from "./ThemeProvider";
+import { useEffect, useState } from "react";
 
 export default function ThemeToggle() {
-  const { theme, toggle } = useTheme();
+  const [oscuro, setOscuro] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("tema") === "oscuro";
+    setOscuro(saved);
+    document.documentElement.setAttribute("data-tema", saved ? "oscuro" : "claro");
+  }, []);
+
+  const toggle = () => {
+    const next = !oscuro;
+    setOscuro(next);
+    localStorage.setItem("tema", next ? "oscuro" : "claro");
+    document.documentElement.setAttribute("data-tema", next ? "oscuro" : "claro");
+  };
 
   return (
     <button
+      type="button"
       onClick={toggle}
-      className="h-11 px-4 rounded-full text-sm"
-      style={{
-        background: "var(--card)",
-        color: "var(--text)",
-        border: "1px solid var(--line)",
-      }}
+      className="rounded-full px-3 py-1.5 text-sm"
+      style={{ border: "1px solid var(--line)" }}
     >
-      {theme === "light" ? "Oscuro" : "Claro"}
+      {oscuro ? "Claro" : "Oscuro"}
     </button>
   );
 }
