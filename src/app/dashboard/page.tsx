@@ -153,6 +153,15 @@ export default function DashboardPage() {
     else setTurnosMes((prev) => prev.map((t) => (t.id === id ? { ...t, estado } : t)));
   };
 
+  const confirmarSenia = async (id: string) => {
+    await cambiarEstado(id, "confirmado");
+    await fetch("/api/whatsapp/reserva", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ turnoId: id, soloCliente: true }),
+    });
+  };
+
   return (
     <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
       <BrandHeader left={<span className="font-medium">Agenda</span>} />
@@ -221,11 +230,11 @@ export default function DashboardPage() {
         return (
           <article key={t.id} className="mb-3 overflow-hidden rounded-xl" style={{ border: "1px solid #d7d1c6", background: "#fff" }}>
             <div className="flex">
-              <div className="w-2 shrink-0" style={{ background: "#111" }} />
+              <div className="w-2 shrink-0" style={{ background: t.estado === "pendiente" ? "#b45309" : "#111" }} />
               <div className="flex-1 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold">{horaUy(t.fecha_hora)} - {fechaCorta(t.fecha_hora)}</p>
-                  <span className="text-[11px]">{t.estado}</span>
+                  <span className="text-[11px]">{t.estado === "pendiente" ? "pendiente seña" : t.estado}</span>
                 </div>
                 <p className="text-sm"><b>Servicio:</b> {s?.nombre || "—"}</p>
                 {pet && <p className="text-sm"><b>Mascota:</b> {pet.nombre} · {pet.tamano}</p>}
@@ -236,7 +245,11 @@ export default function DashboardPage() {
                 {open && (
                   <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
                     {c?.telefono && <p className="w-full text-xs">{c.telefono}</p>}
-                    {t.estado === "pendiente" && <button onClick={() => void cambiarEstado(t.id, "confirmado")} className="rounded-full px-3 py-1.5 text-xs" style={{ background: "#111", color: "#fff" }}>Confirmar</button>}
+                    {t.estado === "pendiente" && (
+                      <button onClick={() => void confirmarSenia(t.id)} className="rounded-full px-3 py-1.5 text-xs" style={{ background: "#111", color: "#fff" }}>
+                        Confirmar seña
+                      </button>
+                    )}
                     <button onClick={() => void cambiarEstado(t.id, "realizado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Realizado</button>
                     <button onClick={() => void cambiarEstado(t.id, "no_vino")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>No vino</button>
                     <button onClick={() => void cambiarEstado(t.id, "cancelado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Cancelar</button>
