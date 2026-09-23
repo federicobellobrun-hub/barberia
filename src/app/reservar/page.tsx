@@ -130,14 +130,16 @@ export default function ReservarPage() {
   }, [shop, fecha, barbero, supabase]);
 
   const categorias = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { n: number; foto: string | null }>();
     servicios.forEach((s) => {
-      const n = normCat(s.categoria);
-      if (!n) return;
-      map.set(n, (map.get(n) || 0) + 1);
+      const name = normCat(s.categoria);
+      if (!name) return;
+      const prev = map.get(name) || { n: 0, foto: null };
+      map.set(name, { n: prev.n + 1, foto: prev.foto || s.imagen_url });
     });
     return Array.from(map.entries());
   }, [servicios]);
+
   const usarCat = categorias.length > 0;
   const lista = usarCat && categoria ? servicios.filter((x) => normCat(x.categoria) === categoria) : servicios;
   const pideSenia = Boolean(servicio?.senia && Number(servicio.senia) > 0);
@@ -194,7 +196,11 @@ export default function ReservarPage() {
         .select("id")
         .single();
       if (error || !turno) throw new Error(error?.message || "No se pudo reservar");
-      await fetch("/api/whatsapp/reserva", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ turnoId: turno.id }) });
+      await fetch("/api/whatsapp/reserva", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ turnoId: turno.id }),
+      });
       if (pideSenia && pago === "mp" && shop.mp_sena_url) {
         window.location.href = shop.mp_sena_url;
         return;
@@ -210,7 +216,9 @@ export default function ReservarPage() {
       <main className="mx-auto max-w-md px-4 py-10 text-center">
         <BrandHeader />
         <p className="mt-8 text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>{ok}</p>
-        {pideSenia && pago === "transferencia" && shop?.cuenta_banco && <p className="mt-4 text-sm">Transferí ${servicio?.senia} a:<br />{shop.cuenta_banco}</p>}
+        {pideSenia && pago === "transferencia" && shop?.cuenta_banco && (
+          <p className="mt-4 text-sm">Transferí ${servicio?.senia} a:<br />{shop.cuenta_banco}</p>
+        )}
         <Link href="/" className="mt-6 inline-block underline">Volver</Link>
       </main>
     );
@@ -222,20 +230,26 @@ export default function ReservarPage() {
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
 
       {usarCat && !categoria && !servicio && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <p className="text-sm" style={{ color: "var(--muted)" }}>Elegí una categoría</p>
-          {categorias.map(([c, n]) => (
+          {categorias.map(([c, info]) => (
             <button
               key={c}
               onClick={() => setCategoria(c)}
-              className="flex w-full items-center justify-between px-5 py-5 text-left"
-              style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 16 }}
+              className="relative block h-40 w-full overflow-hidden text-left"
+              style={{ borderRadius: 16, border: "1px solid var(--line)", background: "var(--card)" }}
             >
-              <span>
-                <p className="text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>{c}</p>
-                <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{n} servicio{n > 1 ? "s" : ""}</p>
+              {info.foto ? <img src={info.foto} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
+              <span
+                className="absolute inset-0"
+                style={{ background: info.foto ? "linear-gradient(to top, rgba(26,22,18,.72), rgba(26,22,18,.15))" : "transparent" }}
+              />
+              <span className="absolute bottom-4 left-4 right-4">
+                <p className="text-2xl" style={{ fontFamily: "Georgia, Times, serif", color: info.foto ? "#F6F1E8" : "inherit" }}>{c}</p>
+                <p className="mt-1 text-xs" style={{ color: info.foto ? "#E6D8C8" : "var(--muted)" }}>
+                  {info.n} servicio{info.n > 1 ? "s" : ""}
+                </p>
               </span>
-              <span style={{ color: "var(--muted)" }}>→</span>
             </button>
           ))}
         </div>
@@ -243,10 +257,19 @@ export default function ReservarPage() {
 
       {((usarCat && categoria) || !usarCat) && !servicio && (
         <div>
-          {usarCat && <button onClick={() => setCategoria(null)} className="mb-3 text-sm underline">← Categorías</button>}
+          {usarCat && (
+            <button onClick={() => setCategoria(null)} className="mb-3 text-sm underline">
+              ← Categorías
+            </button>
+          )}
           <div className="space-y-3">
             {lista.map((s) => (
-              <button key={s.id} onClick={() => setServicio(s)} className="flex w-full gap-3 px-3 py-3 text-left" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+              <button
+                key={s.id}
+                onClick={() => setServicio(s)}
+                className="flex w-full gap-3 px-3 py-3 text-left"
+                style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}
+              >
                 {s.imagen_url && <img src={s.imagen_url} alt="" className="h-16 w-16 object-cover" style={{ borderRadius: 8 }} />}
                 <span>
                   <p className="font-medium">{s.nombre}</p>
@@ -262,14 +285,26 @@ export default function ReservarPage() {
 
       {servicio && (
         <div>
-          <button onClick={() => setServicio(null)} className="mb-3 text-sm underline">← Cambiar servicio</button>
+          <button onClick={() => setServicio(null)} className="mb-3 text-sm underline">
+            ← Cambiar servicio
+          </button>
           <p className="text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>{servicio.nombre}</p>
-          <p className="text-sm" style={{ color: "var(--muted)" }}>${servicio.precio} · {servicio.duracion_minutos} min</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            ${servicio.precio} · {servicio.duracion_minutos} min
+          </p>
+          {pideSenia && <p className="mt-2 text-sm">Seña ${servicio.senia}. Queda pendiente hasta confirmarla en el panel.</p>}
 
           {barberos.length > 1 && (
-            <select value={barbero} onChange={(e) => setBarbero(e.target.value)} className="mt-4 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            <select
+              value={barbero}
+              onChange={(e) => setBarbero(e.target.value)}
+              className="mt-4 w-full rounded-xl px-3 py-3"
+              style={{ background: "var(--card)", border: "1px solid var(--line)" }}
+            >
               <option value="">Cualquiera</option>
-              {barberos.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+              {barberos.map((b) => (
+                <option key={b.id} value={b.id}>{b.nombre}</option>
+              ))}
             </select>
           )}
 
@@ -281,7 +316,9 @@ export default function ReservarPage() {
               <button type="button" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
             </div>
             <div className="mt-3 grid grid-cols-7 text-center text-[11px]" style={{ color: "var(--muted)" }}>
-              {["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"].map((d) => <span key={d}>{d}</span>)}
+              {["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"].map((d) => (
+                <span key={d}>{d}</span>
+              ))}
             </div>
             <div className="mt-2 grid grid-cols-7 gap-y-2 text-center text-sm">
               {celdas.map((c, i) =>
@@ -338,8 +375,12 @@ export default function ReservarPage() {
           {pideSenia && (
             <div className="mt-4 space-y-2">
               <p className="text-sm">¿Cómo pagás la seña?</p>
-              <button type="button" onClick={() => setPago("mp")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "mp" ? "var(--text)" : "var(--card)", color: pago === "mp" ? "var(--bg)" : "inherit" }}>Mercado Pago</button>
-              <button type="button" onClick={() => setPago("transferencia")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "transferencia" ? "var(--text)" : "var(--card)", color: pago === "transferencia" ? "var(--bg)" : "inherit" }}>Transferencia</button>
+              <button type="button" onClick={() => setPago("mp")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "mp" ? "var(--text)" : "var(--card)", color: pago === "mp" ? "var(--bg)" : "inherit" }}>
+                Mercado Pago
+              </button>
+              <button type="button" onClick={() => setPago("transferencia")} className="w-full rounded-xl py-3 text-sm" style={{ border: "1px solid var(--line)", background: pago === "transferencia" ? "var(--text)" : "var(--card)", color: pago === "transferencia" ? "var(--bg)" : "inherit" }}>
+                Transferencia
+              </button>
             </div>
           )}
 
