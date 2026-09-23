@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import ThemeToggle from "./ThemeToggle";
 import { createClient } from "@/lib/supabase";
 
 function slugDeHost() {
@@ -21,12 +20,36 @@ function slugDeQuery() {
   return new URLSearchParams(window.location.search).get("b");
 }
 
+function aplicarTema(oscuro: boolean) {
+  const r = document.documentElement;
+  r.classList.toggle("oscuro", oscuro);
+  r.setAttribute("data-tema", oscuro ? "oscuro" : "claro");
+  const bg = oscuro ? "#161310" : "#F6F1E8";
+  const fg = oscuro ? "#F6F1E8" : "#1A1612";
+  r.style.setProperty("--bg", bg);
+  r.style.setProperty("--fg", fg);
+  r.style.setProperty("--card", oscuro ? "#2a241c" : "#ffffff");
+  r.style.setProperty("--line", oscuro ? "#4a4338" : "#e6e0d4");
+  r.style.setProperty("--muted", oscuro ? "#b8b0a4" : "#8A8378");
+  r.style.background = bg;
+  r.style.color = fg;
+  document.body.style.setProperty("background", bg, "important");
+  document.body.style.setProperty("color", fg, "important");
+}
+
 export default function BrandHeader({ left }: { left?: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const [nombre, setNombre] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
   const [home, setHome] = useState("/");
   const [rubro, setRubro] = useState("barberia");
+  const [oscuro, setOscuro] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("tema") === "oscuro";
+    setOscuro(saved);
+    aplicarTema(saved);
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -34,10 +57,15 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
       const slugPath = pathname.startsWith("/b/") ? pathname.split("/")[2] : null;
       const slugHost = slugDeHost();
       const slugQuery = slugDeQuery();
-      const enPublico = Boolean(slugPath || slugHost || slugQuery) || pathname.startsWith("/reservar") || pathname.startsWith("/tienda");
-
-      let slug = slugPath || slugHost || slugQuery || (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null);
-
+      const enPublico =
+        Boolean(slugPath || slugHost || slugQuery) ||
+        pathname.startsWith("/reservar") ||
+        pathname.startsWith("/tienda");
+      let slug =
+        slugPath ||
+        slugHost ||
+        slugQuery ||
+        (typeof window !== "undefined" ? localStorage.getItem("barberia_slug") : null);
       if (enPublico && (slugPath || slugHost || slugQuery)) {
         slug = slugPath || slugHost || slugQuery;
         if (slug) localStorage.setItem("barberia_slug", slug);
@@ -57,7 +85,6 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
           }
         }
       }
-
       slug = slug || "diano";
       if (typeof window !== "undefined" && slug !== "reservoapps.com") {
         localStorage.setItem("barberia_slug", slug);
@@ -77,11 +104,11 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
   const resto = partes.slice(1).join(" ");
 
   return (
-    <header className="flex items-center justify-between mb-6">
-      <div className="w-14">{left || <span />}</div>
+    <header className="mb-6 flex items-center justify-between">
+      <div className="w-16">{left || <span />}</div>
       <Link href={home} className="text-center">
         {logo ? (
-          <img src={logo} alt={nombre} className="h-16 w-16 mx-auto object-contain rounded-full mb-2" />
+          <img src={logo} alt={nombre} className="mx-auto mb-2 h-16 w-16 rounded-full object-contain" />
         ) : (
           <span
             className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full text-lg"
@@ -90,10 +117,10 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
             {principal.slice(0, 2).toUpperCase()}
           </span>
         )}
-        <p className="tracking-[0.28em] uppercase" style={{ fontFamily: "Georgia, Times, serif", fontSize: "44px", lineHeight: 1 }}>
+        <p className="uppercase tracking-[0.28em]" style={{ fontFamily: "Georgia, Times, serif", fontSize: "44px", lineHeight: 1 }}>
           {principal}
         </p>
-        <div className="flex items-center justify-center gap-2 my-1.5">
+        <div className="my-1.5 flex items-center justify-center gap-2">
           <span className="h-px w-10" style={{ background: "currentColor", opacity: 0.35 }} />
           {rubro === "pestanas_unas" ? (
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3">
@@ -109,13 +136,25 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
           <span className="h-px w-10" style={{ background: "currentColor", opacity: 0.35 }} />
         </div>
         {resto ? (
-          <p className="tracking-[0.32em] uppercase text-[11px]" style={{ color: "var(--muted)" }}>
+          <p className="text-[11px] uppercase tracking-[0.32em]" style={{ color: "var(--muted)" }}>
             {resto}
           </p>
         ) : null}
       </Link>
-      <div className="w-14 flex justify-end">
-        <ThemeToggle />
+      <div className="flex w-16 justify-end">
+        <button
+          type="button"
+          className="rounded-full px-3 py-1.5 text-xs"
+          style={{ border: "1px solid var(--line)" }}
+          onClick={() => {
+            const next = !oscuro;
+            setOscuro(next);
+            localStorage.setItem("tema", next ? "oscuro" : "claro");
+            aplicarTema(next);
+          }}
+        >
+          {oscuro ? "Claro" : "Oscuro"}
+        </button>
       </div>
     </header>
   );
