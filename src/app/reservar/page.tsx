@@ -33,11 +33,21 @@ function slugActual() {
   return new URLSearchParams(window.location.search).get("b") || localStorage.getItem("barberia_slug") || "";
 }
 
+function slotsDelDia() {
+  const out: string[] = [];
+  for (let h = 9; h <= 20; h++) {
+    out.push(`${String(h).padStart(2, "0")}:00`);
+    if (h < 20) out.push(`${String(h).padStart(2, "0")}:30`);
+  }
+  return out;
+}
+
 export default function ReservarPage() {
   const supabase = createClient();
   const [shop, setShop] = useState<Shop | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
+  const [ocupados, setOcupados] = useState<string[]>([]);
   const [categoria, setCategoria] = useState<string | null>(null);
   const [servicio, setServicio] = useState<Servicio | null>(null);
   const [barbero, setBarbero] = useState("");
@@ -73,6 +83,38 @@ export default function ReservarPage() {
     void load();
   }, [supabase]);
 
+  useEffect(() => {
+    const loadHoras = async () => {
+      if (!shop || !fecha) {
+        setOcupados([]);
+        return;
+      }
+      const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
+      const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
+      let q = supabase
+        .from("turnos")
+        .select("fecha_hora")
+        .eq("barberia_id", shop.id)
+        .gte("fecha_hora", desde)
+        .lte("fecha_hora", hasta)
+        .in("estado", ["pendiente", "confirmado"]);
+      if (barbero) q = q.eq("barbero_id", barbero);
+      const { data } = await q;
+      setOcupados(
+        (data || []).map((t) =>
+          new Date(t.fecha_hora).toLocaleTimeString("es-UY", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZone: "America/Montevideo",
+          })
+        )
+      );
+      setHora("");
+    };
+    void loadHoras();
+  }, [shop, fecha, barbero, supabase]);
+
   const categorias = useMemo(() => {
     const set = new Set(servicios.map((x) => x.categoria).filter(Boolean) as string[]);
     return Array.from(set);
@@ -80,6 +122,7 @@ export default function ReservarPage() {
   const usarCat = categorias.length > 0;
   const lista = usarCat && categoria ? servicios.filter((x) => x.categoria === categoria) : servicios;
   const pideSenia = Boolean(servicio?.senia && Number(servicio.senia) > 0);
+  const horasLibres = slotsDelDia().filter((h) => !ocupados.includes(h));
 
   const clienteId = async () => {
     if (!shop) throw new Error("Sin local");
@@ -168,9 +211,7 @@ export default function ReservarPage() {
 
       {((usarCat && categoria) || !usarCat) && !servicio && (
         <div>
-          {usarCat && (
-            <button onClick={() => setCategoria(null)} className="mb-3 text-sm underline">← Categorías</button>
-          )}
+          {usarCat && <button onClick={() => setCategoria(null)} className="mb-3 text-sm underline">← Categorías</button>}
           <div className="space-y-3">
             {lista.map((s) => (
               <button key={s.id} onClick={() => setServicio(s)} className="flex w-full gap-3 px-3 py-3 text-left" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
@@ -192,7 +233,7 @@ export default function ReservarPage() {
           <button onClick={() => setServicio(null)} className="mb-3 text-sm underline">← Servicios</button>
           <p className="text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>{servicio.nombre}</p>
           <p className="text-sm" style={{ color: "var(--muted)" }}>${servicio.precio} · {servicio.duracion_minutos} min</p>
-          {pideSenia && <p className="mt-2 text-sm">Este servicio pide seña de ${servicio.senia}. La reserva se confirma cuando Vale la reciba.</p>}
+          {pideSenia && <p className="mt-2 text-sm">Este servicio pide seña de ${servicio.senia}. Queda pendiente hasta confirmarla en el panel.</p>}
 
           {barberos.length > 1 && (
             <select value={barbero} onChange={(e) => setBarbero(e.target.value)} className="mt-4 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
@@ -202,8 +243,34 @@ export default function ReservarPage() {
               ))}
             </select>
           )}
+
           <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
-          <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
+
+          {fecha && (
+            <div className="mt-3">
+              <p className="mb-2 text-sm" style={{ color: "var(--muted)" }}>Horarios</p>
+              {horasLibres.length === 0 && <p className="text-sm">No hay turnos ese día.</p>}
+              <div className="grid grid-cols-3 gap-2">
+                {horasLibres.map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setHora(h)}
+                    className="py-2 text-sm"
+                    style={{
+                      border: "1px solid var(--line)",
+                      borderRadius: 8,
+                      background: hora === h ? "var(--text)" : "var(--card)",
+                      color: hora === h ? "var(--bg)" : "inherit",
+                    }}
+                  >
+                    {h}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
           <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="WhatsApp" className="mt-3 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
 
