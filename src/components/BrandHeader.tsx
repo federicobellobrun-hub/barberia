@@ -21,8 +21,7 @@ function slugDeQuery() {
 }
 
 function aplicarTema(oscuro: boolean) {
-  const r = document.documentElement;
-  r.classList.toggle("oscuro", oscuro);
+  document.documentElement.classList.toggle("oscuro", oscuro);
   let tag = document.getElementById("reservo-tema") as HTMLStyleElement | null;
   if (!tag) {
     tag = document.createElement("style");
@@ -31,33 +30,10 @@ function aplicarTema(oscuro: boolean) {
   }
   tag.textContent = oscuro
     ? `
-    html.oscuro, html.oscuro body, html.oscuro #__next, html.oscuro main {
-      background: #161310 !important;
-      color: #F3EBDD !important;
-    }
-    html.oscuro header,
-    html.oscuro article,
-    html.oscuro section,
-    html.oscuro nav {
-      background-color: #2a241c !important;
-      color: #F3EBDD !important;
-      border-color: #6a6154 !important;
-    }
-    html.oscuro article *,
-    html.oscuro section *,
-    html.oscuro header *,
-    html.oscuro nav * {
-      color: #F3EBDD !important;
-    }
-    html.oscuro svg {
-      stroke: #F3EBDD !important;
-    }
-    html.oscuro img {
-      opacity: 1 !important;
-    }
+    html.oscuro { filter: invert(1) hue-rotate(180deg); }
+    html.oscuro img, html.oscuro video { filter: invert(1) hue-rotate(180deg); }
   `
     : "";
-  document.body.style.setProperty("background", oscuro ? "#161310" : "#F6F1E8", "important");
 }
 
 export default function BrandHeader({ left }: { left?: React.ReactNode }) {
