@@ -87,7 +87,9 @@ export default function ShopHome() {
         const tema = TEMAS[data.estilo || ""] || TEMAS[data.rubro || ""] || TEMAS.barberia;
         const root = document.documentElement;
         Object.entries(tema).forEach(([k, v]) => root.style.setProperty(k, v));
-        root.style.background = tema["--bg"];
+        document.body.style.background = tema["--bg"];
+      } else {
+        document.body.style.background = "#161310";
       }
       const { data: fotos } = await supabase.from("fotos").select("url").eq("barberia_id", data.id);
       setTrabajos((fotos || []).map((f) => f.url).filter(Boolean));
@@ -98,76 +100,78 @@ export default function ShopHome() {
   const panelTxt = shop?.rubro === "barberia" ? "Panel del barbero" : "Panel del equipo";
 
   return (
-    <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-2" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <BrandHeader />
+    <div className="min-h-screen w-full" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <main className="mx-auto max-w-md px-4 pb-24 pt-2">
+        <BrandHeader />
 
-      {shop?.portada_url ? (
-        <img src={shop.portada_url} alt="" className="mb-5 h-52 w-full object-cover" style={{ borderRadius: 8 }} />
-      ) : (
-        <div
-          className="mb-5 flex h-36 items-center justify-center text-sm"
-          style={{ background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, color: "var(--muted)" }}
-        >
-          Cargá la foto de portada en Configuración
-        </div>
-      )}
-
-      <h1 className="text-center text-3xl" style={{ fontFamily: "Georgia, Times, serif" }}>
-        Reservá tu turno
-      </h1>
-      {shop?.direccion && <p className="mt-2 text-center text-sm">⌖ {shop.direccion}</p>}
-      {shop?.maps_url && (
-        <p className="mt-1 text-center text-sm">
-          <a href={shop.maps_url} target="_blank" rel="noreferrer" className="underline">
-            Cómo llegar →
-          </a>
-        </p>
-      )}
-
-      <Link
-        href="/reservar"
-        className="mt-5 flex items-center justify-center gap-2 py-3.5 text-lg"
-        style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999, fontFamily: "Georgia, Times, serif" }}
-      >
-        <IcoCal /> Reservar
-      </Link>
-
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Link
-          href="/tienda"
-          className="flex items-center justify-center gap-2 py-3 text-sm"
-          style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}
-        >
-          <IcoBag /> Productos
-        </Link>
-        <Link
-          href="/login"
-          className="flex items-center justify-center gap-2 py-3 text-sm"
-          style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}
-        >
-          <IcoUser /> {panelTxt}
-        </Link>
-      </div>
-
-      <div className="mt-3 px-4 py-3" style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}>
-        <p className="text-[10px] tracking-[0.16em]" style={{ color: "var(--muted)" }}>
-          HORARIO
-        </p>
-        <p className="text-sm">{shop?.horario_texto || "Lun–Sáb 9:00 – 20:00"}</p>
-      </div>
-
-      {trabajos.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>
-            Trabajos realizados
-          </h2>
-          <div className="grid grid-cols-2 gap-2">
-            {trabajos.map((url) => (
-              <img key={url} src={url} alt="" className="h-36 w-full object-cover" style={{ borderRadius: 8 }} />
-            ))}
+        {shop?.portada_url ? (
+          <img src={shop.portada_url} alt="" className="mb-5 h-52 w-full object-cover" style={{ borderRadius: 8 }} />
+        ) : (
+          <div
+            className="mb-5 flex h-36 items-center justify-center text-sm"
+            style={{ background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 8, color: "var(--muted)" }}
+          >
+            Cargá la foto de portada en Configuración
           </div>
-        </section>
-      )}
+        )}
+
+        <h1 className="text-center text-3xl" style={{ fontFamily: "Georgia, Times, serif" }}>
+          Reservá tu turno
+        </h1>
+        {shop?.direccion && <p className="mt-2 text-center text-sm">⌖ {shop.direccion}</p>}
+        {shop?.maps_url && (
+          <p className="mt-1 text-center text-sm">
+            <a href={shop.maps_url} target="_blank" rel="noreferrer" className="underline">
+              Cómo llegar →
+            </a>
+          </p>
+        )}
+
+        <Link
+          href="/reservar"
+          className="mt-5 flex items-center justify-center gap-2 py-3.5 text-lg"
+          style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999, fontFamily: "Georgia, Times, serif" }}
+        >
+          <IcoCal /> Reservar
+        </Link>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Link
+            href="/tienda"
+            className="flex items-center justify-center gap-2 py-3 text-sm"
+            style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}
+          >
+            <IcoBag /> Productos
+          </Link>
+          <Link
+            href="/login"
+            className="flex items-center justify-center gap-2 py-3 text-sm"
+            style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}
+          >
+            <IcoUser /> {panelTxt}
+          </Link>
+        </div>
+
+        <div className="mt-3 px-4 py-3" style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--card)" }}>
+          <p className="text-[10px] tracking-[0.16em]" style={{ color: "var(--muted)" }}>
+            HORARIO
+          </p>
+          <p className="text-sm">{shop?.horario_texto || "Lun–Sáb 9:00 – 20:00"}</p>
+        </div>
+
+        {trabajos.length > 0 && (
+          <section className="mt-8">
+            <h2 className="mb-3 text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>
+              Trabajos realizados
+            </h2>
+            <div className="grid grid-cols-2 gap-2">
+              {trabajos.map((url) => (
+                <img key={url} src={url} alt="" className="h-36 w-full object-cover" style={{ borderRadius: 8 }} />
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
 
       <nav className="fixed bottom-0 left-0 right-0 border-t" style={{ background: "var(--bg)", borderColor: "var(--line)" }}>
         <div className="mx-auto flex max-w-md items-center justify-around py-3 text-[11px]">
@@ -185,6 +189,6 @@ export default function ShopHome() {
           </Link>
         </div>
       </nav>
-    </main>
+    </div>
   );
 }
