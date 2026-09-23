@@ -63,7 +63,7 @@ export async function POST(req: Request) {
   const supabase = admin();
   const { data: t, error } = await supabase
     .from("turnos")
-    .select("id, fecha_hora, barberia_id, clientes(nombre, telefono), barberias(id, nombre, modo_whatsapp, whatsapp_pedidos, plan, wa_mes, wa_enviados)")
+    .select("id, fecha_hora, estado, barberia_id, clientes(nombre, telefono), barberias(id, nombre, modo_whatsapp, whatsapp_pedidos, plan, wa_mes, wa_enviados)")
     .eq("id", turnoId)
     .maybeSingle();
 
@@ -88,10 +88,11 @@ export async function POST(req: Request) {
   const telLocal = shop.whatsapp_pedidos ? waNumber(String(shop.whatsapp_pedidos)).replace(/^598/, "0") : "el local";
   const conf = process.env.WHATSAPP_TEMPLATE_CONFIRMACION || "reserva_confirmada_v2";
   const aviso = process.env.WHATSAPP_TEMPLATE_AVISO_BARBERO || "aviso_barbero";
+  const pendiente = t.estado === "pendiente";
 
   const resultados = [];
 
-  if (cliente?.telefono) {
+  if (cliente?.telefono && !pendiente) {
     resultados.push({
       a: "cliente",
       ...(await sendTemplate(waNumber(cliente.telefono), conf, [cliente.nombre || "cliente", fecha, hora, local, telLocal])),
@@ -110,5 +111,5 @@ export async function POST(req: Request) {
     await supabase.from("barberias").update({ wa_mes: mes, wa_enviados: usados + okCount }).eq("id", shop.id);
   }
 
-  return NextResponse.json({ ok: true, shop, usados: usados + okCount, plantillas: { conf, aviso }, resultados });
+  return NextResponse.json({ ok: true, shop, pendiente, usados: usados + okCount, plantillas: { conf, aviso }, resultados });
 }
