@@ -4,31 +4,74 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 
-type Producto = { id: string; nombre: string; precio: number };
+type Producto = { id: string; nombre: string; precio: number; imagen_url: string | null; stock: number | null };
+
+const vacio = { nombre: "", precio: "", stock: "", imagen: "" };
 
 export default function ProductosPage() {
   const supabase = createClient();
+  const [shopId, setShopId] = useState("");
   const [items, setItems] = useState<Producto[]>([]);
+  const [form, setForm] = useState(vacio);
+  const [editId, setEditId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const load = async () => {
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
-    const { data: yo } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", u.user.id).maybeSingle();
-    if (!yo?.barberia_id) return;
-    const { data } = await supabase.from("productos").select("id, nombre, precio").eq("barberia_id", yo.barberia_id).order("nombre");
+  const load = async (id: string) => {
+    const { data } = await supabase.from("productos").select("id, nombre, precio, imagen_url, stock").eq("barberia_id", id).order("nombre");
     setItems((data as Producto[]) || []);
   };
 
   useEffect(() => {
-    void load();
+    const start = async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const { data: yo } = await supabase.from("usuarios").select("barberia_id").eq("auth_user_id", u.user.id).maybeSingle();
+      if (!yo?.barberia_id) return;
+      setShopId(yo.barberia_id);
+      await load(yo.barberia_id);
+    };
+    void start();
   }, []);
+
+  const subir = async (file: File) => {
+    const path = `${shopId}/prod-${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from("fotos").upload(path, file);
+    if (error) throw error;
+    return supabase.storage.from("fotos").getPublicUrl(path).data.publicUrl;
+  };
+
+  const guardar = async () => {
+    setError("");
+    if (!form.nombre) return setError("Poné el nombre");
+    try {
+      const payload = {
+        barberia_id: shopId,
+        nombre: form.nombre,
+        precio: Number(form.precio) || 0,
+        stock: form.stock ? Number(form.stock) : 0,
+        imagen_url: form.imagen || null,
+        activo: true,
+      };
+      if (editId) {
+        const { error } = await supabase.from("productos").update(payload).eq("id", editId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("productos").insert(payload);
+        if (error) throw error;
+      }
+      setForm(vacio);
+      setEditId(null);
+      await load(shopId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    }
+  };
 
   const borrar = async (id: string) => {
     if (!confirm("¿Borrar este producto?")) return;
     const { error } = await supabase.from("productos").delete().eq("id", id);
     if (error) setError(error.message);
-    else setItems((prev) => prev.filter((x) => x.id !== id));
+    else setItems((p) => p.filter((x) => x.id !== id));
   };
 
   return (
@@ -36,13 +79,49 @@ export default function ProductosPage() {
       <BrandHeader />
       <h1 className="mb-4 text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>Productos</h1>
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+
+      <div className="mb-6 space-y-2 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+        <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Nombre" className="w-full rounded-xl px-3 py-2" style={{ border: "1px solid var(--line)" }} />
+        <div className="grid grid-cols-2 gap-2">
+          <input value={form.precio} onChange={(e) => setForm({ ...form, precio: e.target.value })} placeholder="Precio" className="rounded-xl px-3 py-2" style={{ border: "1px solid var(--line)" }} />
+          <input value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} placeholder="Stock" className="rounded-xl px-3 py-2" style={{ border: "1px solid var(--line)" }} />
+        </div>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+              setForm({ ...form, imagen: await subir(file) });
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "No se subió la foto");
+            }
+          }}
+        />
+        {form.imagen && <img src={form.imagen} alt="" className="h-20 w-20 object-cover rounded-xl" />}
+        <button onClick={() => void guardar()} className="w-full rounded-full py-3" style={{ background: "var(--text)", color: "var(--bg)" }}>
+          {editId ? "Guardar cambios" : "Agregar producto"}
+        </button>
+      </div>
+
       <div className="space-y-2">
         {items.map((p) => (
-          <div key={p.id} className="flex items-center justify-between px-4 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
-            <div>
+          <div key={p.id} className="flex items-center gap-3 px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+            {p.imagen_url && <img src={p.imagen_url} alt="" className="h-14 w-14 object-cover rounded-lg" />}
+            <div className="flex-1">
               <p className="font-medium">{p.nombre}</p>
-              <p className="text-xs" style={{ color: "var(--muted)" }}>${p.precio}</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>${p.precio} {p.stock != null ? `· stock ${p.stock}` : ""}</p>
             </div>
+            <button
+              onClick={() => {
+                setEditId(p.id);
+                setForm({ nombre: p.nombre, precio: String(p.precio), stock: p.stock != null ? String(p.stock) : "", imagen: p.imagen_url || "" });
+              }}
+              className="text-sm"
+            >
+              Editar
+            </button>
             <button onClick={() => void borrar(p.id)} className="text-sm text-red-500">Borrar</button>
           </div>
         ))}
