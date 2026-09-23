@@ -9,16 +9,15 @@
   --fg: #1a1612;
   --muted: #8a8378;
   --line: #e6e0d4;
-  --accent: #1a1612;
 }
 
 html,
 body {
-  background: var(--bg);
+  min-height: 100%;
+  background: var(--bg) !important;
   color: var(--text);
 }
 
-.dark,
 html.oscuro,
 html[data-tema="oscuro"] {
   --bg: #161310;
@@ -27,11 +26,4 @@ html[data-tema="oscuro"] {
   --fg: #f6f1e8;
   --muted: #b8b0a4;
   --line: #3a342c;
-  --accent: #f6f1e8;
-}
-
-html.oscuro body,
-html[data-tema="oscuro"] body {
-  background: #161310;
-  color: #f6f1e8;
 }
