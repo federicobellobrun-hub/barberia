@@ -17,6 +17,11 @@ function slugify(v: string) {
     .replace(/^-|-$/g, "");
 }
 
+function modoDe(body: { modo?: string; plan?: string }) {
+  if (body.modo === "automatico" || body.plan === "automatico") return "automatico";
+  return "manual";
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -41,7 +46,7 @@ export async function POST(req: Request) {
     }
 
     if (accion === "plan") {
-      const modo = body.plan === "automatico" ? "automatico" : "manual";
+      const modo = modoDe(body);
       const { error } = await sb.from("barberias").update({ plan: body.plan, modo_whatsapp: modo }).eq("id", body.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ ok: true });
@@ -50,7 +55,7 @@ export async function POST(req: Request) {
     if (accion === "activar") {
       const hasta = new Date();
       hasta.setDate(hasta.getDate() + 30);
-      const modo = body.plan === "automatico" ? "automatico" : "manual";
+      const modo = modoDe(body);
       const { error } = await sb
         .from("barberias")
         .update({
@@ -90,7 +95,8 @@ export async function POST(req: Request) {
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
     const rubro = String(body.rubro || "barberia");
-    const plan = String(body.plan || "trial");
+    const plan = String(body.plan || "manual");
+    const modo = modoDe({ modo: body.modo, plan });
     const slug = slugify(body.slug || nombre);
     if (!nombre || !email || !password || password.length < 6) {
       return NextResponse.json({ error: "Nombre, email y contraseña (6+)" }, { status: 400 });
@@ -103,9 +109,9 @@ export async function POST(req: Request) {
         rubro,
         plan,
         activo: true,
-        modo_whatsapp: plan === "automatico" ? "automatico" : "manual",
+        modo_whatsapp: modo,
       })
-      .select("id, slug")
+      .select("id, slug, modo_whatsapp, plan")
       .single();
     if (e1) return NextResponse.json({ error: e1.message }, { status: 400 });
     const { data: auth, error: e2 } = await sb.auth.admin.createUser({ email, password, email_confirm: true });
@@ -122,6 +128,8 @@ export async function POST(req: Request) {
       ok: true,
       slug: shop.slug,
       email,
+      modo: shop.modo_whatsapp,
+      plan: shop.plan,
       link: `https://${shop.slug}.reservoapps.com`,
     });
   } catch (e) {
