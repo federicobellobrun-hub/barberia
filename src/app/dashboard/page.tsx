@@ -56,6 +56,12 @@ function fechaCorta(fechaHora: string) {
   });
 }
 
+function waLink(telefono: string, texto: string) {
+  const solo = telefono.replace(/\D/g, "");
+  const num = solo.startsWith("598") ? solo : solo.startsWith("0") ? `598${solo.slice(1)}` : `598${solo}`;
+  return `https://wa.me/${num}?text=${encodeURIComponent(texto)}`;
+}
+
 const DOW = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"];
 
 export default function DashboardPage() {
@@ -153,12 +159,18 @@ export default function DashboardPage() {
     else setTurnosMes((prev) => prev.map((t) => (t.id === id ? { ...t, estado } : t)));
   };
 
-  const confirmarSenia = async (id: string) => {
-    await cambiarEstado(id, "confirmado");
+  const confirmarSenia = async (t: Turno) => {
+    await cambiarEstado(t.id, "confirmado");
+    const c = one(t.clientes);
+    const s = one(t.servicios);
+    if (c?.telefono) {
+      const texto = `Hola ${c.nombre || ""}, te confirmamos el turno${s?.nombre ? ` de ${s.nombre}` : ""} el ${fechaCorta(t.fecha_hora)} a las ${horaUy(t.fecha_hora)}. Cualquier cambio escribinos.`;
+      window.open(waLink(c.telefono, texto), "_blank");
+    }
     await fetch("/api/whatsapp/reserva", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ turnoId: id, soloCliente: true }),
+      body: JSON.stringify({ turnoId: t.id, soloCliente: true }),
     });
   };
 
@@ -234,7 +246,7 @@ export default function DashboardPage() {
               <div className="flex-1 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold">{horaUy(t.fecha_hora)} - {fechaCorta(t.fecha_hora)}</p>
-                  <span className="text-[11px]">{t.estado === "pendiente" ? "pendiente seña" : t.estado}</span>
+                  <span className="text-[11px]">{t.estado === "pendiente" ? "pendiente" : t.estado}</span>
                 </div>
                 <p className="text-sm"><b>Servicio:</b> {s?.nombre || "—"}</p>
                 {pet && <p className="text-sm"><b>Mascota:</b> {pet.nombre} · {pet.tamano}</p>}
@@ -246,8 +258,8 @@ export default function DashboardPage() {
                   <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
                     {c?.telefono && <p className="w-full text-xs">{c.telefono}</p>}
                     {t.estado === "pendiente" && (
-                      <button onClick={() => void confirmarSenia(t.id)} className="rounded-full px-3 py-1.5 text-xs" style={{ background: "#111", color: "#fff" }}>
-                        Confirmar seña
+                      <button onClick={() => void confirmarSenia(t)} className="rounded-full px-3 py-1.5 text-xs" style={{ background: "#111", color: "#fff" }}>
+                        Confirmar y WhatsApp
                       </button>
                     )}
                     <button onClick={() => void cambiarEstado(t.id, "realizado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Realizado</button>
