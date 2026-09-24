@@ -63,17 +63,29 @@ export async function POST(req: Request) {
   const supabase = admin();
   const { data: t, error } = await supabase
     .from("turnos")
-    .select("id, fecha_hora, estado, barberia_id, cliente_nombre, clientes(nombre, telefono), barberias(id, nombre, modo_whatsapp, whatsapp_pedidos, plan, wa_mes, wa_enviados)")
+    .select("id, fecha_hora, estado, barberia_id, cliente_id, cliente_nombre")
     .eq("id", turnoId)
     .maybeSingle();
 
   if (error || !t) return NextResponse.json({ error: error?.message || "Turno no encontrado" }, { status: 404 });
 
-  const cliente = Array.isArray(t.clientes) ? t.clientes[0] : t.clientes;
-  const shop = Array.isArray(t.barberias) ? t.barberias[0] : t.barberias;
+  const [{ data: shop }, { data: cliente }] = await Promise.all([
+    supabase
+      .from("barberias")
+      .select("id, nombre, modo_whatsapp, whatsapp_pedidos, plan, wa_mes, wa_enviados")
+      .eq("id", t.barberia_id)
+      .maybeSingle(),
+    t.cliente_id
+      ? supabase.from("clientes").select("nombre, telefono").eq("id", t.cliente_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
   if (!shop || String(shop.modo_whatsapp || "") !== "automatico") {
-    return NextResponse.json({ ok: true, skipped: "manual", shop: { nombre: shop?.nombre, modo: shop?.modo_whatsapp } });
+    return NextResponse.json({
+      ok: true,
+      skipped: "manual",
+      shop: { nombre: shop?.nombre || null, modo: shop?.modo_whatsapp || null },
+    });
   }
 
   const mes = mesUy();
