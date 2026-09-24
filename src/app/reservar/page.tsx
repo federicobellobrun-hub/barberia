@@ -187,7 +187,10 @@ export default function ReservarPage() {
     if (!shop) throw new Error("Sin local");
     const tel = telefono.replace(/\D/g, "");
     const { data: ya } = await supabase.from("clientes").select("id").eq("barberia_id", shop.id).eq("telefono", tel).maybeSingle();
-    if (ya?.id) return ya.id;
+    if (ya?.id) {
+      await supabase.from("clientes").update({ nombre }).eq("id", ya.id);
+      return ya.id;
+    }
     const { data: nuevo, error } = await supabase.from("clientes").insert({ barberia_id: shop.id, nombre, telefono: tel }).select("id").single();
     if (error || !nuevo) throw new Error(error?.message || "No se pudo guardar el cliente");
     return nuevo.id;
