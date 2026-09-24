@@ -84,6 +84,10 @@ function waLink(telefono: string, texto: string) {
   return `https://wa.me/${num}?text=${encodeURIComponent(texto)}`;
 }
 
+function vivo(estado: string) {
+  return estado !== "cancelado" && estado !== "no_vino";
+}
+
 const DOW = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"];
 
 export default function DashboardPage() {
@@ -97,6 +101,7 @@ export default function DashboardPage() {
   const [turnosMes, setTurnosMes] = useState<Turno[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [filtroBarbero, setFiltroBarbero] = useState("todos");
+  const [verCancelados, setVerCancelados] = useState(false);
   const [esBarbero, setEsBarbero] = useState(false);
   const [linkPublico, setLinkPublico] = useState("");
   const [modoWa, setModoWa] = useState("manual");
@@ -158,6 +163,7 @@ export default function DashboardPage() {
   const diasConTurno = useMemo(() => {
     const set = new Set<string>();
     turnosMes.forEach((t) => {
+      if (!vivo(t.estado)) return;
       if (filtroBarbero !== "todos" && t.barbero_id !== filtroBarbero) return;
       set.add(ymd(new Date(t.fecha_hora)));
     });
@@ -169,9 +175,10 @@ export default function DashboardPage() {
       turnosMes.filter((t) => {
         const okDia = ymd(new Date(t.fecha_hora)) === fecha;
         const okBar = filtroBarbero === "todos" || t.barbero_id === filtroBarbero;
-        return okDia && okBar;
+        const okEstado = verCancelados || vivo(t.estado);
+        return okDia && okBar && okEstado;
       }),
-    [turnosMes, fecha, filtroBarbero]
+    [turnosMes, fecha, filtroBarbero, verCancelados]
   );
 
   const celdas = useMemo(() => {
@@ -187,6 +194,13 @@ export default function DashboardPage() {
     const { error: e } = await supabase.from("turnos").update({ estado }).eq("id", id);
     if (e) setError(e.message);
     else setTurnosMes((prev) => prev.map((t) => (t.id === id ? { ...t, estado } : t)));
+  };
+
+  const eliminarTurno = async (id: string) => {
+    if (!confirm("¿Eliminar este turno de la agenda?")) return;
+    const { error: e } = await supabase.from("turnos").delete().eq("id", id);
+    if (e) setError(e.message);
+    else setTurnosMes((prev) => prev.filter((t) => t.id !== id));
   };
 
   const confirmarSenia = async (t: Turno) => {
@@ -275,6 +289,9 @@ export default function DashboardPage() {
           })}
         </div>
       </section>
+      <button type="button" onClick={() => setVerCancelados((v) => !v)} className="mb-3 text-xs underline">
+        {verCancelados ? "Ocultar cancelados" : "Ver cancelados"}
+      </button>
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
       {loading && <p className="text-sm">Cargando agenda...</p>}
       {!loading && delDia.length === 0 && <p className="text-sm">No hay turnos el {fechaCorta(`${fecha}T12:00:00-03:00`)}.</p>}
@@ -287,11 +304,11 @@ export default function DashboardPage() {
         return (
           <article key={t.id} className="mb-3 overflow-hidden rounded-xl" style={{ border: "1px solid #d7d1c6", background: "#fff" }}>
             <div className="flex">
-              <div className="w-2 shrink-0" style={{ background: t.estado === "pendiente" ? "#b45309" : "#111" }} />
+              <div className="w-2 shrink-0" style={{ background: t.estado === "pendiente" ? "#b45309" : t.estado === "cancelado" ? "#999" : "#111" }} />
               <div className="flex-1 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold">{horaUy(t.fecha_hora)} - {fechaCorta(t.fecha_hora)}</p>
-                  <span className="text-[11px]">{t.estado === "pendiente" ? "pendiente" : t.estado}</span>
+                  <span className="text-[11px]">{t.estado}</span>
                 </div>
                 <p className="text-sm"><b>Servicio:</b> {s?.nombre || "—"}</p>
                 {pet && <p className="text-sm"><b>Mascota:</b> {pet.nombre} · {pet.tamano}</p>}
@@ -321,7 +338,12 @@ export default function DashboardPage() {
                     )}
                     <button onClick={() => void cambiarEstado(t.id, "realizado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Realizado</button>
                     <button onClick={() => void cambiarEstado(t.id, "no_vino")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>No vino</button>
-                    <button onClick={() => void cambiarEstado(t.id, "cancelado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Cancelar</button>
+                    {t.estado !== "cancelado" && (
+                      <button onClick={() => void cambiarEstado(t.id, "cancelado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Cancelar</button>
+                    )}
+                    <button onClick={() => void eliminarTurno(t.id)} className="rounded-full px-3 py-1.5 text-xs text-red-600" style={{ border: "1px solid #f1c0c0" }}>
+                      Eliminar
+                    </button>
                     <div className="mt-3 w-full space-y-2 rounded-xl p-3" style={{ border: "1px solid var(--line)", background: "var(--card)" }}>
                       <p className="text-xs font-medium">Reagendar</p>
                       <label className="block text-[11px]" style={{ color: "var(--muted)" }}>Nuevo día</label>
