@@ -81,7 +81,7 @@ export async function GET(req: Request) {
     const hasta = new Date(`${dia}T23:59:59-03:00`).toISOString();
     const { data: turnos, error } = await supabase
       .from("turnos")
-      .select("id, fecha_hora, recordatorio_enviado_at, clientes(nombre, telefono), barberias(id, nombre, plan, modo_whatsapp, wa_mes, wa_enviados)")
+      .select("id, fecha_hora, cliente_nombre, recordatorio_enviado_at, clientes(nombre, telefono), barberias(id, nombre, plan, modo_whatsapp, wa_mes, wa_enviados)")
       .gte("fecha_hora", desde)
       .lte("fecha_hora", hasta)
       .eq("estado", "confirmado")
@@ -107,9 +107,10 @@ export async function GET(req: Request) {
         resultados.push({ id: t.id, ok: false, motivo: "limite_trial" });
         continue;
       }
+      const nombre = t.cliente_nombre || cliente.nombre || "cliente";
       const envio = await enviarWhatsapp(
         waNumber(cliente.telefono),
-        cliente.nombre || "cliente",
+        nombre,
         dia,
         horaUy(t.fecha_hora),
         shop?.nombre || "la barbería"
@@ -118,7 +119,7 @@ export async function GET(req: Request) {
         await supabase.from("turnos").update({ recordatorio_enviado_at: new Date().toISOString() }).eq("id", t.id);
         await supabase.from("barberias").update({ wa_mes: mes, wa_enviados: usados + 1 }).eq("id", shop.id);
       }
-      resultados.push({ id: t.id, nombre: cliente.nombre, ...envio });
+      resultados.push({ id: t.id, nombre, ...envio });
     }
 
     return NextResponse.json({ dia, total: resultados.length, resultados });
