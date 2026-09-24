@@ -43,6 +43,7 @@ function horaUy(fechaHora: string) {
   return new Date(fechaHora).toLocaleTimeString("es-UY", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
     timeZone: "America/Montevideo",
   });
 }
@@ -79,6 +80,8 @@ export default function DashboardPage() {
   const [linkPublico, setLinkPublico] = useState("");
   const [copiado, setCopiado] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
+  const [moverFecha, setMoverFecha] = useState("");
+  const [moverHora, setMoverHora] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -174,6 +177,25 @@ export default function DashboardPage() {
     });
   };
 
+  const moverTurno = async (t: Turno) => {
+    if (!moverFecha || !moverHora) return setError("Elegí día y hora");
+    const fecha_hora = new Date(`${moverFecha}T${moverHora}:00-03:00`).toISOString();
+    const { error: e } = await supabase.from("turnos").update({ fecha_hora }).eq("id", t.id);
+    if (e) return setError(e.message);
+    setTurnosMes((prev) => prev.map((x) => (x.id === t.id ? { ...x, fecha_hora } : x)));
+    setFecha(moverFecha);
+    const c = one(t.clientes);
+    if (c?.telefono) {
+      const texto = `Hola ${c.nombre || ""}, te reagendamos el turno al ${fechaCorta(fecha_hora)} a las ${horaUy(fecha_hora)}.`;
+      window.open(waLink(c.telefono, texto), "_blank");
+    }
+    await fetch("/api/whatsapp/cambio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ turnoId: t.id, tipo: "movido" }),
+    });
+  };
+
   return (
     <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
       <BrandHeader left={<span className="font-medium">Agenda</span>} />
@@ -253,7 +275,19 @@ export default function DashboardPage() {
                 <p className="text-sm"><b>Profesional:</b> {b?.nombre || "—"}</p>
                 <p className="text-sm"><b>Nombre:</b> {c?.nombre || "Cliente"}</p>
                 {t.precio_total != null && <p className="text-sm"><b>Total:</b> ${t.precio_total}</p>}
-                <button onClick={() => setAbierto(open ? null : t.id)} className="mt-1 text-sm">{open ? "(− info)" : "(+ info)"}</button>
+                <button
+                  onClick={() => {
+                    if (open) setAbierto(null);
+                    else {
+                      setAbierto(t.id);
+                      setMoverFecha(ymd(new Date(t.fecha_hora)));
+                      setMoverHora(horaUy(t.fecha_hora));
+                    }
+                  }}
+                  className="mt-1 text-sm"
+                >
+                  {open ? "(− info)" : "(+ info)"}
+                </button>
                 {open && (
                   <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
                     {c?.telefono && <p className="w-full text-xs">{c.telefono}</p>}
@@ -265,6 +299,13 @@ export default function DashboardPage() {
                     <button onClick={() => void cambiarEstado(t.id, "realizado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Realizado</button>
                     <button onClick={() => void cambiarEstado(t.id, "no_vino")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>No vino</button>
                     <button onClick={() => void cambiarEstado(t.id, "cancelado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Cancelar</button>
+                    <div className="mt-2 flex w-full flex-wrap items-center gap-2">
+                      <input type="date" value={moverFecha} onChange={(e) => setMoverFecha(e.target.value)} className="rounded-xl px-2 py-1 text-xs" style={{ border: "1px solid var(--line)" }} />
+                      <input type="time" value={moverHora} onChange={(e) => setMoverHora(e.target.value)} className="rounded-xl px-2 py-1 text-xs" style={{ border: "1px solid var(--line)" }} />
+                      <button onClick={() => void moverTurno(t)} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid var(--line)" }}>
+                        Mover y WhatsApp
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
