@@ -197,6 +197,17 @@ export default function DashboardPage() {
     else setTurnosMes((prev) => prev.map((t) => (t.id === id ? { ...t, estado } : t)));
   };
 
+  const cancelarTurno = async (t: Turno) => {
+    await cambiarEstado(t.id, "cancelado");
+    if (modoWa === "automatico") {
+      await fetch("/api/whatsapp/cambio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ turnoId: t.id, tipo: "cancelado" }),
+      });
+    }
+  };
+
   const eliminarTurno = async (id: string) => {
     if (!confirm("¿Eliminar este turno de la agenda?")) return;
     const { error: e } = await supabase.from("turnos").delete().eq("id", id);
@@ -257,13 +268,9 @@ export default function DashboardPage() {
       )}
       {!esBarbero && barberos.length > 1 && (
         <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-          <button onClick={() => setFiltroBarbero("todos")} className="shrink-0 rounded-full px-3 py-1.5 text-sm" style={{ background: filtroBarbero === "todos" ? "#1A1612" : "var(--card)", color: filtroBarbero === "todos" ? "#F6F1E8" : "inherit" }}>
-            Todos
-          </button>
+          <button onClick={() => setFiltroBarbero("todos")} className="shrink-0 rounded-full px-3 py-1.5 text-sm" style={{ background: filtroBarbero === "todos" ? "#1A1612" : "var(--card)", color: filtroBarbero === "todos" ? "#F6F1E8" : "inherit" }}>Todos</button>
           {barberos.map((b) => (
-            <button key={b.id} onClick={() => setFiltroBarbero(b.id)} className="shrink-0 rounded-full px-3 py-1.5 text-sm" style={{ background: filtroBarbero === b.id ? "#1A1612" : "var(--card)", color: filtroBarbero === b.id ? "#F6F1E8" : "inherit" }}>
-              {b.nombre}
-            </button>
+            <button key={b.id} onClick={() => setFiltroBarbero(b.id)} className="shrink-0 rounded-full px-3 py-1.5 text-sm" style={{ background: filtroBarbero === b.id ? "#1A1612" : "var(--card)", color: filtroBarbero === b.id ? "#F6F1E8" : "inherit" }}>{b.nombre}</button>
           ))}
         </div>
       )}
@@ -342,11 +349,9 @@ export default function DashboardPage() {
                     <button onClick={() => void cambiarEstado(t.id, "realizado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Realizado</button>
                     <button onClick={() => void cambiarEstado(t.id, "no_vino")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>No vino</button>
                     {t.estado !== "cancelado" && (
-                      <button onClick={() => void cambiarEstado(t.id, "cancelado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Cancelar</button>
+                      <button onClick={() => void cancelarTurno(t)} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Cancelar</button>
                     )}
-                    <button onClick={() => void eliminarTurno(t.id)} className="rounded-full px-3 py-1.5 text-xs text-red-600" style={{ border: "1px solid #f1c0c0" }}>
-                      Eliminar
-                    </button>
+                    <button onClick={() => void eliminarTurno(t.id)} className="rounded-full px-3 py-1.5 text-xs text-red-600" style={{ border: "1px solid #f1c0c0" }}>Eliminar</button>
                     <div className="mt-3 w-full space-y-2 rounded-xl p-3" style={{ border: "1px solid var(--line)", background: "var(--card)" }}>
                       <p className="text-xs font-medium">Reagendar</p>
                       <label className="block text-[11px]" style={{ color: "var(--muted)" }}>Nuevo día</label>
@@ -354,17 +359,9 @@ export default function DashboardPage() {
                       <label className="block text-[11px]" style={{ color: "var(--muted)" }}>Nueva hora</label>
                       <select value={moverHora} onChange={(e) => setMoverHora(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm" style={{ border: "1px solid var(--line)" }}>
                         <option value="">Elegí hora</option>
-                        {slots().map((h) => (
-                          <option key={h} value={h}>{h}</option>
-                        ))}
+                        {slots().map((h) => <option key={h} value={h}>{h}</option>)}
                       </select>
-                      <button
-                        type="button"
-                        onClick={() => void moverTurno(t)}
-                        disabled={!moverFecha || !moverHora}
-                        className="w-full rounded-full py-2 text-sm"
-                        style={{ background: "#111", color: "#fff", opacity: !moverFecha || !moverHora ? 0.4 : 1 }}
-                      >
+                      <button type="button" onClick={() => void moverTurno(t)} disabled={!moverFecha || !moverHora} className="w-full rounded-full py-2 text-sm" style={{ background: "#111", color: "#fff", opacity: !moverFecha || !moverHora ? 0.4 : 1 }}>
                         {modoWa === "automatico" ? "Guardar nuevo horario" : "Guardar nuevo horario y WhatsApp"}
                       </button>
                     </div>
