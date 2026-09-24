@@ -16,6 +16,7 @@ type Turno = {
   fecha_hora: string;
   estado: string;
   precio_total?: number | null;
+  cliente_nombre?: string | null;
   clientes: Persona | Persona[] | null;
   servicios: Servicio | Servicio[] | null;
   barberos: Barbero | Barbero[] | null;
@@ -146,7 +147,7 @@ export default function DashboardPage() {
       const hasta = new Date(y, m + 1, 0, 23, 59, 59);
       let q = supabase
         .from("turnos")
-        .select("id, barbero_id, fecha_hora, estado, precio_total, clientes(nombre, telefono), servicios(nombre, precio), barberos(id, nombre), mascotas(nombre, tamano)")
+        .select("id, barbero_id, fecha_hora, estado, precio_total, cliente_nombre, clientes(nombre, telefono), servicios(nombre, precio), barberos(id, nombre), mascotas(nombre, tamano)")
         .eq("barberia_id", me.barberia_id)
         .gte("fecha_hora", desde.toISOString())
         .lte("fecha_hora", hasta.toISOString())
@@ -207,7 +208,8 @@ export default function DashboardPage() {
     await cambiarEstado(t.id, "confirmado");
     const c = one(t.clientes);
     const s = one(t.servicios);
-    const texto = `Hola ${c?.nombre || ""}, te confirmamos el turno${s?.nombre ? ` de ${s.nombre}` : ""} el ${fechaCorta(t.fecha_hora)} a las ${horaUy(t.fecha_hora)}. Cualquier cambio escribinos.`;
+    const quien = t.cliente_nombre || c?.nombre || "";
+    const texto = `Hola ${quien}, te confirmamos el turno${s?.nombre ? ` de ${s.nombre}` : ""} el ${fechaCorta(t.fecha_hora)} a las ${horaUy(t.fecha_hora)}. Cualquier cambio escribinos.`;
     if (modoWa !== "automatico" && c?.telefono) window.open(waLink(c.telefono, texto), "_blank");
     await fetch("/api/whatsapp/reserva", {
       method: "POST",
@@ -224,7 +226,8 @@ export default function DashboardPage() {
     setTurnosMes((prev) => prev.map((x) => (x.id === t.id ? { ...x, fecha_hora } : x)));
     setFecha(moverFecha);
     const c = one(t.clientes);
-    const texto = `Hola ${c?.nombre || ""}, te reagendamos el turno al ${fechaCorta(fecha_hora)} a las ${horaUy(fecha_hora)}.`;
+    const quien = t.cliente_nombre || c?.nombre || "";
+    const texto = `Hola ${quien}, te reagendamos el turno al ${fechaCorta(fecha_hora)} a las ${horaUy(fecha_hora)}.`;
     if (modoWa !== "automatico" && c?.telefono) window.open(waLink(c.telefono, texto), "_blank");
     await fetch("/api/whatsapp/cambio", {
       method: "POST",
@@ -313,7 +316,7 @@ export default function DashboardPage() {
                 <p className="text-sm"><b>Servicio:</b> {s?.nombre || "—"}</p>
                 {pet && <p className="text-sm"><b>Mascota:</b> {pet.nombre} · {pet.tamano}</p>}
                 <p className="text-sm"><b>Profesional:</b> {b?.nombre || "—"}</p>
-                <p className="text-sm"><b>Nombre:</b> {c?.nombre || "Cliente"}</p>
+                <p className="text-sm"><b>Nombre:</b> {t.cliente_nombre || c?.nombre || "Cliente"}</p>
                 {t.precio_total != null && <p className="text-sm"><b>Total:</b> ${t.precio_total}</p>}
                 <button
                   onClick={() => {
