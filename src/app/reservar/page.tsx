@@ -54,7 +54,7 @@ function slotsDelDia() {
 }
 
 export default function ReservarPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const lock = useRef(false);
   const [shop, setShop] = useState<Shop | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -77,8 +77,13 @@ export default function ReservarPage() {
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
+    const slug = slugActual();
+    const previo = slug ? sessionStorage.getItem(`reserva_ok_${slug}`) : null;
+    if (previo) {
+      setOk(previo);
+      return;
+    }
     const load = async () => {
-      const slug = slugActual();
       if (!slug) return;
       localStorage.setItem("barberia_slug", slug);
       const { data: s } = await supabase
@@ -179,12 +184,13 @@ export default function ReservarPage() {
 
   const reservar = async () => {
     setError("");
-    if (lock.current) return;
+    if (lock.current || enviando) return;
     if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) return setError("Completá los datos");
     if (pideSenia && !pago) return setError("Elegí cómo pagás la seña");
     lock.current = true;
     setEnviando(true);
     const pendiente = manual || pideSenia;
+    const mensaje = pendiente ? "Pedido enviado. El local lo confirma en la agenda." : "Reserva confirmada";
     const desde = new Date(`${fecha}T${hora}:00-03:00`);
     const hasta = new Date(desde.getTime() + 60 * 1000);
     try {
@@ -221,7 +227,9 @@ export default function ReservarPage() {
         turnoId = turno.id;
       }
 
-      setOk(pendiente ? "Pedido enviado. El local lo confirma en la agenda." : "Reserva confirmada");
+      const slug = slugActual();
+      if (slug) sessionStorage.setItem(`reserva_ok_${slug}`, mensaje);
+      setOk(mensaje);
       void fetch("/api/whatsapp/reserva", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -248,7 +256,17 @@ export default function ReservarPage() {
             Ir a pagar la seña
           </a>
         )}
-        <Link href="/" className="mt-6 block underline">Volver</Link>
+        <button
+          type="button"
+          className="mt-6 underline"
+          onClick={() => {
+            const slug = slugActual();
+            if (slug) sessionStorage.removeItem(`reserva_ok_${slug}`);
+            window.location.href = "/";
+          }}
+        >
+          Volver
+        </button>
       </main>
     );
   }
@@ -396,6 +414,7 @@ export default function ReservarPage() {
           )}
 
           <button
+            type="button"
             onClick={() => void reservar()}
             disabled={enviando}
             className="mt-4 w-full py-3"
