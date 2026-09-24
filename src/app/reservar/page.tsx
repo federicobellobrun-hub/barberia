@@ -182,32 +182,48 @@ export default function ReservarPage() {
     if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) return setError("Completá los datos");
     if (pideSenia && !pago) return setError("Elegí cómo pagás la seña");
     const pendiente = manual || pideSenia;
+    const fechaHora = new Date(`${fecha}T${hora}:00-03:00`).toISOString();
     setEnviando(true);
     try {
       const cid = await clienteId();
-      const { data: turno, error } = await supabase
+      const { data: ya } = await supabase
         .from("turnos")
-        .insert({
-          barberia_id: shop.id,
-          cliente_id: cid,
-          servicio_id: servicio.id,
-          barbero_id: barbero || null,
-          fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
-          duracion_minutos: servicio.duracion_minutos,
-          estado: pendiente ? "pendiente" : "confirmado",
-          senia_monto: pideSenia ? Number(servicio.senia) : 0,
-          senia_metodo: pideSenia ? pago : null,
-          senia_pagada: false,
-        })
         .select("id")
-        .single();
-      if (error || !turno) throw new Error(error?.message || "No se pudo reservar");
-      await fetch("/api/whatsapp/reserva", {
+        .eq("barberia_id", shop.id)
+        .eq("cliente_id", cid)
+        .eq("fecha_hora", fechaHora)
+        .in("estado", ["pendiente", "confirmado"])
+        .maybeSingle();
+
+      let turnoId = ya?.id as string | undefined;
+      if (!turnoId) {
+        const { data: turno, error } = await supabase
+          .from("turnos")
+          .insert({
+            barberia_id: shop.id,
+            cliente_id: cid,
+            servicio_id: servicio.id,
+            barbero_id: barbero || null,
+            fecha_hora: fechaHora,
+            duracion_minutos: servicio.duracion_minutos,
+            estado: pendiente ? "pendiente" : "confirmado",
+            senia_monto: pideSenia ? Number(servicio.senia) : 0,
+            senia_metodo: pideSenia ? pago : null,
+            senia_pagada: false,
+          })
+          .select("id")
+          .single();
+        if (error || !turno) throw new Error(error?.message || "No se pudo reservar");
+        turnoId = turno.id;
+      }
+
+      setOk(pendiente ? "Pedido enviado. El local lo confirma en la agenda." : "Reserva confirmada");
+
+      void fetch("/api/whatsapp/reserva", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ turnoId: turno.id }),
+        body: JSON.stringify({ turnoId }),
       });
-      setOk(pendiente ? "Pedido enviado. El local lo confirma en la agenda." : "Reserva confirmada");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     } finally {
