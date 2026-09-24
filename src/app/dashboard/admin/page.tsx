@@ -13,6 +13,7 @@ type Shop = {
   activo: boolean | null;
   rubro: string | null;
   trial_hasta: string | null;
+  modo_whatsapp: string | null;
 };
 type UserRow = { barberia_id: string; email: string | null; rol: string | null };
 
@@ -25,8 +26,8 @@ export default function AdminPage() {
   const [slug, setSlug] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rubro, setRubro] = useState("canina");
-  const [plan, setPlan] = useState("trial");
+  const [rubro, setRubro] = useState("barberia");
+  const [plan, setPlan] = useState("manual");
   const [msg, setMsg] = useState("");
   const [link, setLink] = useState("");
   const [claveNueva, setClaveNueva] = useState<Record<string, string>>({});
@@ -42,7 +43,10 @@ export default function AdminPage() {
       router.replace("/dashboard");
       return;
     }
-    const { data } = await supabase.from("barberias").select("id, nombre, slug, plan, activo, rubro, trial_hasta").order("nombre");
+    const { data } = await supabase
+      .from("barberias")
+      .select("id, nombre, slug, plan, activo, rubro, trial_hasta, modo_whatsapp")
+      .order("nombre");
     setShops((data as Shop[]) || []);
     const { data: u } = await supabase.from("usuarios").select("barberia_id, email, rol");
     setUsers((u as UserRow[]) || []);
@@ -84,19 +88,29 @@ export default function AdminPage() {
         <input className="mt-2 w-full rounded-xl px-3 py-2 text-sm" type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} />
         <select className="mt-2 w-full rounded-xl px-3 py-2 text-sm" value={rubro} onChange={(e) => setRubro(e.target.value)}>
           <option value="barberia">Barbería</option>
-          <option value="cejas_unas">Pestañas / uñas</option>
+          <option value="pestanas_unas">Pestañas / uñas</option>
+          <option value="cejas_unas">Cejas / uñas</option>
           <option value="canina">Peluquería canina</option>
         </select>
         <select className="mt-2 w-full rounded-xl px-3 py-2 text-sm" value={plan} onChange={(e) => setPlan(e.target.value)}>
-          <option value="trial">Prueba 7 días</option>
           <option value="manual">Manual</option>
+          <option value="trial">Prueba 7 días (manual)</option>
           <option value="automatico">Automático</option>
         </select>
         <button
           onClick={async () => {
-            const data = await api({ accion: "crear", nombre, slug, email, password, rubro, plan });
+            const data = await api({
+              accion: "crear",
+              nombre,
+              slug,
+              email,
+              password,
+              rubro,
+              plan,
+              modo: plan === "automatico" ? "automatico" : "manual",
+            });
             if (!data) return;
-            setMsg(`Creada. Login: ${email}`);
+            setMsg(`Creada en ${data.modo}. Login: ${email}`);
             setLink(data.link || "");
             setNombre("");
             setSlug("");
@@ -119,7 +133,7 @@ export default function AdminPage() {
             <article key={s.id} className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
               <p className="font-medium">{s.nombre}</p>
               <p className="text-xs" style={{ color: "var(--muted)" }}>
-                {s.rubro} · {s.plan}
+                {s.rubro} · plan {s.plan} · WhatsApp {s.modo_whatsapp || "—"}
                 {s.trial_hasta ? ` · hasta ${new Date(s.trial_hasta).toLocaleDateString("es-UY")}` : ""}
               </p>
               <p className="mt-2 break-all text-sm">{publico}</p>
@@ -136,7 +150,8 @@ export default function AdminPage() {
                 }}
               >
                 <option value="barberia">Barbería</option>
-                <option value="cejas_unas">Pestañas / uñas</option>
+                <option value="pestanas_unas">Pestañas / uñas</option>
+                <option value="cejas_unas">Cejas / uñas</option>
                 <option value="canina">Peluquería canina</option>
               </select>
               <input
