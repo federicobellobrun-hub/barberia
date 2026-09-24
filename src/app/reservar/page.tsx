@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 
@@ -44,11 +43,31 @@ function normCat(v: string | null) {
   const t = v.trim().toLowerCase();
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
 }
+function horaSlot(fechaHora: string) {
+  return new Date(fechaHora)
+    .toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "America/Montevideo",
+    })
+    .replace(".", ":")
+    .slice(0, 5);
+}
 function slotsDelDia() {
   const out: string[] = [];
   for (let h = 9; h <= 20; h++) {
     out.push(`${String(h).padStart(2, "0")}:00`);
     if (h < 20) out.push(`${String(h).padStart(2, "0")}:30`);
+  }
+  return out;
+}
+function slotsOcupados(fechaHora: string, duracion: number) {
+  const start = new Date(fechaHora).getTime();
+  const end = start + Math.max(duracion || 30, 30) * 60000;
+  const out: string[] = [];
+  for (let t = start; t < end; t += 30 * 60000) {
+    out.push(horaSlot(new Date(t).toISOString()));
   }
   return out;
 }
@@ -115,23 +134,18 @@ export default function ReservarPage() {
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
       let q = supabase
         .from("turnos")
-        .select("fecha_hora")
+        .select("fecha_hora, duracion_minutos")
         .eq("barberia_id", shop.id)
         .gte("fecha_hora", desde)
         .lte("fecha_hora", hasta)
         .in("estado", ["pendiente", "confirmado"]);
       if (barbero) q = q.eq("barbero_id", barbero);
       const { data } = await q;
-      setOcupados(
-        (data || []).map((t) =>
-          new Date(t.fecha_hora).toLocaleTimeString("es-UY", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-            timeZone: "America/Montevideo",
-          })
-        )
-      );
+      const hours = new Set<string>();
+      (data || []).forEach((t) => {
+        slotsOcupados(t.fecha_hora, Number(t.duracion_minutos) || 30).forEach((h) => hours.add(h));
+      });
+      setOcupados(Array.from(hours));
       setHora("");
     };
     void loadHoras();
@@ -173,10 +187,7 @@ export default function ReservarPage() {
     if (!shop) throw new Error("Sin local");
     const tel = telefono.replace(/\D/g, "");
     const { data: ya } = await supabase.from("clientes").select("id").eq("barberia_id", shop.id).eq("telefono", tel).maybeSingle();
-    if (ya?.id) {
-      await supabase.from("clientes").update({ nombre }).eq("id", ya.id);
-      return ya.id;
-    }
+    if (ya?.id) return ya.id;
     const { data: nuevo, error } = await supabase.from("clientes").insert({ barberia_id: shop.id, nombre, telefono: tel }).select("id").single();
     if (error || !nuevo) throw new Error(error?.message || "No se pudo guardar el cliente");
     return nuevo.id;
@@ -220,6 +231,7 @@ export default function ReservarPage() {
             senia_monto: pideSenia ? Number(servicio.senia) : 0,
             senia_metodo: pideSenia ? pago : null,
             senia_pagada: false,
+            cliente_nombre: nombre,
           })
           .select("id")
           .single();
@@ -280,28 +292,14 @@ export default function ReservarPage() {
         <div className="space-y-3">
           <p className="text-sm" style={{ color: "var(--muted)" }}>Elegí una categoría</p>
           {categorias.map(([c, info]) => (
-            <button
-              key={c}
-              onClick={() => setCategoria(c)}
-              className="group flex w-full items-center gap-3 overflow-hidden px-2 py-2 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
-              style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14 }}
-            >
+            <button key={c} onClick={() => setCategoria(c)} className="group flex w-full items-center gap-3 overflow-hidden px-2 py-2 text-left" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14 }}>
               <span className="h-14 w-14 shrink-0 overflow-hidden" style={{ borderRadius: 10, background: "var(--line)" }}>
-                {info.foto ? (
-                  <img src={info.foto} alt="" className="h-full w-full object-cover transition duration-200 group-hover:scale-110" />
-                ) : (
-                  <span className="flex h-full w-full items-center justify-center text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>
-                    {c.slice(0, 1)}
-                  </span>
-                )}
+                {info.foto ? <img src={info.foto} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center text-lg">{c.slice(0, 1)}</span>}
               </span>
               <span className="min-w-0 flex-1">
                 <p className="truncate text-lg" style={{ fontFamily: "Georgia, Times, serif" }}>{c}</p>
-                <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  {info.n} servicio{info.n > 1 ? "s" : ""}
-                </p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>{info.n} servicio{info.n > 1 ? "s" : ""}</p>
               </span>
-              <span className="pr-2 text-lg transition group-hover:translate-x-0.5">→</span>
             </button>
           ))}
         </div>
@@ -312,18 +310,11 @@ export default function ReservarPage() {
           {usarCat && <button onClick={() => setCategoria(null)} className="mb-3 text-sm underline">← Categorías</button>}
           <div className="space-y-3">
             {lista.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setServicio(s)}
-                className="flex w-full gap-3 px-3 py-3 text-left"
-                style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}
-              >
+              <button key={s.id} onClick={() => setServicio(s)} className="flex w-full gap-3 px-3 py-3 text-left" style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
                 {s.imagen_url && <img src={s.imagen_url} alt="" className="h-16 w-16 object-cover" style={{ borderRadius: 8 }} />}
                 <span>
                   <p className="font-medium">{s.nombre}</p>
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>
-                    ${s.precio} · {s.duracion_minutos} min {s.senia ? `· seña $${s.senia}` : ""}
-                  </p>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>${s.precio} · {s.duracion_minutos} min {s.senia ? `· seña $${s.senia}` : ""}</p>
                 </span>
               </button>
             ))}
@@ -358,19 +349,7 @@ export default function ReservarPage() {
             <div className="mt-2 grid grid-cols-7 gap-y-2 text-center text-sm">
               {celdas.map((c, i) =>
                 !c.n ? <span key={i} /> : (
-                  <button
-                    key={c.value}
-                    type="button"
-                    disabled={c.past}
-                    onClick={() => setFecha(c.value!)}
-                    className="mx-auto flex h-9 w-9 items-center justify-center"
-                    style={{
-                      borderRadius: 999,
-                      opacity: c.past ? 0.28 : 1,
-                      background: fecha === c.value ? "var(--text)" : "transparent",
-                      color: fecha === c.value ? "var(--bg)" : "inherit",
-                    }}
-                  >
+                  <button key={c.value} type="button" disabled={c.past} onClick={() => setFecha(c.value!)} className="mx-auto flex h-9 w-9 items-center justify-center" style={{ borderRadius: 999, opacity: c.past ? 0.28 : 1, background: fecha === c.value ? "var(--text)" : "transparent", color: fecha === c.value ? "var(--bg)" : "inherit" }}>
                     {c.n}
                   </button>
                 )
@@ -384,17 +363,7 @@ export default function ReservarPage() {
               {horasLibres.length === 0 && <p className="text-sm" style={{ color: "var(--muted)" }}>No hay turnos ese día.</p>}
               <div className="flex flex-wrap gap-2">
                 {horasLibres.map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => setHora(h)}
-                    className="min-w-[88px] rounded-xl px-4 py-2 text-sm"
-                    style={{
-                      border: "1px solid var(--line)",
-                      background: hora === h ? "var(--text)" : "var(--card)",
-                      color: hora === h ? "var(--bg)" : "inherit",
-                    }}
-                  >
+                  <button key={h} type="button" onClick={() => setHora(h)} className="min-w-[88px] rounded-xl px-4 py-2 text-sm" style={{ border: "1px solid var(--line)", background: hora === h ? "var(--text)" : "var(--card)", color: hora === h ? "var(--bg)" : "inherit" }}>
                     {h}
                   </button>
                 ))}
@@ -413,13 +382,7 @@ export default function ReservarPage() {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => void reservar()}
-            disabled={enviando}
-            className="mt-4 w-full py-3"
-            style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999, opacity: enviando ? 0.5 : 1 }}
-          >
+          <button type="button" onClick={() => void reservar()} disabled={enviando} className="mt-4 w-full py-3" style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999, opacity: enviando ? 0.5 : 1 }}>
             {enviando ? "Enviando..." : pideSenia || manual ? "Pedir reserva" : "Confirmar reserva"}
           </button>
         </div>
