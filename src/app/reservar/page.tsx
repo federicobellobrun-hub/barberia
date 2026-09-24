@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
@@ -55,6 +55,7 @@ function slotsDelDia() {
 
 export default function ReservarPage() {
   const supabase = createClient();
+  const lock = useRef(false);
   const [shop, setShop] = useState<Shop | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
@@ -178,24 +179,27 @@ export default function ReservarPage() {
 
   const reservar = async () => {
     setError("");
-    if (enviando) return;
+    if (lock.current) return;
     if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) return setError("Completá los datos");
     if (pideSenia && !pago) return setError("Elegí cómo pagás la seña");
-    const pendiente = manual || pideSenia;
-    const fechaHora = new Date(`${fecha}T${hora}:00-03:00`).toISOString();
+    lock.current = true;
     setEnviando(true);
+    const pendiente = manual || pideSenia;
+    const desde = new Date(`${fecha}T${hora}:00-03:00`);
+    const hasta = new Date(desde.getTime() + 60 * 1000);
     try {
       const cid = await clienteId();
-      const { data: ya } = await supabase
+      const { data: existentes } = await supabase
         .from("turnos")
         .select("id")
         .eq("barberia_id", shop.id)
         .eq("cliente_id", cid)
-        .eq("fecha_hora", fechaHora)
+        .gte("fecha_hora", desde.toISOString())
+        .lt("fecha_hora", hasta.toISOString())
         .in("estado", ["pendiente", "confirmado"])
-        .maybeSingle();
+        .limit(1);
 
-      let turnoId = ya?.id as string | undefined;
+      let turnoId = existentes?.[0]?.id as string | undefined;
       if (!turnoId) {
         const { data: turno, error } = await supabase
           .from("turnos")
@@ -204,7 +208,7 @@ export default function ReservarPage() {
             cliente_id: cid,
             servicio_id: servicio.id,
             barbero_id: barbero || null,
-            fecha_hora: fechaHora,
+            fecha_hora: desde.toISOString(),
             duracion_minutos: servicio.duracion_minutos,
             estado: pendiente ? "pendiente" : "confirmado",
             senia_monto: pideSenia ? Number(servicio.senia) : 0,
@@ -218,13 +222,13 @@ export default function ReservarPage() {
       }
 
       setOk(pendiente ? "Pedido enviado. El local lo confirma en la agenda." : "Reserva confirmada");
-
       void fetch("/api/whatsapp/reserva", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ turnoId }),
       });
     } catch (e) {
+      lock.current = false;
       setError(e instanceof Error ? e.message : "Error");
     } finally {
       setEnviando(false);
