@@ -17,11 +17,6 @@ function waNumber(telefono: string) {
   return `598${solo}`;
 }
 
-function one<T>(value: T | T[] | null | undefined): T | null {
-  if (!value) return null;
-  return Array.isArray(value) ? value[0] || null : value;
-}
-
 function horaUy(fechaHora: string) {
   return new Date(fechaHora).toLocaleTimeString("es-UY", {
     hour: "2-digit",
@@ -74,8 +69,8 @@ export async function POST(req: Request) {
 
   if (error || !t) return NextResponse.json({ error: error?.message || "Turno no encontrado" }, { status: 404 });
 
-  const cliente = one(t.clientes as { nombre?: string; telefono?: string } | { nombre?: string; telefono?: string }[] | null);
-  const shop = one(t.barberias as { id: string; nombre: string; modo_whatsapp: string | null; whatsapp_pedidos: string | null; plan: string | null; wa_mes: string | null; wa_enviados: number | null } | Array<unknown> | null);
+  const cliente = Array.isArray(t.clientes) ? t.clientes[0] : t.clientes;
+  const shop = Array.isArray(t.barberias) ? t.barberias[0] : t.barberias;
 
   if (!shop || String(shop.modo_whatsapp || "") !== "automatico") {
     return NextResponse.json({ ok: true, skipped: "manual", shop: { nombre: shop?.nombre, modo: shop?.modo_whatsapp } });
