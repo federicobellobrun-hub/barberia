@@ -73,6 +73,7 @@ export default function ReservarPage() {
   const [pago, setPago] = useState<"mp" | "transferencia" | "">("");
   const [ok, setOk] = useState("");
   const [error, setError] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -177,9 +178,11 @@ export default function ReservarPage() {
 
   const reservar = async () => {
     setError("");
+    if (enviando) return;
     if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) return setError("Completá los datos");
     if (pideSenia && !pago) return setError("Elegí cómo pagás la seña");
     const pendiente = manual || pideSenia;
+    setEnviando(true);
     try {
       const cid = await clienteId();
       const { data: turno, error } = await supabase
@@ -207,6 +210,8 @@ export default function ReservarPage() {
       setOk(pendiente ? "Pedido enviado. El local lo confirma en la agenda." : "Reserva confirmada");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -370,8 +375,13 @@ export default function ReservarPage() {
             </div>
           )}
 
-          <button onClick={() => void reservar()} className="mt-4 w-full py-3" style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999 }}>
-            {pideSenia || manual ? "Pedir reserva" : "Confirmar reserva"}
+          <button
+            onClick={() => void reservar()}
+            disabled={enviando}
+            className="mt-4 w-full py-3"
+            style={{ background: "var(--text)", color: "var(--bg)", borderRadius: 999, opacity: enviando ? 0.5 : 1 }}
+          >
+            {enviando ? "Enviando..." : pideSenia || manual ? "Pedir reserva" : "Confirmar reserva"}
           </button>
         </div>
       )}
