@@ -72,9 +72,9 @@ export async function POST(req: Request) {
   const cliente = Array.isArray(t.clientes) ? t.clientes[0] : t.clientes;
   const shop = Array.isArray(t.barberias) ? t.barberias[0] : t.barberias;
 
-if (!shop || shop.modo_whatsapp !== "automatico") {
-  return NextResponse.json({ ok: true, skipped: "manual", shop });
-}
+  if (!shop || String(shop.modo_whatsapp || "") !== "automatico") {
+    return NextResponse.json({ ok: true, skipped: "manual", shop: { nombre: shop?.nombre, modo: shop?.modo_whatsapp } });
+  }
 
   const mes = mesUy();
   const usados = shop.wa_mes === mes ? Number(shop.wa_enviados || 0) : 0;
