@@ -64,7 +64,7 @@ export async function POST(req: Request) {
   const supabase = admin();
   const { data: t, error } = await supabase
     .from("turnos")
-    .select("id, fecha_hora, barberia_id, cliente_id")
+    .select("id, fecha_hora, barberia_id, cliente_id, cliente_nombre")
     .eq("id", turnoId)
     .maybeSingle();
 
@@ -87,13 +87,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, skipped: "limite_trial", usados });
   }
 
+  const nombre = t.cliente_nombre || cliente.nombre || "cliente";
   const plantilla =
     tipo === "cancelado"
       ? process.env.WHATSAPP_TEMPLATE_CANCELADO || "reserva_cancelada"
       : process.env.WHATSAPP_TEMPLATE_MOVIDO || "reserva_movida";
 
   const envio = await sendTemplate(waNumber(cliente.telefono), plantilla, [
-    cliente.nombre || "cliente",
+    nombre,
     fechaUy(t.fecha_hora),
     horaUy(t.fecha_hora),
     shop.nombre || "la barbería",
