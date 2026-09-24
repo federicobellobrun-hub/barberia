@@ -48,6 +48,18 @@ function horaUy(fechaHora: string) {
   });
 }
 
+function horaInput(fechaHora: string) {
+  return new Date(fechaHora)
+    .toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "America/Montevideo",
+    })
+    .replace(".", ":")
+    .slice(0, 5);
+}
+
 function fechaCorta(fechaHora: string) {
   return new Date(fechaHora).toLocaleDateString("es-UY", {
     day: "2-digit",
@@ -55,6 +67,15 @@ function fechaCorta(fechaHora: string) {
     year: "numeric",
     timeZone: "America/Montevideo",
   });
+}
+
+function slots() {
+  const out: string[] = [];
+  for (let h = 8; h <= 20; h++) {
+    out.push(`${String(h).padStart(2, "0")}:00`);
+    out.push(`${String(h).padStart(2, "0")}:30`);
+  }
+  return out;
 }
 
 function waLink(telefono: string, texto: string) {
@@ -78,6 +99,7 @@ export default function DashboardPage() {
   const [filtroBarbero, setFiltroBarbero] = useState("todos");
   const [esBarbero, setEsBarbero] = useState(false);
   const [linkPublico, setLinkPublico] = useState("");
+  const [modoWa, setModoWa] = useState("manual");
   const [copiado, setCopiado] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [moverFecha, setMoverFecha] = useState("");
@@ -106,8 +128,13 @@ export default function DashboardPage() {
       }
       const soloBarbero = me.rol === "barbero";
       setEsBarbero(soloBarbero);
-      const { data: shop } = await supabase.from("barberias").select("slug").eq("id", me.barberia_id).maybeSingle();
+      const { data: shop } = await supabase
+        .from("barberias")
+        .select("slug, modo_whatsapp")
+        .eq("id", me.barberia_id)
+        .maybeSingle();
       if (shop?.slug) setLinkPublico(`https://${shop.slug}.reservoapps.com`);
+      setModoWa(shop?.modo_whatsapp || "manual");
       const { data: bars } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", me.barberia_id).order("nombre");
       setBarberos((bars as Barbero[]) || []);
       const desde = new Date(y, m, 1);
@@ -166,10 +193,8 @@ export default function DashboardPage() {
     await cambiarEstado(t.id, "confirmado");
     const c = one(t.clientes);
     const s = one(t.servicios);
-    if (c?.telefono) {
-      const texto = `Hola ${c.nombre || ""}, te confirmamos el turno${s?.nombre ? ` de ${s.nombre}` : ""} el ${fechaCorta(t.fecha_hora)} a las ${horaUy(t.fecha_hora)}. Cualquier cambio escribinos.`;
-      window.open(waLink(c.telefono, texto), "_blank");
-    }
+    const texto = `Hola ${c?.nombre || ""}, te confirmamos el turno${s?.nombre ? ` de ${s.nombre}` : ""} el ${fechaCorta(t.fecha_hora)} a las ${horaUy(t.fecha_hora)}. Cualquier cambio escribinos.`;
+    if (modoWa !== "automatico" && c?.telefono) window.open(waLink(c.telefono, texto), "_blank");
     await fetch("/api/whatsapp/reserva", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -185,10 +210,8 @@ export default function DashboardPage() {
     setTurnosMes((prev) => prev.map((x) => (x.id === t.id ? { ...x, fecha_hora } : x)));
     setFecha(moverFecha);
     const c = one(t.clientes);
-    if (c?.telefono) {
-      const texto = `Hola ${c.nombre || ""}, te reagendamos el turno al ${fechaCorta(fecha_hora)} a las ${horaUy(fecha_hora)}.`;
-      window.open(waLink(c.telefono, texto), "_blank");
-    }
+    const texto = `Hola ${c?.nombre || ""}, te reagendamos el turno al ${fechaCorta(fecha_hora)} a las ${horaUy(fecha_hora)}.`;
+    if (modoWa !== "automatico" && c?.telefono) window.open(waLink(c.telefono, texto), "_blank");
     await fetch("/api/whatsapp/cambio", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -281,7 +304,7 @@ export default function DashboardPage() {
                     else {
                       setAbierto(t.id);
                       setMoverFecha(ymd(new Date(t.fecha_hora)));
-                      setMoverHora(horaUy(t.fecha_hora));
+                      setMoverHora(horaInput(t.fecha_hora));
                     }
                   }}
                   className="mt-1 text-sm"
@@ -293,17 +316,31 @@ export default function DashboardPage() {
                     {c?.telefono && <p className="w-full text-xs">{c.telefono}</p>}
                     {t.estado === "pendiente" && (
                       <button onClick={() => void confirmarSenia(t)} className="rounded-full px-3 py-1.5 text-xs" style={{ background: "#111", color: "#fff" }}>
-                        Confirmar y WhatsApp
+                        {modoWa === "automatico" ? "Confirmar" : "Confirmar y WhatsApp"}
                       </button>
                     )}
                     <button onClick={() => void cambiarEstado(t.id, "realizado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Realizado</button>
                     <button onClick={() => void cambiarEstado(t.id, "no_vino")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>No vino</button>
                     <button onClick={() => void cambiarEstado(t.id, "cancelado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Cancelar</button>
-                    <div className="mt-2 flex w-full flex-wrap items-center gap-2">
-                      <input type="date" value={moverFecha} onChange={(e) => setMoverFecha(e.target.value)} className="rounded-xl px-2 py-1 text-xs" style={{ border: "1px solid var(--line)" }} />
-                      <input type="time" value={moverHora} onChange={(e) => setMoverHora(e.target.value)} className="rounded-xl px-2 py-1 text-xs" style={{ border: "1px solid var(--line)" }} />
-                      <button onClick={() => void moverTurno(t)} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid var(--line)" }}>
-                        Mover y WhatsApp
+                    <div className="mt-3 w-full space-y-2 rounded-xl p-3" style={{ border: "1px solid var(--line)", background: "var(--card)" }}>
+                      <p className="text-xs font-medium">Reagendar</p>
+                      <label className="block text-[11px]" style={{ color: "var(--muted)" }}>Nuevo día</label>
+                      <input type="date" value={moverFecha} onChange={(e) => setMoverFecha(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm" style={{ border: "1px solid var(--line)" }} />
+                      <label className="block text-[11px]" style={{ color: "var(--muted)" }}>Nueva hora</label>
+                      <select value={moverHora} onChange={(e) => setMoverHora(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm" style={{ border: "1px solid var(--line)" }}>
+                        <option value="">Elegí hora</option>
+                        {slots().map((h) => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => void moverTurno(t)}
+                        disabled={!moverFecha || !moverHora}
+                        className="w-full rounded-full py-2 text-sm"
+                        style={{ background: "#111", color: "#fff", opacity: !moverFecha || !moverHora ? 0.4 : 1 }}
+                      >
+                        {modoWa === "automatico" ? "Guardar nuevo horario" : "Guardar nuevo horario y WhatsApp"}
                       </button>
                     </div>
                   </div>
