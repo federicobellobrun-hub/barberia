@@ -12,6 +12,7 @@ type Servicio = {
   categoria: string | null;
   imagen_url: string | null;
   senia: number | null;
+  descripcion: string | null;
 };
 type Barbero = { id: string; nombre: string };
 type Shop = {
@@ -21,6 +22,8 @@ type Shop = {
   datos_cuenta: string | null;
   modo_whatsapp: string | null;
 };
+type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
+type Excepcion = { fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean; barbero_id: string | null };
 
 function slugActual() {
   if (typeof window === "undefined") return "";
@@ -54,12 +57,18 @@ function horaSlot(fechaHora: string) {
     .replace(".", ":")
     .slice(0, 5);
 }
-function slotsDelDia() {
+function toMin(hhmm: string) {
+  const [h, m] = hhmm.slice(0, 5).split(":").map(Number);
+  return h * 60 + m;
+}
+function fromMin(n: number) {
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+function slotsEntre(inicio: string, fin: string) {
   const out: string[] = [];
-  for (let h = 9; h <= 20; h++) {
-    out.push(`${String(h).padStart(2, "0")}:00`);
-    if (h < 20) out.push(`${String(h).padStart(2, "0")}:30`);
-  }
+  for (let t = toMin(inicio); t < toMin(fin); t += 30) out.push(fromMin(t));
   return out;
 }
 function slotsOcupados(fechaHora: string, duracion: number) {
@@ -71,6 +80,9 @@ function slotsOcupados(fechaHora: string, duracion: number) {
   }
   return out;
 }
+function dowUy(fecha: string) {
+  return new Date(`${fecha}T12:00:00-03:00`).getDay();
+}
 
 export default function ReservarPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -78,7 +90,12 @@ export default function ReservarPage() {
   const [shop, setShop] = useState<Shop | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
+  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [horariosBarbero, setHorariosBarbero] = useState<Horario[]>([]);
+  const [excepciones, setExcepciones] = useState<Excepcion[]>([]);
   const [ocupados, setOcupados] = useState<string[]>([]);
+  const [cerrado, setCerrado] = useState(false);
+  const [slotsDia, setSlotsDia] = useState<string[]>([]);
   const [categoria, setCategoria] = useState<string | null>(null);
   const [servicio, setServicio] = useState<Servicio | null>(null);
   const [barbero, setBarbero] = useState("");
@@ -114,22 +131,84 @@ export default function ReservarPage() {
       setShop(s as Shop);
       const { data: serv } = await supabase
         .from("servicios")
-        .select("id, nombre, precio, duracion_minutos, categoria, imagen_url, senia")
+        .select("id, nombre, precio, duracion_minutos, categoria, imagen_url, senia, descripcion")
         .eq("barberia_id", s.id)
         .eq("activo", true);
       setServicios((serv as Servicio[]) || []);
       const { data: b } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", s.id);
       setBarberos((b as Barbero[]) || []);
+      const { data: hs } = await supabase
+        .from("horario_semanal")
+        .select("dia_semana, hora_inicio, hora_fin, activo")
+        .eq("barberia_id", s.id);
+      setHorarios((hs as Horario[]) || []);
+      const { data: ex } = await supabase
+        .from("horario_excepcion")
+        .select("fecha, hora_inicio, hora_fin, cerrado, barbero_id")
+        .eq("barberia_id", s.id);
+      setExcepciones((ex as Excepcion[]) || []);
     };
     void load();
   }, [supabase]);
 
   useEffect(() => {
+    const loadBarberoHoras = async () => {
+      if (!barbero) {
+        setHorariosBarbero([]);
+        return;
+      }
+      const { data } = await supabase
+        .from("horario_barbero")
+        .select("dia_semana, hora_inicio, hora_fin, activo")
+        .eq("barbero_id", barbero);
+      setHorariosBarbero((data as Horario[]) || []);
+    };
+    void loadBarberoHoras();
+  }, [barbero, supabase]);
+
+  useEffect(() => {
     const loadHoras = async () => {
       if (!shop || !fecha) {
         setOcupados([]);
+        setSlotsDia([]);
+        setCerrado(false);
         return;
       }
+      const dia = dowUy(fecha);
+      const ex = excepciones.find((e) => e.fecha?.slice(0, 10) === fecha && (!e.barbero_id || e.barbero_id === barbero || !barbero));
+      let inicio = "09:00";
+      let fin = "20:30";
+      let abierto = true;
+
+      const filaBar = horariosBarbero.find((h) => h.dia_semana === dia);
+      const filaLoc = horarios.find((h) => h.dia_semana === dia);
+      const fila = barbero && filaBar ? filaBar : filaLoc;
+      if (fila) {
+        abierto = Boolean(fila.activo);
+        inicio = (fila.hora_inicio || "09:00").slice(0, 5);
+        fin = (fila.hora_fin || "20:00").slice(0, 5);
+      } else if (horarios.length > 0) {
+        abierto = false;
+      }
+
+      if (ex) {
+        if (ex.cerrado) abierto = false;
+        else {
+          abierto = true;
+          if (ex.hora_inicio) inicio = ex.hora_inicio.slice(0, 5);
+          if (ex.hora_fin) fin = ex.hora_fin.slice(0, 5);
+        }
+      }
+
+      if (!abierto) {
+        setCerrado(true);
+        setSlotsDia([]);
+        setOcupados([]);
+        setHora("");
+        return;
+      }
+      setCerrado(false);
+
       const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
       let q = supabase
@@ -141,15 +220,16 @@ export default function ReservarPage() {
         .in("estado", ["pendiente", "confirmado"]);
       if (barbero) q = q.eq("barbero_id", barbero);
       const { data } = await q;
-      const hours = new Set<string>();
+      const busy = new Set<string>();
       (data || []).forEach((t) => {
-        slotsOcupados(t.fecha_hora, Number(t.duracion_minutos) || 30).forEach((h) => hours.add(h));
+        slotsOcupados(t.fecha_hora, Number(t.duracion_minutos) || 30).forEach((h) => busy.add(h));
       });
-      setOcupados(Array.from(hours));
+      setOcupados(Array.from(busy));
+      setSlotsDia(slotsEntre(inicio, fin));
       setHora("");
     };
     void loadHoras();
-  }, [shop, fecha, barbero, supabase]);
+  }, [shop, fecha, barbero, horarios, horariosBarbero, excepciones, supabase]);
 
   const categorias = useMemo(() => {
     const map = new Map<string, { n: number; foto: string | null }>();
@@ -166,7 +246,7 @@ export default function ReservarPage() {
   const lista = usarCat && categoria ? servicios.filter((x) => normCat(x.categoria) === categoria) : servicios;
   const pideSenia = Boolean(servicio?.senia && Number(servicio.senia) > 0);
   const manual = (shop?.modo_whatsapp || "") !== "automatico";
-  const horasLibres = slotsDelDia().filter((h) => !ocupados.includes(h));
+  const horasLibres = slotsDia.filter((h) => !ocupados.includes(h));
 
   const celdas = useMemo(() => {
     const first = new Date(mes.getFullYear(), mes.getMonth(), 1);
@@ -317,6 +397,7 @@ export default function ReservarPage() {
                 {s.imagen_url && <img src={s.imagen_url} alt="" className="h-16 w-16 object-cover" style={{ borderRadius: 8 }} />}
                 <span>
                   <p className="font-medium">{s.nombre}</p>
+                  {s.descripcion && <p className="text-sm" style={{ color: "var(--muted)" }}>{s.descripcion}</p>}
                   <p className="text-sm" style={{ color: "var(--muted)" }}>${s.precio} · {s.duracion_minutos} min {s.senia ? `· seña $${s.senia}` : ""}</p>
                 </span>
               </button>
@@ -329,6 +410,7 @@ export default function ReservarPage() {
         <div>
           <button onClick={() => setServicio(null)} className="mb-3 text-sm underline">← Cambiar servicio</button>
           <p className="text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>{servicio.nombre}</p>
+          {servicio.descripcion && <p className="mt-1 text-sm">{servicio.descripcion}</p>}
           <p className="text-sm" style={{ color: "var(--muted)" }}>${servicio.precio} · {servicio.duracion_minutos} min</p>
           {pideSenia && <p className="mt-2 text-sm">Seña ${servicio.senia}. El turno queda pendiente hasta que el local confirme el pago.</p>}
 
@@ -363,7 +445,8 @@ export default function ReservarPage() {
           {fecha && (
             <div className="mt-6">
               <p className="mb-3 text-sm">Horarios disponibles para {fecha.slice(8)}/{fecha.slice(5, 7)}</p>
-              {horasLibres.length === 0 && <p className="text-sm" style={{ color: "var(--muted)" }}>No hay turnos ese día.</p>}
+              {cerrado && <p className="text-sm" style={{ color: "var(--muted)" }}>Cerrado ese día.</p>}
+              {!cerrado && horasLibres.length === 0 && <p className="text-sm" style={{ color: "var(--muted)" }}>No hay turnos ese día.</p>}
               <div className="flex flex-wrap gap-2">
                 {horasLibres.map((h) => (
                   <button key={h} type="button" onClick={() => setHora(h)} className="min-w-[88px] rounded-xl px-4 py-2 text-sm" style={{ border: "1px solid var(--line)", background: hora === h ? "var(--text)" : "var(--card)", color: hora === h ? "var(--bg)" : "inherit" }}>
