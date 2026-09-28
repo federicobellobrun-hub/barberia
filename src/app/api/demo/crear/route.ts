@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-
-const RUBROS_OK = ["barberia", "pestanas_unas", "canina", "taller", "otro"];
+import { rubroOk } from "@/lib/rubros";
 
 function admin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -55,7 +54,7 @@ export async function POST(req: Request) {
     const password = String(body.password || "");
     const whatsapp = String(body.whatsapp || "").trim();
     const modo = body.modo === "automatico" ? "automatico" : "manual";
-    const rubro = RUBROS_OK.includes(body.rubro) ? body.rubro : "barberia";
+    const rubro = rubroOk(body.rubro);
     const slug = slugify(String(body.slug || nombre));
 
     if (!nombre || !slug || !email || password.length < 6) {
