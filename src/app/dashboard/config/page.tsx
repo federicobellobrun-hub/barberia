@@ -60,6 +60,10 @@ export default function ConfigPage() {
   const [logo, setLogo] = useState<string | null>(null);
   const [portada, setPortada] = useState<string | null>(null);
   const [ajustes, setAjustes] = useState<Ajustes | null>(null);
+  const [rubro, setRubro] = useState("");
+  const [cupoGrande, setCupoGrande] = useState("1");
+  const [horaGrande1, setHoraGrande1] = useState("09:00");
+  const [horaGrande2, setHoraGrande2] = useState("14:00");
   const [ok, setOk] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -86,7 +90,7 @@ export default function ConfigPage() {
       const [{ data }, { data: aj }] = await Promise.all([
         supabase
           .from("barberias")
-          .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, plan_hasta, modo_whatsapp, wa_mes, wa_enviados, color_fondo, color_boton")
+          .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, plan_hasta, modo_whatsapp, wa_mes, wa_enviados, color_fondo, color_boton, rubro, canina_cupo_grande, canina_horas_grande")
           .eq("id", barberiaId)
           .maybeSingle(),
         supabase.from("reservo_ajustes").select("whatsapp_cobranza, banco, titular, cuenta, moneda").eq("id", 1).maybeSingle(),
@@ -115,6 +119,11 @@ export default function ConfigPage() {
       setModoWa(data.modo_whatsapp || "manual");
       setWaMes(data.wa_mes || null);
       setWaEnviados(Number(data.wa_enviados || 0));
+      setRubro(data.rubro || "");
+      setCupoGrande(String(data.canina_cupo_grande || 1));
+      const horas = String(data.canina_horas_grande || "09:00").split(",").map((h: string) => h.trim());
+      setHoraGrande1(horas[0] || "09:00");
+      setHoraGrande2(horas[1] || "14:00");
     };
     void load();
   }, [router]);
@@ -156,6 +165,9 @@ export default function ConfigPage() {
         estilo,
         color_fondo: colorFondo || null,
         color_boton: colorBoton || null,
+        canina_cupo_grande: Number(cupoGrande) === 2 ? 2 : 1,
+        canina_horas_grande: Number(cupoGrande) === 2 ? `${horaGrande1},${horaGrande2}` : horaGrande1,
+        canina_un_grande_por_dia: Number(cupoGrande) === 1,
       })
       .eq("id", id);
     if (e1) setError(e1.message);
@@ -256,6 +268,23 @@ export default function ConfigPage() {
             <input type="checkbox" checked={mostrarResenas} onChange={(e) => setMostrarResenas(e.target.checked)} />
             Mostrar reseñas en la web
           </label>
+          {(rubro === "canina" || rubro === "veterinaria") && (
+            <div className="rounded-2xl p-3" style={{ border: "1px solid var(--line)" }}>
+              <p className="mb-2 text-sm font-medium">Perros grandes</p>
+              <select value={cupoGrande} onChange={(e) => setCupoGrande(e.target.value)} className={campoCls} style={estiloInput}>
+                <option value="1">1 grande por día</option>
+                <option value="2">2 grandes por día</option>
+              </select>
+              <p className="mb-1 mt-2 text-xs">Hora del primer grande</p>
+              <input type="time" value={horaGrande1} onChange={(e) => setHoraGrande1(e.target.value)} className={campoCls} style={estiloInput} />
+              {cupoGrande === "2" && (
+                <>
+                  <p className="mb-1 mt-2 text-xs">Hora del segundo grande</p>
+                  <input type="time" value={horaGrande2} onChange={(e) => setHoraGrande2(e.target.value)} className={campoCls} style={estiloInput} />
+                </>
+              )}
+            </div>
+          )}
           <textarea value={cuenta} onChange={(e) => setCuenta(e.target.value)} placeholder="Datos de cuenta bancaria" rows={3} className={campoCls} style={estiloInput} />
           <input value={mpUrl} onChange={(e) => setMpUrl(e.target.value)} placeholder="https://link.mercadopago.com.uy/velestudio" className={campoCls} style={estiloInput} />
           <p className="text-sm pt-2">Estilo visual</p>
