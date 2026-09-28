@@ -382,6 +382,7 @@ export default function ReservarPage() {
           shop={{
             id: shop.id,
             nombre: shop.nombre,
+            modo_whatsapp: shop.modo_whatsapp,
             canina_cupo_grande: shop.canina_cupo_grande ?? 1,
             canina_horas_grande: shop.canina_horas_grande || "09:00",
             canina_cupo_grande_manana: shop.canina_cupo_grande_manana ?? 1,
