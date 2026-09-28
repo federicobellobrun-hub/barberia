@@ -31,6 +31,11 @@ export async function POST(req: Request) {
     if (accion === "borrar") {
       const id = body.id;
       if (!id) return NextResponse.json({ error: "Falta id" }, { status: 400 });
+      const { data: shop } = await sb.from("barberias").select("id, slug").eq("id", id).maybeSingle();
+      if (!shop) return NextResponse.json({ error: "No existe" }, { status: 404 });
+      if (shop.slug === "diano") {
+        return NextResponse.json({ error: "Diano es la demo base y no se puede borrar" }, { status: 400 });
+      }
       const { data: users } = await sb.from("usuarios").select("id, auth_user_id, rol").eq("barberia_id", id);
       for (const u of users || []) {
         if (u.rol === "superadmin") continue;
