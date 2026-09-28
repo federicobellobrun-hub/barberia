@@ -22,6 +22,10 @@ function horaUy(fechaHora: string) {
   });
 }
 
+function fechaUy(fechaHora: string) {
+  return new Date(fechaHora).toLocaleDateString("es-UY", { timeZone: "America/Montevideo" });
+}
+
 function waNumber(telefono: string) {
   const solo = telefono.replace(/\D/g, "");
   if (solo.startsWith("598")) return solo;
@@ -33,7 +37,7 @@ function mesUy() {
   return ymdUy(new Date()).slice(0, 7);
 }
 
-async function enviarWhatsapp(to: string, nombre: string, fecha: string, hora: string, local: string) {
+async function enviarWhatsapp(to: string, nombre: string, local: string, fecha: string, hora: string) {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const plantilla = process.env.WHATSAPP_TEMPLATE_RECORDATORIO || "recordatorio_cita";
@@ -51,7 +55,7 @@ async function enviarWhatsapp(to: string, nombre: string, fecha: string, hora: s
         components: [
           {
             type: "body",
-            parameters: [nombre, fecha, hora, local].map((text) => ({ type: "text", text })),
+            parameters: [nombre, local, fecha, hora].map((text) => ({ type: "text", text })),
           },
         ],
       },
@@ -94,7 +98,7 @@ export async function GET(req: Request) {
     for (const t of turnos || []) {
       const cliente = Array.isArray(t.clientes) ? t.clientes[0] : t.clientes;
       const shop = Array.isArray(t.barberias) ? t.barberias[0] : t.barberias;
-      if (shop?.modo_whatsapp !== "automatico") {
+      if (shop?.modo_whatsapp !== "automatico" || shop?.plan === "manual") {
         resultados.push({ id: t.id, ok: false, motivo: "manual" });
         continue;
       }
@@ -111,9 +115,9 @@ export async function GET(req: Request) {
       const envio = await enviarWhatsapp(
         waNumber(cliente.telefono),
         nombre,
-        dia,
-        horaUy(t.fecha_hora),
-        shop?.nombre || "la barbería"
+        shop?.nombre || "la barbería",
+        fechaUy(t.fecha_hora),
+        horaUy(t.fecha_hora)
       );
       if (envio.ok) {
         await supabase.from("turnos").update({ recordatorio_enviado_at: new Date().toISOString() }).eq("id", t.id);
