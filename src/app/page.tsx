@@ -82,9 +82,6 @@ function Landing() {
           <Link href="/probar" className="rounded-full px-4 py-2" style={{ background: "#1A1612", color: "#F4EFE4" }}>
             Probar 7 días
           </Link>
-          <Link href="/panel" className="text-[11px]" style={{ opacity: 0.35 }}>
-            Panel
-          </Link>
         </div>
       </header>
 
