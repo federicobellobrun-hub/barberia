@@ -12,9 +12,10 @@ type Servicio = {
   categoria: string | null;
   imagen_url: string | null;
   senia: number | null;
+  descripcion: string | null;
 };
 
-const vacio = { nombre: "", precio: "", duracion: "30", categoria: "", senia: "", imagen: "" };
+const vacio = { nombre: "", precio: "", duracion: "30", categoria: "", senia: "", imagen: "", descripcion: "" };
 
 export default function CatalogoPage() {
   const supabase = createClient();
@@ -23,11 +24,13 @@ export default function CatalogoPage() {
   const [form, setForm] = useState(vacio);
   const [editId, setEditId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+  const [guardando, setGuardando] = useState(false);
 
   const load = async (id: string) => {
     const { data, error } = await supabase
       .from("servicios")
-      .select("id, nombre, precio, duracion_minutos, categoria, imagen_url, senia")
+      .select("id, nombre, precio, duracion_minutos, categoria, imagen_url, senia, descripcion")
       .eq("barberia_id", id)
       .order("nombre");
     if (error) setError(error.message);
@@ -65,8 +68,10 @@ export default function CatalogoPage() {
 
   const guardar = async () => {
     setError("");
+    setOk("");
     if (!shopId) return setError("Sin barbería");
     if (!form.nombre.trim()) return setError("Poné el nombre");
+    setGuardando(true);
     const payload: Record<string, unknown> = {
       barberia_id: shopId,
       nombre: form.nombre.trim(),
@@ -75,26 +80,35 @@ export default function CatalogoPage() {
       categoria: form.categoria.trim() || null,
       senia: form.senia ? Number(form.senia) : 0,
       imagen_url: form.imagen || null,
+      descripcion: form.descripcion.trim() || null,
       activo: true,
     };
     const q = editId
       ? supabase.from("servicios").update(payload).eq("id", editId)
       : supabase.from("servicios").insert(payload);
     const { error } = await q;
+    setGuardando(false);
     if (error) {
       setError(error.message);
       return;
     }
+    setOk(editId ? "Servicio actualizado" : "Servicio agregado");
     setForm(vacio);
     setEditId(null);
     await load(shopId);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTimeout(() => setOk(""), 2500);
   };
 
   const borrar = async (id: string) => {
     if (!confirm("¿Borrar este servicio?")) return;
     const { error } = await supabase.from("servicios").delete().eq("id", id);
     if (error) setError(error.message);
-    else setItems((p) => p.filter((x) => x.id !== id));
+    else {
+      setItems((p) => p.filter((x) => x.id !== id));
+      setOk("Servicio borrado");
+      setTimeout(() => setOk(""), 2000);
+    }
   };
 
   return (
@@ -102,10 +116,19 @@ export default function CatalogoPage() {
       <BrandHeader />
       <h1 className="mb-4 text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>Servicios</h1>
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+      {ok && <p className="mb-3 text-sm" style={{ color: "#15803d" }}>{ok}</p>}
 
       <div className="mb-6 space-y-2 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
         <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Nombre" className="w-full rounded-xl px-3 py-2" style={{ border: "1px solid var(--line)" }} />
         <input value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} placeholder="Categoría" className="w-full rounded-xl px-3 py-2" style={{ border: "1px solid var(--line)" }} />
+        <textarea
+          value={form.descripcion}
+          onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+          placeholder="Detalles (opcional, texto corto)"
+          rows={3}
+          className="w-full rounded-xl px-3 py-2 text-sm"
+          style={{ border: "1px solid var(--line)" }}
+        />
         <div className="grid grid-cols-3 gap-2">
           <input value={form.precio} onChange={(e) => setForm({ ...form, precio: e.target.value })} placeholder="Precio" className="rounded-xl px-3 py-2" style={{ border: "1px solid var(--line)" }} />
           <input value={form.duracion} onChange={(e) => setForm({ ...form, duracion: e.target.value })} placeholder="Minutos" className="rounded-xl px-3 py-2" style={{ border: "1px solid var(--line)" }} />
@@ -125,9 +148,14 @@ export default function CatalogoPage() {
           }}
         />
         {form.imagen && <img src={form.imagen} alt="" className="h-20 w-20 rounded-xl object-cover" />}
-        <button onClick={() => void guardar()} className="w-full rounded-full py-3" style={{ background: "var(--text)", color: "var(--bg)" }}>
-          {editId ? "Guardar cambios" : "Agregar servicio"}
+        <button onClick={() => void guardar()} disabled={guardando} className="w-full rounded-full py-3" style={{ background: "var(--text)", color: "var(--bg)", opacity: guardando ? 0.6 : 1 }}>
+          {guardando ? "Guardando..." : ok ? "Guardado" : editId ? "Guardar cambios" : "Agregar servicio"}
         </button>
+        {editId && (
+          <button type="button" onClick={() => { setEditId(null); setForm(vacio); }} className="w-full text-sm underline">
+            Cancelar edición
+          </button>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -139,10 +167,12 @@ export default function CatalogoPage() {
               <p className="text-xs" style={{ color: "var(--muted)" }}>
                 ${s.precio} · {s.duracion_minutos || 0} min {s.categoria ? `· ${s.categoria}` : ""}
               </p>
+              {s.descripcion && <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>{s.descripcion}</p>}
             </div>
             <button
               onClick={() => {
                 setEditId(s.id);
+                setOk("");
                 setForm({
                   nombre: s.nombre,
                   precio: String(s.precio ?? ""),
@@ -150,7 +180,9 @@ export default function CatalogoPage() {
                   categoria: s.categoria || "",
                   senia: s.senia ? String(s.senia) : "",
                   imagen: s.imagen_url || "",
+                  descripcion: s.descripcion || "",
                 });
+                window.scrollTo({ top: 0, behavior: "smooth" });
               }}
               className="text-sm"
             >
