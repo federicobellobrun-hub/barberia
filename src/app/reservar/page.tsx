@@ -23,6 +23,8 @@ type Shop = {
   datos_cuenta: string | null;
   modo_whatsapp: string | null;
   rubro: string | null;
+  canina_cupo_grande?: number | null;
+  canina_horas_grande?: string | null;
   canina_cupo_grande_manana?: number | null;
   canina_cupo_grande_tarde?: number | null;
   canina_un_grande_por_dia?: boolean | null;
@@ -129,7 +131,7 @@ export default function ReservarPage() {
       localStorage.setItem("barberia_slug", slug);
       const { data: s } = await supabase
         .from("barberias")
-        .select("id, nombre, mercado_pago_url, datos_cuenta, modo_whatsapp, rubro, canina_cupo_grande_manana, canina_cupo_grande_tarde, canina_un_grande_por_dia")
+        .select("id, nombre, mercado_pago_url, datos_cuenta, modo_whatsapp, rubro, canina_cupo_grande, canina_horas_grande, canina_cupo_grande_manana, canina_cupo_grande_tarde, canina_un_grande_por_dia")
         .eq("slug", slug)
         .maybeSingle();
       if (!s) return;
@@ -376,7 +378,17 @@ export default function ReservarPage() {
     return (
       <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
         <BrandHeader />
-        <ReservaCanina           shop={{             id: shop.id,             nombre: shop.nombre,             canina_cupo_grande_manana: shop.canina_cupo_grande_manana ?? 1,             canina_cupo_grande_tarde: shop.canina_cupo_grande_tarde ?? 1,             canina_un_grande_por_dia: shop.canina_un_grande_por_dia ?? false,           }}         />
+        <ReservaCanina
+          shop={{
+            id: shop.id,
+            nombre: shop.nombre,
+            canina_cupo_grande: shop.canina_cupo_grande ?? 1,
+            canina_horas_grande: shop.canina_horas_grande || "09:00",
+            canina_cupo_grande_manana: shop.canina_cupo_grande_manana ?? 1,
+            canina_cupo_grande_tarde: shop.canina_cupo_grande_tarde ?? 1,
+            canina_un_grande_por_dia: shop.canina_un_grande_por_dia ?? false,
+          }}
+        />
       </main>
     );
   }
