@@ -129,9 +129,10 @@ export default function AdminPage() {
         {shops.filter((s) => s.activo !== false).map((s) => {
           const u = dueño(s.id);
           const publico = `https://${s.slug}.reservoapps.com`;
+          const esDiano = s.slug === "diano";
           return (
             <article key={s.id} className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-              <p className="font-medium">{s.nombre}</p>
+              <p className="font-medium">{s.nombre}{esDiano ? " · demo base" : ""}</p>
               <p className="text-xs" style={{ color: "var(--muted)" }}>
                 {s.rubro} · plan {s.plan} · WhatsApp {s.modo_whatsapp || "—"}
                 {s.trial_hasta ? ` · hasta ${new Date(s.trial_hasta).toLocaleDateString("es-UY")}` : ""}
@@ -184,16 +185,21 @@ export default function AdminPage() {
                 <button className="rounded-full px-3 py-1.5 text-xs" style={{ background: "#1A1612", color: "#F6F1E8" }} onClick={() => void api({ accion: "activar", id: s.id, plan: s.plan === "automatico" ? "automatico" : "manual" }).then((d) => d && load())}>
                   Activar 30 días
                 </button>
-                <button
-                  className="rounded-full px-3 py-1.5 text-xs"
-                  onClick={async () => {
-                    if (!confirm(`¿Sacar ${s.nombre}?`)) return;
-                    const d = await api({ accion: "borrar", id: s.id });
-                    if (d) void load();
-                  }}
-                >
-                  Sacar
-                </button>
+                {esDiano ? (
+                  <span className="rounded-full px-3 py-1.5 text-xs" style={{ color: "var(--muted)" }}>No se puede sacar</span>
+                ) : (
+                  <button
+                    className="rounded-full px-3 py-1.5 text-xs"
+                    onClick={async () => {
+                      if (!confirm(`¿Sacar ${s.nombre}?`)) return;
+                      const d = await api({ accion: "borrar", id: s.id });
+                      if (d) void load();
+                      else setMsg("No se pudo sacar");
+                    }}
+                  >
+                    Sacar
+                  </button>
+                )}
               </div>
             </article>
           );
