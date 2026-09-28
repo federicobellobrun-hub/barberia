@@ -1,393 +1,232 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
-import BottomNav from "@/components/BottomNav";
+import { labelsDe } from "@/lib/rubros";
 
-type Persona = { nombre: string; telefono: string };
-type Servicio = { nombre: string; precio: number };
-type Barbero = { id: string; nombre: string };
-type Mascota = { nombre: string; tamano: string };
-type Turno = {
-  id: string;
-  barbero_id: string | null;
-  fecha_hora: string;
-  estado: string;
-  precio_total?: number | null;
-  cliente_nombre?: string | null;
-  clientes: Persona | Persona[] | null;
-  servicios: Servicio | Servicio[] | null;
-  barberos: Barbero | Barbero[] | null;
-  mascotas: Mascota | Mascota[] | null;
-};
+type Barbero = { id: string; nombre: string; foto_url: string | null; activo: boolean };
 
-function one<T>(value: T | T[] | null | undefined): T | null {
-  if (!value) return null;
-  return Array.isArray(value) ? value[0] || null : value;
-}
-
-function ymd(date: Date) {
-  return date.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
-}
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function mesLabel(y: number, m: number) {
-  return new Date(y, m, 1).toLocaleDateString("es-UY", { month: "long", year: "numeric" });
-}
-
-function horaUy(fechaHora: string) {
-  return new Date(fechaHora).toLocaleTimeString("es-UY", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "America/Montevideo",
-  });
-}
-
-function horaInput(fechaHora: string) {
-  return new Date(fechaHora)
-    .toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: "America/Montevideo",
-    })
-    .replace(".", ":")
-    .slice(0, 5);
-}
-
-function fechaCorta(fechaHora: string) {
-  return new Date(fechaHora).toLocaleDateString("es-UY", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "America/Montevideo",
-  });
-}
-
-function slots() {
-  const out: string[] = [];
-  for (let h = 8; h <= 20; h++) {
-    out.push(`${String(h).padStart(2, "0")}:00`);
-    out.push(`${String(h).padStart(2, "0")}:30`);
+function shopActual() {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search).get("shop");
+  if (q) {
+    localStorage.setItem("admin_shop", q);
+    return q;
   }
-  return out;
+  return localStorage.getItem("admin_shop");
 }
 
-function waLink(telefono: string, texto: string) {
-  const solo = telefono.replace(/\D/g, "");
-  const num = solo.startsWith("598") ? solo : solo.startsWith("0") ? `598${solo.slice(1)}` : `598${solo}`;
-  return `https://wa.me/${num}?text=${encodeURIComponent(texto)}`;
-}
-
-function vivo(estado: string) {
-  return estado !== "cancelado" && estado !== "no_vino";
-}
-
-const DOW = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"];
-
-export default function DashboardPage() {
-  const router = useRouter();
-  const supabase = createClient();
-  const hoy = ymd(new Date());
-  const now = new Date();
-  const [y, setY] = useState(now.getFullYear());
-  const [m, setM] = useState(now.getMonth());
-  const [fecha, setFecha] = useState(hoy);
-  const [turnosMes, setTurnosMes] = useState<Turno[]>([]);
+export default function BarberosPage() {
+  const [barberiaId, setBarberiaId] = useState<string | null>(null);
+  const [rubro, setRubro] = useState("barberia");
   const [barberos, setBarberos] = useState<Barbero[]>([]);
-  const [filtroBarbero, setFiltroBarbero] = useState("todos");
-  const [verCancelados, setVerCancelados] = useState(false);
-  const [esBarbero, setEsBarbero] = useState(false);
-  const [linkPublico, setLinkPublico] = useState("");
-  const [modoWa, setModoWa] = useState("manual");
-  const [copiado, setCopiado] = useState(false);
-  const [abierto, setAbierto] = useState<string | null>(null);
-  const [moverFecha, setMoverFecha] = useState("");
-  const [moverHora, setMoverHora] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [foto, setFoto] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState("");
+  const router = useRouter();
+  const L = labelsDe(rubro);
+  const shopQ = shopActual() ? `?shop=${shopActual()}` : "";
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      const { data: session } = await supabase.auth.getUser();
-      if (!session.user) {
-        router.replace("/login");
-        return;
-      }
-      const { data: me } = await supabase
-        .from("usuarios")
-        .select("barberia_id, rol, barbero_id")
-        .eq("auth_user_id", session.user.id)
-        .maybeSingle();
-      if (!me?.barberia_id) {
-        setError("Sin barbería");
-        setLoading(false);
-        return;
-      }
-      const soloBarbero = me.rol === "barbero";
-      setEsBarbero(soloBarbero);
-      const { data: shop } = await supabase
-        .from("barberias")
-        .select("slug, modo_whatsapp")
-        .eq("id", me.barberia_id)
-        .maybeSingle();
-      if (shop?.slug) setLinkPublico(`https://${shop.slug}.reservoapps.com`);
-      setModoWa(shop?.modo_whatsapp || "manual");
-      const { data: bars } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", me.barberia_id).order("nombre");
-      setBarberos((bars as Barbero[]) || []);
-      const desde = new Date(y, m, 1);
-      const hasta = new Date(y, m + 1, 0, 23, 59, 59);
-      let q = supabase
-        .from("turnos")
-        .select("id, barbero_id, fecha_hora, estado, precio_total, cliente_nombre, clientes(nombre, telefono), servicios(nombre, precio), barberos(id, nombre), mascotas(nombre, tamano)")
-        .eq("barberia_id", me.barberia_id)
-        .gte("fecha_hora", desde.toISOString())
-        .lte("fecha_hora", hasta.toISOString())
-        .order("fecha_hora");
-      if (soloBarbero && me.barbero_id) q = q.eq("barbero_id", me.barbero_id);
-      const { data, error: e } = await q;
-      if (e) setError(e.message);
-      setTurnosMes((data as unknown as Turno[]) || []);
-      setLoading(false);
-    };
-    void load();
-  }, [y, m, router, supabase]);
-
-  const diasConTurno = useMemo(() => {
-    const set = new Set<string>();
-    turnosMes.forEach((t) => {
-      if (!vivo(t.estado)) return;
-      if (filtroBarbero !== "todos" && t.barbero_id !== filtroBarbero) return;
-      set.add(ymd(new Date(t.fecha_hora)));
-    });
-    return set;
-  }, [turnosMes, filtroBarbero]);
-
-  const delDia = useMemo(
-    () =>
-      turnosMes.filter((t) => {
-        const okDia = ymd(new Date(t.fecha_hora)) === fecha;
-        const okBar = filtroBarbero === "todos" || t.barbero_id === filtroBarbero;
-        const okEstado = verCancelados || vivo(t.estado);
-        return okDia && okBar && okEstado;
-      }),
-    [turnosMes, fecha, filtroBarbero, verCancelados]
-  );
-
-  const celdas = useMemo(() => {
-    const first = new Date(y, m, 1).getDay();
-    const last = new Date(y, m + 1, 0).getDate();
-    const items: Array<{ d: number | null; key: string }> = [];
-    for (let i = 0; i < first; i++) items.push({ d: null, key: `e-${i}` });
-    for (let d = 1; d <= last; d++) items.push({ d, key: `d-${d}` });
-    return items;
-  }, [y, m]);
-
-  const cambiarEstado = async (id: string, estado: string) => {
-    const { error: e } = await supabase.from("turnos").update({ estado }).eq("id", id);
+  const load = async (id: string) => {
+    const supabase = createClient();
+    const { data, error: e } = await supabase.from("barberos").select("id, nombre, foto_url, activo").eq("barberia_id", id).order("nombre");
     if (e) setError(e.message);
-    else setTurnosMes((prev) => prev.map((t) => (t.id === id ? { ...t, estado } : t)));
+    setBarberos(data || []);
   };
 
-  const cancelarTurno = async (t: Turno) => {
-    await cambiarEstado(t.id, "cancelado");
-    if (modoWa === "automatico") {
-      await fetch("/api/whatsapp/cambio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ turnoId: t.id, tipo: "cancelado" }),
-      });
+  useEffect(() => {
+    const init = async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return router.push("/login");
+      const slug = shopActual();
+      const { data } = await supabase.from("usuarios").select("rol, barberia_id").eq("auth_user_id", user.id).maybeSingle();
+      let id = data?.barberia_id as string | null;
+      if (data?.rol === "superadmin" && slug) {
+        const { data: shop } = await supabase.from("barberias").select("id, rubro").eq("slug", slug).maybeSingle();
+        if (shop) {
+          id = shop.id;
+          setRubro(shop.rubro || "barberia");
+        }
+      } else if (id) {
+        const { data: shop } = await supabase.from("barberias").select("rubro").eq("id", id).maybeSingle();
+        setRubro(shop?.rubro || "barberia");
+      }
+      if (!id) return;
+      setBarberiaId(id);
+      await load(id);
+    };
+    void init();
+  }, [router]);
+
+  const token = async () => {
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || "";
+  };
+
+  const crearAcceso = async (barberoId: string, mail: string, pass: string) => {
+    const t = await token();
+    const res = await fetch("/api/barberos/acceso", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+      body: JSON.stringify({ barberoId, email: mail, password: pass }),
+    });
+    const json = (await res.json()) as { error?: string };
+    if (!res.ok) throw new Error(json.error || "No se creó el acceso");
+  };
+
+  const subirFoto = async (barberoId: string, file: File, idBarberia: string) => {
+    const supabase = createClient();
+    const path = `${idBarberia}/barberos/${barberoId}-${Date.now()}-${file.name}`;
+    const { error: upErr } = await supabase.storage.from("fotos").upload(path, file);
+    if (upErr) throw new Error(upErr.message);
+    const { data } = supabase.storage.from("fotos").getPublicUrl(path);
+    const { error: e } = await supabase.from("barberos").update({ foto_url: data.publicUrl }).eq("id", barberoId);
+    if (e) throw new Error(e.message);
+  };
+
+  const crear = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!barberiaId) return;
+    setError(null);
+    setMsg("");
+    const supabase = createClient();
+    const { data, error: e1 } = await supabase
+      .from("barberos")
+      .insert({ barberia_id: barberiaId, nombre: nombre.trim(), activo: true })
+      .select("id")
+      .single();
+    if (e1) return setError(e1.message);
+    try {
+      if (foto && data?.id) await subirFoto(data.id, foto, barberiaId);
+      if (email && password && data?.id) {
+        await crearAcceso(data.id, email, password);
+        setMsg(`${L.recurso} y acceso creados`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    }
+    setNombre("");
+    setEmail("");
+    setPassword("");
+    setFoto(null);
+    setPreview(null);
+    await load(barberiaId);
+  };
+
+  const accesoExistente = async (id: string) => {
+    const mail = window.prompt(`Email de ${L.uno}`);
+    const pass = window.prompt("Contraseña (mínimo 6)");
+    if (!mail || !pass) return;
+    try {
+      await crearAcceso(id, mail, pass);
+      setMsg("Acceso creado. Ya puede entrar en /login");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se creó el acceso");
     }
   };
 
-  const eliminarTurno = async (id: string) => {
-    if (!confirm("¿Eliminar este turno de la agenda?")) return;
-    const { error: e } = await supabase.from("turnos").delete().eq("id", id);
-    if (e) setError(e.message);
-    else setTurnosMes((prev) => prev.filter((t) => t.id !== id));
+  const cambiarFoto = async (id: string, file: File) => {
+    if (!barberiaId) return;
+    try {
+      await subirFoto(id, file, barberiaId);
+      await load(barberiaId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo subir la foto");
+    }
   };
 
-  const confirmarSenia = async (t: Turno) => {
-    await cambiarEstado(t.id, "confirmado");
-    const c = one(t.clientes);
-    const s = one(t.servicios);
-    const quien = t.cliente_nombre || c?.nombre || "";
-    const texto = `Hola ${quien}, te confirmamos el turno${s?.nombre ? ` de ${s.nombre}` : ""} el ${fechaCorta(t.fecha_hora)} a las ${horaUy(t.fecha_hora)}. Cualquier cambio escribinos.`;
-    if (modoWa !== "automatico" && c?.telefono) window.open(waLink(c.telefono, texto), "_blank");
-    await fetch("/api/whatsapp/reserva", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ turnoId: t.id, soloCliente: true }),
+  const borrar = async (id: string) => {
+    if (!barberiaId) return;
+    if (!window.confirm(`¿Borrar ${L.uno} y su acceso?`)) return;
+    setError(null);
+    const t = await token();
+    const res = await fetch("/api/barberos/acceso", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+      body: JSON.stringify({ barberoId: id }),
     });
+    const json = (await res.json()) as { error?: string };
+    if (!res.ok) setError(json.error || "No se pudo borrar");
+    else await load(barberiaId);
   };
 
-  const moverTurno = async (t: Turno) => {
-    if (!moverFecha || !moverHora) return setError("Elegí día y hora");
-    const fecha_hora = new Date(`${moverFecha}T${moverHora}:00-03:00`).toISOString();
-    const { error: e } = await supabase.from("turnos").update({ fecha_hora }).eq("id", t.id);
-    if (e) return setError(e.message);
-    setTurnosMes((prev) => prev.map((x) => (x.id === t.id ? { ...x, fecha_hora } : x)));
-    setFecha(moverFecha);
-    const c = one(t.clientes);
-    const quien = t.cliente_nombre || c?.nombre || "";
-    const texto = `Hola ${quien}, te reagendamos el turno al ${fechaCorta(fecha_hora)} a las ${horaUy(fecha_hora)}.`;
-    if (modoWa !== "automatico" && c?.telefono) window.open(waLink(c.telefono, texto), "_blank");
-    await fetch("/api/whatsapp/cambio", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ turnoId: t.id, tipo: "movido" }),
-    });
-  };
+  const campo = "w-full rounded-xl px-3 py-3";
+  const estilo = { background: "var(--bg)", border: "1px solid var(--line)", color: "var(--text)" };
 
   return (
-    <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
-      <BrandHeader left={<span className="font-medium">Agenda</span>} />
-      {!esBarbero && linkPublico && (
-        <div className="mb-3 rounded-2xl p-3 text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>Link para clientes</p>
-          <p className="break-all">{linkPublico}</p>
-          <button
-            className="mt-2 text-xs underline"
-            onClick={async () => {
-              await navigator.clipboard.writeText(linkPublico);
-              setCopiado(true);
-              setTimeout(() => setCopiado(false), 1500);
+    <main className="min-h-screen pb-10" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <div className="max-w-md mx-auto px-5 pt-5">
+        <BrandHeader left={<Link href={`/dashboard/mas${shopQ}`}>‹</Link>} />
+        <h1 className="text-[34px] font-semibold tracking-tight mb-5">{L.titulo}</h1>
+        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+        {msg && <p className="text-sm mb-3">{msg}</p>}
+
+        <form onSubmit={crear} className="rounded-2xl p-4 mb-5 space-y-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          {preview && <img src={preview} alt="" className="h-20 w-20 object-cover rounded-full mx-auto" />}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              setFoto(file);
+              setPreview(file ? URL.createObjectURL(file) : null);
             }}
-          >
-            {copiado ? "Copiado" : "Copiar link"}
+          />
+          <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={`Nombre de ${L.uno}`} className={campo} style={estilo} />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (opcional, para que entre)" className={campo} style={estilo} />
+          <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña (mínimo 6)" className={campo} style={estilo} />
+          <button className="w-full rounded-2xl py-3 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
+            Agregar {L.uno}
           </button>
-        </div>
-      )}
-      {!esBarbero && barberos.length > 1 && (
-        <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-          <button onClick={() => setFiltroBarbero("todos")} className="shrink-0 rounded-full px-3 py-1.5 text-sm" style={{ background: filtroBarbero === "todos" ? "#1A1612" : "var(--card)", color: filtroBarbero === "todos" ? "#F6F1E8" : "inherit" }}>Todos</button>
-          {barberos.map((b) => (
-            <button key={b.id} onClick={() => setFiltroBarbero(b.id)} className="shrink-0 rounded-full px-3 py-1.5 text-sm" style={{ background: filtroBarbero === b.id ? "#1A1612" : "var(--card)", color: filtroBarbero === b.id ? "#F6F1E8" : "inherit" }}>{b.nombre}</button>
-          ))}
-        </div>
-      )}
-      <section className="mb-4 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="capitalize">{mesLabel(y, m)}</p>
-          <div className="flex gap-2">
-            <button onClick={() => { const d = new Date(y, m - 1, 1); setY(d.getFullYear()); setM(d.getMonth()); }} className="h-8 w-8 rounded-full" style={{ border: "1px solid var(--line)" }}>‹</button>
-            <button onClick={() => { const d = new Date(y, m + 1, 1); setY(d.getFullYear()); setM(d.getMonth()); }} className="h-8 w-8 rounded-full" style={{ border: "1px solid var(--line)" }}>›</button>
-          </div>
-        </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-[11px]" style={{ color: "var(--muted)" }}>
-          {DOW.map((d) => <span key={d}>{d}</span>)}
-        </div>
-        <div className="mt-2 grid grid-cols-7 gap-1">
-          {celdas.map((c) => {
-            if (!c.d) return <span key={c.key} />;
-            const iso = `${y}-${pad(m + 1)}-${pad(c.d)}`;
-            const sel = iso === fecha;
-            const con = diasConTurno.has(iso);
-            return (
-              <button key={c.key} onClick={() => setFecha(iso)} className="mx-auto flex h-9 w-9 items-center justify-center rounded-full text-sm" style={{ background: sel ? "#2563eb" : con ? "#dbeafe" : "transparent", color: sel ? "#fff" : iso === hoy ? "#dc2626" : "inherit" }}>
-                {c.d}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-      <button type="button" onClick={() => setVerCancelados((v) => !v)} className="mb-3 text-xs underline">
-        {verCancelados ? "Ocultar cancelados" : "Ver cancelados"}
-      </button>
-      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
-      {loading && <p className="text-sm">Cargando agenda...</p>}
-      {!loading && delDia.length === 0 && <p className="text-sm">No hay turnos el {fechaCorta(`${fecha}T12:00:00-03:00`)}.</p>}
-      {delDia.map((t) => {
-        const c = one(t.clientes);
-        const s = one(t.servicios);
-        const b = one(t.barberos);
-        const pet = one(t.mascotas);
-        const open = abierto === t.id;
-        return (
-          <article key={t.id} className="mb-3 overflow-hidden rounded-xl" style={{ border: "1px solid #d7d1c6", background: "#fff" }}>
-            <div className="flex">
-              <div className="w-2 shrink-0" style={{ background: t.estado === "pendiente" ? "#b45309" : t.estado === "cancelado" ? "#999" : "#111" }} />
-              <div className="flex-1 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold">{horaUy(t.fecha_hora)} - {fechaCorta(t.fecha_hora)}</p>
-                  <span className="text-[11px]">{t.estado}</span>
-                </div>
-                <p className="text-sm"><b>Servicio:</b> {s?.nombre || "—"}</p>
-                {pet && <p className="text-sm"><b>Mascota:</b> {pet.nombre} · {pet.tamano}</p>}
-                <p className="text-sm"><b>Profesional:</b> {b?.nombre || "—"}</p>
-                <p className="text-sm"><b>Nombre:</b> {t.cliente_nombre || c?.nombre || "Cliente"}</p>
-                {t.precio_total != null && <p className="text-sm"><b>Total:</b> ${t.precio_total}</p>}
-                <button
-                  onClick={() => {
-                    if (open) setAbierto(null);
-                    else {
-                      setAbierto(t.id);
-                      setMoverFecha(ymd(new Date(t.fecha_hora)));
-                      setMoverHora(horaInput(t.fecha_hora));
-                    }
-                  }}
-                  className="mt-1 text-sm"
-                >
-                  {open ? "(− info)" : "(+ info)"}
+        </form>
+
+        {barberos.map((b) => (
+          <div key={b.id} className="rounded-2xl p-4 mb-3 flex gap-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+            {b.foto_url ? (
+              <img src={b.foto_url} alt="" className="h-14 w-14 object-cover rounded-full" />
+            ) : (
+              <div className="h-14 w-14 rounded-full flex items-center justify-center" style={{ background: "var(--bg)" }}>
+                {b.nombre.slice(0, 1)}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">{b.nombre}</p>
+              <div className="flex flex-wrap gap-3 mt-2 text-xs">
+                <label className="cursor-pointer" style={{ color: "var(--muted)" }}>
+                  Foto
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void cambiarFoto(b.id, file);
+                    }}
+                  />
+                </label>
+                <button type="button" onClick={() => void accesoExistente(b.id)} style={{ color: "var(--muted)" }}>
+                  Dar acceso
                 </button>
-                {open && (
-                  <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
-                    {c?.telefono && <p className="w-full text-xs">{c.telefono}</p>}
-                    {t.estado === "pendiente" && (
-                      <button onClick={() => void confirmarSenia(t)} className="rounded-full px-3 py-1.5 text-xs" style={{ background: "#111", color: "#fff" }}>
-                        {modoWa === "automatico" ? "Confirmar" : "Confirmar y WhatsApp"}
-                      </button>
-                    )}
-                    <button onClick={() => void cambiarEstado(t.id, "realizado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Realizado</button>
-                    <button onClick={() => void cambiarEstado(t.id, "no_vino")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>No vino</button>
-                    {t.estado !== "cancelado" && (
-                      <button onClick={() => void cancelarTurno(t)} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Cancelar</button>
-                    )}
-                    <button onClick={() => void eliminarTurno(t.id)} className="rounded-full px-3 py-1.5 text-xs text-red-600" style={{ border: "1px solid #f1c0c0" }}>Eliminar</button>
-                    <div className="mt-3 w-full space-y-2 rounded-xl p-3" style={{ border: "1px solid var(--line)", background: "var(--card)" }}>
-                      <p className="text-xs font-medium">Reagendar</p>
-                      <label className="block text-[11px]" style={{ color: "var(--muted)" }}>Nuevo día</label>
-                      <input type="date" value={moverFecha} onChange={(e) => setMoverFecha(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm" style={{ border: "1px solid var(--line)" }} />
-                      <label className="block text-[11px]" style={{ color: "var(--muted)" }}>Nueva hora</label>
-                      <select value={moverHora} onChange={(e) => setMoverHora(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm" style={{ border: "1px solid var(--line)" }}>
-                        <option value="">Elegí hora</option>
-                        {slots().map((h) => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                      <button type="button" onClick={() => void moverTurno(t)} disabled={!moverFecha || !moverHora} className="w-full rounded-full py-2 text-sm" style={{ background: "#111", color: "#fff", opacity: !moverFecha || !moverHora ? 0.4 : 1 }}>
-                        {modoWa === "automatico" ? "Guardar nuevo horario" : "Guardar nuevo horario y WhatsApp"}
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <button type="button" onClick={() => void borrar(b.id)} className="text-red-500">
+                  Borrar
+                </button>
               </div>
             </div>
-          </article>
-        );
-      })}
-      <BottomNav
-        items={
-          esBarbero
-            ? [
-                { href: "/dashboard", label: "Agenda", active: true },
-                { href: "/dashboard/nuevo", label: "Nuevo" },
-                { href: "/dashboard/mas", label: "Más" },
-              ]
-            : [
-                { href: "/dashboard", label: "Agenda", active: true },
-                { href: "/dashboard/clientes", label: "Clientes" },
-                { href: "/dashboard/catalogo", label: "Catálogo" },
-                { href: "/dashboard/mas", label: "Más" },
-              ]
-        }
-      />
+          </div>
+        ))}
+      </div>
     </main>
   );
 }
