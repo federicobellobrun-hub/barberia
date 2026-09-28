@@ -376,7 +376,7 @@ export default function ReservarPage() {
     return (
       <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
         <BrandHeader />
-        <ReservaCanina shop={shop} />
+        <ReservaCanina           shop={{             id: shop.id,             nombre: shop.nombre,             canina_cupo_grande_manana: shop.canina_cupo_grande_manana ?? 1,             canina_cupo_grande_tarde: shop.canina_cupo_grande_tarde ?? 1,             canina_un_grande_por_dia: shop.canina_un_grande_por_dia ?? false,           }}         />
       </main>
     );
   }
