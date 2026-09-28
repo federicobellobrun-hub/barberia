@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { RUBROS } from "@/lib/rubros";
 
 export default function ProbarPage() {
   const [nombre, setNombre] = useState("");
@@ -53,11 +54,9 @@ export default function ProbarPage() {
           <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp. Ej: 099123456" className={campo} style={estilo} />
           <p className="text-sm mb-2">Rubro</p>
           <select value={rubro} onChange={(e) => setRubro(e.target.value)} className={campo} style={estilo}>
-            <option value="barberia">Barbería</option>
-            <option value="pestanas_unas">Pestañas y uñas</option>
-            <option value="canina">Peluquería canina</option>
-            <option value="taller">Taller mecánico</option>
-            <option value="otro">Otro rubro</option>
+            {RUBROS.map((r) => (
+              <option key={r.id} value={r.id}>{r.nombre}</option>
+            ))}
           </select>
 
           <p className="text-sm mb-2">Cómo querés probar</p>
