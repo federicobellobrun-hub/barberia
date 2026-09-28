@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
+import ReservaCanina from "@/components/ReservaCanina";
 
 type Servicio = {
   id: string;
@@ -21,6 +22,10 @@ type Shop = {
   mercado_pago_url: string | null;
   datos_cuenta: string | null;
   modo_whatsapp: string | null;
+  rubro: string | null;
+  canina_cupo_grande_manana?: number | null;
+  canina_cupo_grande_tarde?: number | null;
+  canina_un_grande_por_dia?: boolean | null;
 };
 type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
 type Excepcion = { fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean; barbero_id: string | null };
@@ -124,7 +129,7 @@ export default function ReservarPage() {
       localStorage.setItem("barberia_slug", slug);
       const { data: s } = await supabase
         .from("barberias")
-        .select("id, nombre, mercado_pago_url, datos_cuenta, modo_whatsapp")
+        .select("id, nombre, mercado_pago_url, datos_cuenta, modo_whatsapp, rubro, canina_cupo_grande_manana, canina_cupo_grande_tarde, canina_un_grande_por_dia")
         .eq("slug", slug)
         .maybeSingle();
       if (!s) return;
@@ -174,6 +179,7 @@ export default function ReservarPage() {
         setCerrado(false);
         return;
       }
+      if (shop.rubro === "canina" || shop.rubro === "veterinaria") return;
       const dia = dowUy(fecha);
       const ex = excepciones.find((e) => e.fecha?.slice(0, 10) === fecha && (!e.barbero_id || e.barbero_id === barbero || !barbero));
       let inicio = "09:00";
@@ -338,7 +344,7 @@ export default function ReservarPage() {
     }
   };
 
-  if (ok) {
+  if (ok && shop && shop.rubro !== "canina" && shop.rubro !== "veterinaria") {
     return (
       <main className="mx-auto max-w-md px-4 py-10 text-center">
         <BrandHeader />
@@ -362,6 +368,15 @@ export default function ReservarPage() {
         >
           Volver
         </button>
+      </main>
+    );
+  }
+
+  if (shop && (shop.rubro === "canina" || shop.rubro === "veterinaria")) {
+    return (
+      <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
+        <BrandHeader />
+        <ReservaCanina shop={shop} />
       </main>
     );
   }
