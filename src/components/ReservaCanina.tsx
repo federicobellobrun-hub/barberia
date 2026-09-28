@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase";
 type Shop = {
   id: string;
   nombre: string;
+  modo_whatsapp?: string | null;
   canina_cupo_grande_manana?: number;
   canina_cupo_grande_tarde?: number;
   canina_un_grande_por_dia?: boolean;
@@ -24,6 +25,7 @@ function normHora(h: string) {
 
 export default function ReservaCanina({ shop }: { shop: Shop }) {
   const supabase = createClient();
+  const automatico = String(shop.modo_whatsapp || "") === "automatico";
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [recargos, setRecargos] = useState<Recargo[]>([]);
   const [tel, setTel] = useState("");
@@ -47,6 +49,8 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
   const [ocupados, setOcupados] = useState<string[]>([]);
   const [horasGrandeOcupadas, setHorasGrandeOcupadas] = useState<string[]>([]);
   const [msg, setMsg] = useState("");
+  const [ok, setOk] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
   const cupoGrande = Math.max(1, Math.min(2, Number(shop.canina_cupo_grande || (shop.canina_un_grande_por_dia ? 1 : 2))));
   const horasGrandeCfg = String(shop.canina_horas_grande || "09:00")
@@ -134,52 +138,93 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
 
   const confirmar = async () => {
     setMsg("");
+    if (enviando) return;
     if (!tel || !nombreDueño || !perro.nombre || !servicio || !fecha || !hora) {
       setMsg("Faltan datos");
       return;
     }
-    let cid = clienteId;
-    if (!cid) {
-      const { data: c, error } = await supabase.from("clientes").insert({ barberia_id: shop.id, nombre: nombreDueño, telefono: tel }).select("id").single();
-      if (error || !c) return setMsg(error?.message || "No se pudo crear el cliente");
-      cid = c.id;
-    }
-    let mid = mascotaId;
-    if (!mid) {
-      const { data: m, error } = await supabase
-        .from("mascotas")
-        .insert({
-          barberia_id: shop.id,
-          cliente_id: cid,
-          nombre: perro.nombre,
-          edad: perro.edad,
-          raza: perro.raza,
+    setEnviando(true);
+    try {
+      let cid = clienteId;
+      if (!cid) {
+        const { data: c, error } = await supabase.from("clientes").insert({ barberia_id: shop.id, nombre: nombreDueño, telefono: tel }).select("id").single();
+        if (error || !c) throw new Error(error?.message || "No se pudo crear el cliente");
+        cid = c.id;
+      }
+      let mid = mascotaId;
+      if (!mid) {
+        const { data: m, error } = await supabase
+          .from("mascotas")
+          .insert({
+            barberia_id: shop.id,
+            cliente_id: cid,
+            nombre: perro.nombre,
+            edad: perro.edad,
+            raza: perro.raza,
+            tamano: perro.tamano,
+            pelo: perro.pelo,
+            estado_pelo: perro.estado_pelo,
+            temperamento: perro.temperamento,
+            sociable: perro.sociable === "si",
+          })
+          .select("id")
+          .single();
+        if (error || !m) throw new Error(error?.message || "No se pudo guardar el perro");
+        mid = m.id;
+      } else {
+        await supabase.from("mascotas").update({
           tamano: perro.tamano,
           pelo: perro.pelo,
           estado_pelo: perro.estado_pelo,
           temperamento: perro.temperamento,
-          sociable: perro.sociable === "si",
-        })
-        .select("id")
-        .single();
-      if (error || !m) return setMsg(error?.message || "No se pudo guardar el perro");
-      mid = m.id;
+        }).eq("id", mid);
+      }
+      const estado = automatico ? "confirmado" : "pendiente";
+      const { data: turno, error } = await supabase.from("turnos").insert({
+        barberia_id: shop.id,
+        cliente_id: cid,
+        servicio_id: servicio.id,
+        mascota_id: mid,
+        fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
+        duracion_minutos: servicio.duracion_minutos || 60,
+        estado,
+        precio_base: servicio.precio,
+        recargos_detalle: extras,
+        precio_total: total,
+        cliente_nombre: nombreDueño,
+      }).select("id").single();
+      if (error || !turno) throw new Error(error?.message || "No se pudo reservar");
+      void fetch("/api/whatsapp/reserva", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ turnoId: turno.id }),
+      });
+      setOk(automatico ? "Reserva confirmada" : "Pedido enviado. El local lo confirma en la agenda.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Error");
+    } finally {
+      setEnviando(false);
     }
-    const { error } = await supabase.from("turnos").insert({
-      barberia_id: shop.id,
-      cliente_id: cid,
-      servicio_id: servicio.id,
-      mascota_id: mid,
-      fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
-      duracion_minutos: servicio.duracion_minutos || 60,
-      estado: "pendiente",
-      precio_base: servicio.precio,
-      recargos_detalle: extras,
-      precio_total: total,
-      cliente_nombre: nombreDueño,
-    });
-    setMsg(error ? error.message : "Reserva lista");
   };
+
+  if (ok) {
+    return (
+      <div className="pt-8 text-center">
+        <p className="text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>{ok}</p>
+        <p className="mt-4 text-sm">
+          {servicio?.nombre} · {perro.nombre} · {fecha} {hora}
+        </p>
+        <p className="mt-2 text-sm">Estimado ${total}</p>
+        <p className="mt-5 text-sm" style={{ color: "var(--muted)" }}>
+          El precio es estimado según lo que declaraste (tamaño, largo y estado del pelo).
+          Si al atenderlo el pelaje o el tamaño no coinciden, el valor final puede cambiar.
+        </p>
+        <button type="button" className="mt-6 underline" onClick={() => { setOk(""); window.location.href = "/"; }}>
+          Volver
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -241,11 +286,15 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
         <div className="rounded-2xl p-3 text-sm" style={{ border: "1px solid var(--line)" }}>
           <p>{servicio.nombre} ${servicio.precio}</p>
           {extras.map((e) => <p key={e.clave}>{e.etiqueta} +${e.monto}</p>)}
-          <p className="mt-2 font-medium">Total ${total}</p>
-          {extras.length > 0 && <p className="text-xs">El excedente es por tamaño o estado del pelo.</p>}
+          <p className="mt-2 font-medium">Estimado ${total}</p>
+          <p className="mt-2 text-xs">
+            Si al llegar el pelo o el tamaño no coinciden con lo declarado, el precio final puede variar.
+          </p>
         </div>
       )}
-      <button onClick={() => void confirmar()} className="w-full rounded-full py-3 text-sm" style={{ background: "#1A1612", color: "#F6F1E8" }}>Confirmar reserva</button>
+      <button onClick={() => void confirmar()} disabled={enviando} className="w-full rounded-full py-3 text-sm" style={{ background: "#1A1612", color: "#F6F1E8", opacity: enviando ? 0.5 : 1 }}>
+        {enviando ? "Enviando..." : automatico ? "Confirmar reserva" : "Pedir reserva"}
+      </button>
       {msg && <p className="text-sm">{msg}</p>}
     </div>
   );
