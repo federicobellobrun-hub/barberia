@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { RUBROS } from "@/lib/rubros";
 
 type Shop = {
   id: string;
@@ -87,10 +88,9 @@ export default function AdminPage() {
         <input className="mt-2 w-full rounded-xl px-3 py-2 text-sm" placeholder="Email del dueño" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input className="mt-2 w-full rounded-xl px-3 py-2 text-sm" type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} />
         <select className="mt-2 w-full rounded-xl px-3 py-2 text-sm" value={rubro} onChange={(e) => setRubro(e.target.value)}>
-          <option value="barberia">Barbería</option>
-          <option value="pestanas_unas">Pestañas / uñas</option>
-          <option value="cejas_unas">Cejas / uñas</option>
-          <option value="canina">Peluquería canina</option>
+          {RUBROS.map((r) => (
+            <option key={r.id} value={r.id}>{r.nombre}</option>
+          ))}
         </select>
         <select className="mt-2 w-full rounded-xl px-3 py-2 text-sm" value={plan} onChange={(e) => setPlan(e.target.value)}>
           <option value="manual">Manual</option>
@@ -150,10 +150,9 @@ export default function AdminPage() {
                   }
                 }}
               >
-                <option value="barberia">Barbería</option>
-                <option value="pestanas_unas">Pestañas / uñas</option>
-                <option value="cejas_unas">Cejas / uñas</option>
-                <option value="canina">Peluquería canina</option>
+                {RUBROS.map((r) => (
+                  <option key={r.id} value={r.id}>{r.nombre}</option>
+                ))}
               </select>
               <input
                 className="mt-2 w-full rounded-xl px-3 py-2 text-sm"
@@ -194,7 +193,6 @@ export default function AdminPage() {
                       if (!confirm(`¿Sacar ${s.nombre}?`)) return;
                       const d = await api({ accion: "borrar", id: s.id });
                       if (d) void load();
-                      else setMsg("No se pudo sacar");
                     }}
                   >
                     Sacar
