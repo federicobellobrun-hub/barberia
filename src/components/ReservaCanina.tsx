@@ -1,20 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 
 type Shop = {
   id: string;
   nombre: string;
   modo_whatsapp?: string | null;
-  canina_cupo_grande_manana?: number;
-  canina_cupo_grande_tarde?: number;
-  canina_un_grande_por_dia?: boolean;
   canina_cupo_grande?: number;
   canina_horas_grande?: string;
+  canina_duracion_grande?: number;
+  canina_un_grande_por_dia?: boolean;
 };
 type Servicio = { id: string; nombre: string; precio: number; duracion_minutos: number };
-type Recargo = { clave: string; etiqueta: string; monto: number; activo: boolean };
 type Mascota = { id: string; nombre: string; tamano: string; pelo: string; estado_pelo: string };
 
 const HORAS = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00"];
@@ -22,49 +20,54 @@ const HORAS = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "1
 function normHora(h: string) {
   return String(h || "").replace(".", ":").slice(0, 5);
 }
+function toMin(hhmm: string) {
+  const [h, m] = normHora(hhmm).split(":").map(Number);
+  return h * 60 + m;
+}
+function fromMin(n: number) {
+  return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+}
+function rango(inicio: string, minutos: number) {
+  const out: string[] = [];
+  const end = toMin(inicio) + Math.max(minutos, 30);
+  for (let t = toMin(inicio); t < end; t += 30) out.push(fromMin(t));
+  return out;
+}
 
 export default function ReservaCanina({ shop }: { shop: Shop }) {
   const supabase = createClient();
   const automatico = String(shop.modo_whatsapp || "") === "automatico";
-  const [servicios, setServicios] = useState<Servicio[]>([]);
-  const [recargos, setRecargos] = useState<Recargo[]>([]);
-  const [tel, setTel] = useState("");
-  const [clienteId, setClienteId] = useState<string | null>(null);
-  const [nombreDueño, setNombreDueño] = useState("");
-  const [mascotas, setMascotas] = useState<Mascota[]>([]);
-  const [mascotaId, setMascotaId] = useState("");
-  const [perro, setPerro] = useState({
-    nombre: "",
-    edad: "",
-    raza: "",
-    tamano: "mediano",
-    pelo: "corto",
-    estado_pelo: "bueno",
-    temperamento: "",
-    sociable: "si",
-  });
-  const [servicioId, setServicioId] = useState("");
-  const [fecha, setFecha] = useState("");
-  const [hora, setHora] = useState("");
-  const [ocupados, setOcupados] = useState<string[]>([]);
-  const [horasGrandeOcupadas, setHorasGrandeOcupadas] = useState<string[]>([]);
-  const [msg, setMsg] = useState("");
-  const [ok, setOk] = useState("");
-  const [enviando, setEnviando] = useState(false);
-
   const cupoGrande = Math.max(1, Math.min(2, Number(shop.canina_cupo_grande || (shop.canina_un_grande_por_dia ? 1 : 2))));
+  const duracionGrande = Number(shop.canina_duracion_grande || 120);
   const horasGrandeCfg = String(shop.canina_horas_grande || "09:00")
     .split(",")
     .map((h) => normHora(h.trim()))
     .filter(Boolean)
     .slice(0, cupoGrande);
 
+  const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [tel, setTel] = useState("");
+  const [clienteId, setClienteId] = useState<string | null>(null);
+  const [nombreDueño, setNombreDueño] = useState("");
+  const [mascotas, setMascotas] = useState<Mascota[]>([]);
+  const [mascotaId, setMascotaId] = useState("");
+  const [perro, setPerro] = useState({
+    nombre: "", edad: "", raza: "", tamano: "mediano", pelo: "corto",
+    estado_pelo: "bueno", temperamento: "", sociable: "si",
+  });
+  const [servicioId, setServicioId] = useState("");
+  const [fecha, setFecha] = useState("");
+  const [hora, setHora] = useState("");
+  const [ocupados, setOcupados] = useState<string[]>([]);
+  const [iniciosGrande, setIniciosGrande] = useState<string[]>([]);
+  const [msg, setMsg] = useState("");
+  const [ok, setOk] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
   useEffect(() => {
     const load = async () => {
       const { data: s } = await supabase.from("servicios").select("id, nombre, precio, duracion_minutos").eq("barberia_id", shop.id).eq("activo", true);
       setServicios((s as Servicio[]) || []);
-      const { data: r } = await supabase.from("recargos").select("clave, etiqueta, monto, activo").eq("barberia_id", shop.id);
-      setRecargos(((r as Recargo[]) || []).filter((x) => x.activo));
     };
     void load();
   }, [shop.id, supabase]);
@@ -95,45 +98,35 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
       const { data } = await supabase
         .from("turnos")
-        .select("fecha_hora, mascotas(tamano)")
+        .select("fecha_hora, duracion_minutos, mascotas(tamano)")
         .eq("barberia_id", shop.id)
         .gte("fecha_hora", desde)
         .lte("fecha_hora", hasta)
         .in("estado", ["pendiente", "confirmado", "realizado"]);
-      const horas: string[] = [];
+      const busy = new Set<string>();
       const grandes: string[] = [];
-      (data || []).forEach((t: { fecha_hora: string; mascotas?: { tamano: string } | { tamano: string }[] | null }) => {
+      (data || []).forEach((t: { fecha_hora: string; duracion_minutos?: number | null; mascotas?: { tamano: string } | { tamano: string }[] | null }) => {
         const h = normHora(new Date(t.fecha_hora).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Montevideo" }));
-        horas.push(h);
-        const m = Array.isArray(t.mascotas) ? t.mascotas[0] : t.mascotas;
-        if (m?.tamano === "grande") grandes.push(h);
+        const pet = Array.isArray(t.mascotas) ? t.mascotas[0] : t.mascotas;
+        const mins = pet?.tamano === "grande" ? duracionGrande : Number(t.duracion_minutos || 60);
+        rango(h, mins).forEach((x) => busy.add(x));
+        if (pet?.tamano === "grande") grandes.push(h);
       });
-      setOcupados(horas);
-      setHorasGrandeOcupadas(grandes);
+      setOcupados(Array.from(busy));
+      setIniciosGrande(grandes);
       setHora("");
     };
     void load();
-  }, [fecha, shop.id, supabase]);
+  }, [fecha, shop.id, supabase, duracionGrande]);
 
   const servicio = servicios.find((s) => s.id === servicioId);
-  const extras = useMemo(() => {
-    const list: Recargo[] = [];
-    recargos.forEach((r) => {
-      if (r.clave === "grande" && perro.tamano === "grande") list.push(r);
-      if (r.clave === "pelo_largo" && perro.pelo === "largo") list.push(r);
-      if (r.clave === "nudos" && perro.estado_pelo === "nudos") list.push(r);
-    });
-    return list;
-  }, [recargos, perro]);
-  const total = (servicio?.precio || 0) + extras.reduce((a, b) => a + Number(b.monto), 0);
-
   const horasOk = HORAS.filter((h) => {
     if (ocupados.includes(h)) return false;
     if (perro.tamano !== "grande") return true;
     if (!horasGrandeCfg.includes(h)) return false;
-    if (horasGrandeOcupadas.includes(h)) return false;
-    if (horasGrandeOcupadas.length >= cupoGrande) return false;
-    return true;
+    if (iniciosGrande.includes(h)) return false;
+    if (iniciosGrande.length >= cupoGrande) return false;
+    return rango(h, duracionGrande).every((x) => !ocupados.includes(x) || x === h);
   });
 
   const confirmar = async () => {
@@ -153,44 +146,27 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
       }
       let mid = mascotaId;
       if (!mid) {
-        const { data: m, error } = await supabase
-          .from("mascotas")
-          .insert({
-            barberia_id: shop.id,
-            cliente_id: cid,
-            nombre: perro.nombre,
-            edad: perro.edad,
-            raza: perro.raza,
-            tamano: perro.tamano,
-            pelo: perro.pelo,
-            estado_pelo: perro.estado_pelo,
-            temperamento: perro.temperamento,
-            sociable: perro.sociable === "si",
-          })
-          .select("id")
-          .single();
+        const { data: m, error } = await supabase.from("mascotas").insert({
+          barberia_id: shop.id, cliente_id: cid, nombre: perro.nombre, edad: perro.edad, raza: perro.raza,
+          tamano: perro.tamano, pelo: perro.pelo, estado_pelo: perro.estado_pelo, temperamento: perro.temperamento,
+          sociable: perro.sociable === "si",
+        }).select("id").single();
         if (error || !m) throw new Error(error?.message || "No se pudo guardar el perro");
         mid = m.id;
       } else {
         await supabase.from("mascotas").update({
-          tamano: perro.tamano,
-          pelo: perro.pelo,
-          estado_pelo: perro.estado_pelo,
-          temperamento: perro.temperamento,
+          tamano: perro.tamano, pelo: perro.pelo, estado_pelo: perro.estado_pelo, temperamento: perro.temperamento,
         }).eq("id", mid);
       }
-      const estado = automatico ? "confirmado" : "pendiente";
+      const mins = perro.tamano === "grande" ? duracionGrande : servicio.duracion_minutos || 60;
       const { data: turno, error } = await supabase.from("turnos").insert({
         barberia_id: shop.id,
         cliente_id: cid,
         servicio_id: servicio.id,
         mascota_id: mid,
         fecha_hora: new Date(`${fecha}T${hora}:00-03:00`).toISOString(),
-        duracion_minutos: servicio.duracion_minutos || 60,
-        estado,
-        precio_base: servicio.precio,
-        recargos_detalle: extras,
-        precio_total: total,
+        duracion_minutos: mins,
+        estado: automatico ? "confirmado" : "pendiente",
         cliente_nombre: nombreDueño,
       }).select("id").single();
       if (error || !turno) throw new Error(error?.message || "No se pudo reservar");
@@ -211,17 +187,12 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
     return (
       <div className="pt-8 text-center">
         <p className="text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>{ok}</p>
-        <p className="mt-4 text-sm">
-          {servicio?.nombre} · {perro.nombre} · {fecha} {hora}
-        </p>
-        <p className="mt-2 text-sm">Estimado ${total}</p>
+        <p className="mt-4 text-sm">{servicio?.nombre} · {perro.nombre} · {fecha} {hora}</p>
         <p className="mt-5 text-sm" style={{ color: "var(--muted)" }}>
-          El precio es estimado según lo que declaraste (tamaño, largo y estado del pelo).
-          Si al atenderlo el pelaje o el tamaño no coinciden, el valor final puede cambiar.
+          El valor final lo confirma el local al ver al perro.
+          Si el tamaño, el largo o el estado del pelo no coinciden con lo declarado, el precio puede cambiar.
         </p>
-        <button type="button" className="mt-6 underline" onClick={() => { setOk(""); window.location.href = "/"; }}>
-          Volver
-        </button>
+        <button type="button" className="mt-6 underline" onClick={() => { setOk(""); window.location.href = "/"; }}>Volver</button>
       </div>
     );
   }
@@ -268,12 +239,12 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
       )}
       <select className="w-full rounded-xl px-3 py-2" value={servicioId} onChange={(e) => setServicioId(e.target.value)}>
         <option value="">Servicio</option>
-        {servicios.map((s) => <option key={s.id} value={s.id}>{s.nombre} ${s.precio}</option>)}
+        {servicios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
       </select>
       <input className="w-full rounded-xl px-3 py-2" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
       {perro.tamano === "grande" && (
         <p className="text-xs" style={{ color: "var(--muted)" }}>
-          Perro grande: {cupoGrande} turno{cupoGrande > 1 ? "s" : ""} por día ({horasGrandeCfg.join(" y ") || "sin hora"}).
+          Grande: {cupoGrande} por día · {horasGrandeCfg.join(" y ")} · {duracionGrande} min
         </p>
       )}
       <div className="flex flex-wrap gap-2">
@@ -282,16 +253,9 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
         ))}
       </div>
       {fecha && horasOk.length === 0 && <p className="text-sm">No hay horario para este perro ese día.</p>}
-      {servicio && (
-        <div className="rounded-2xl p-3 text-sm" style={{ border: "1px solid var(--line)" }}>
-          <p>{servicio.nombre} ${servicio.precio}</p>
-          {extras.map((e) => <p key={e.clave}>{e.etiqueta} +${e.monto}</p>)}
-          <p className="mt-2 font-medium">Estimado ${total}</p>
-          <p className="mt-2 text-xs">
-            Si al llegar el pelo o el tamaño no coinciden con lo declarado, el precio final puede variar.
-          </p>
-        </div>
-      )}
+      <p className="text-xs" style={{ color: "var(--muted)" }}>
+        El precio lo confirma el local al ver al perro. Si lo declarado no coincide (tamaño o estado del pelo), puede variar.
+      </p>
       <button onClick={() => void confirmar()} disabled={enviando} className="w-full rounded-full py-3 text-sm" style={{ background: "#1A1612", color: "#F6F1E8", opacity: enviando ? 0.5 : 1 }}>
         {enviando ? "Enviando..." : automatico ? "Confirmar reserva" : "Pedir reserva"}
       </button>
