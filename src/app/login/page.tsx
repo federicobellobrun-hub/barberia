@@ -35,16 +35,22 @@ function LoginForm() {
       return;
     }
 
+    try {
+      localStorage.removeItem("barberia_slug");
+      sessionStorage.clear();
+    } catch {
+      /* ignore */
+    }
+
     const { data: yo } = await supabase.from("usuarios").select("rol").eq("auth_user_id", data.user.id).maybeSingle();
     setLoading(false);
 
     const next = search.get("next");
-    if (next === "/panel" || next === "/dashboard") {
-      router.push(next);
+    if (next === "/panel") {
+      router.push("/panel");
       return;
     }
-    if (yo?.rol === "superadmin") router.push("/dashboard");
-    else router.push("/dashboard");
+    router.push("/dashboard");
   }
 
   return (
@@ -66,10 +72,6 @@ function LoginForm() {
           </button>
           {msg ? <p className="text-sm text-red-700">{msg}</p> : null}
         </form>
-
-        <Link href="/login?next=/panel" className="block mt-8 text-center text-xs text-[#9a9388]">
-          Panel Reservo Apps
-        </Link>
       </div>
     </main>
   );
