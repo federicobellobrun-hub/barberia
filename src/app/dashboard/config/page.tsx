@@ -64,6 +64,7 @@ export default function ConfigPage() {
   const [cupoGrande, setCupoGrande] = useState("1");
   const [horaGrande1, setHoraGrande1] = useState("09:00");
   const [horaGrande2, setHoraGrande2] = useState("14:00");
+  const [duracionGrande, setDuracionGrande] = useState("120");
   const [ok, setOk] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -90,7 +91,7 @@ export default function ConfigPage() {
       const [{ data }, { data: aj }] = await Promise.all([
         supabase
           .from("barberias")
-          .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, plan_hasta, modo_whatsapp, wa_mes, wa_enviados, color_fondo, color_boton, rubro, canina_cupo_grande, canina_horas_grande")
+          .select("id, nombre, whatsapp_pedidos, mensaje_confirmacion, logo_url, slug, direccion, maps_url, portada_url, fidelizacion, datos_cuenta, mercado_pago_url, pedido_sena, estilo, mostrar_resenas, plan, plan_hasta, modo_whatsapp, wa_mes, wa_enviados, color_fondo, color_boton, rubro, canina_cupo_grande, canina_horas_grande, canina_duracion_grande")
           .eq("id", barberiaId)
           .maybeSingle(),
         supabase.from("reservo_ajustes").select("whatsapp_cobranza, banco, titular, cuenta, moneda").eq("id", 1).maybeSingle(),
@@ -124,6 +125,7 @@ export default function ConfigPage() {
       const horas = String(data.canina_horas_grande || "09:00").split(",").map((h: string) => h.trim());
       setHoraGrande1(horas[0] || "09:00");
       setHoraGrande2(horas[1] || "14:00");
+      setDuracionGrande(String(data.canina_duracion_grande || 120));
     };
     void load();
   }, [router]);
@@ -168,6 +170,7 @@ export default function ConfigPage() {
         canina_cupo_grande: Number(cupoGrande) === 2 ? 2 : 1,
         canina_horas_grande: Number(cupoGrande) === 2 ? `${horaGrande1},${horaGrande2}` : horaGrande1,
         canina_un_grande_por_dia: Number(cupoGrande) === 1,
+        canina_duracion_grande: Number(duracionGrande) || 120,
       })
       .eq("id", id);
     if (e1) setError(e1.message);
@@ -221,9 +224,7 @@ export default function ConfigPage() {
           <button type="button" className="w-full rounded-2xl py-3 text-sm font-medium" style={{ background: "#1c1712", color: "#f4efe6" }} onClick={() => void pagar("automatico")}>
             Activar automático con Mercado Pago
           </button>
-          <p className="text-sm pt-2" style={{ color: "var(--muted)" }}>
-            O transferí y te habilitamos el mes a mano.
-          </p>
+          <p className="text-sm pt-2" style={{ color: "var(--muted)" }}>O transferí y te habilitamos el mes a mano.</p>
           <p className="text-sm whitespace-pre-wrap">
             Banco {ajustes?.banco || "Itaú"}
             {"\n"}Titular: {ajustes?.titular || "Federico Bello"}
@@ -283,6 +284,14 @@ export default function ConfigPage() {
                   <input type="time" value={horaGrande2} onChange={(e) => setHoraGrande2(e.target.value)} className={campoCls} style={estiloInput} />
                 </>
               )}
+              <p className="mb-1 mt-2 text-xs">Cuánto dura un grande</p>
+              <select value={duracionGrande} onChange={(e) => setDuracionGrande(e.target.value)} className={campoCls} style={estiloInput}>
+                <option value="60">60 min</option>
+                <option value="90">90 min</option>
+                <option value="120">120 min</option>
+                <option value="150">150 min</option>
+                <option value="180">180 min</option>
+              </select>
             </div>
           )}
           <textarea value={cuenta} onChange={(e) => setCuenta(e.target.value)} placeholder="Datos de cuenta bancaria" rows={3} className={campoCls} style={estiloInput} />
@@ -290,9 +299,7 @@ export default function ConfigPage() {
           <p className="text-sm pt-2">Estilo visual</p>
           <select value={estilo} onChange={(e) => setEstilo(e.target.value)} className={campoCls} style={estiloInput}>
             {PACKS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.icono} {p.nombre}
-              </option>
+              <option key={p.id} value={p.id}>{p.icono} {p.nombre}</option>
             ))}
           </select>
           <p className="text-sm pt-2">Colores propios (opcional)</p>
@@ -311,9 +318,7 @@ export default function ConfigPage() {
               Quitar colores propios
             </button>
           )}
-          <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>
-            Guardar
-          </button>
+          <button className="w-full rounded-2xl py-4 font-medium" style={{ background: "#1c1712", color: "#f4efe6" }}>Guardar</button>
         </form>
       </div>
     </main>
