@@ -38,6 +38,7 @@ export default function MasPage() {
     { href: "/dashboard/barberos", t: L.titulo, d: L.recurso, icon: "M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 20c.8-3 2.8-4.5 5-4.5s4.2 1.5 5 4.5M14 20c.4-2 1.6-3.2 3.2-3.5" },
     { href: "/dashboard/horarios", t: "Horarios", d: "Días y bloqueos", icon: "M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16zM12 8v5l3 2" },
     { href: "/dashboard/bloqueos", t: "Bloqueos", d: "Feriados y cortes", icon: "M5 11h14v9H5zM8 11V8a4 4 0 0 1 8 0v3" },
+    { href: "/dashboard/fijos", t: "Turnos fijos", d: "Cada 7 o 15 días", icon: "M5 6h14M5 12h14M5 18h10" },
     { href: "/dashboard/galeria", t: "Galería", d: "Fotos", icon: "M4 6h16v12H4zM8 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM4 16l5-5 4 4 3-3 4 4" },
     { href: "/dashboard/resenas", t: "Reseñas", d: "Opiniones", icon: "M12 3l2.2 6.6H21l-5.4 4 2.1 6.4L12 16.8 6.3 20l2.1-6.4L3 9.6h6.8z" },
     { href: "/dashboard/caja", t: "Caja", d: "Cobros del mes", icon: "M4 7h16v12H4zM8 7V5h8v2M8 13h8" },
