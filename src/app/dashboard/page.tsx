@@ -115,6 +115,7 @@ export default function DashboardPage() {
   const [esBarbero, setEsBarbero] = useState(false);
   const [linkPublico, setLinkPublico] = useState("");
   const [modoWa, setModoWa] = useState("manual");
+  const [diasPlan, setDiasPlan] = useState<number | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [moverFecha, setMoverFecha] = useState("");
@@ -145,11 +146,13 @@ export default function DashboardPage() {
       setEsBarbero(soloBarbero);
       const { data: shop } = await supabase
         .from("barberias")
-        .select("slug, modo_whatsapp")
+        .select("slug, modo_whatsapp, plan, plan_hasta, trial_hasta")
         .eq("id", me.barberia_id)
         .maybeSingle();
       if (shop?.slug) setLinkPublico(`https://${shop.slug}.reservoapps.com`);
       setModoWa(shop?.modo_whatsapp || "manual");
+      const vence = shop?.plan_hasta || shop?.trial_hasta;
+      setDiasPlan(vence ? Math.ceil((new Date(vence).getTime() - Date.now()) / 86400000) : null);
       const { data: bars } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", me.barberia_id).order("nombre");
       setBarberos((bars as Barbero[]) || []);
       const desde = new Date(y, m, 1);
@@ -259,6 +262,16 @@ export default function DashboardPage() {
   return (
     <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
       <BrandHeader left={<span className="font-medium">Agenda</span>} />
+      {!esBarbero && diasPlan !== null && diasPlan <= 7 && (
+        <div className="mb-3 rounded-2xl p-3 text-sm" style={{ background: diasPlan < 0 ? "#3b1d1d" : "#3a2e14", color: "#F6F1E8" }}>
+          {diasPlan < 0
+            ? "El plan está vencido. Renovalo en Configuración para seguir usando la agenda."
+            : diasPlan === 0
+              ? "El plan vence hoy. Renovalo en Configuración."
+              : `Te quedan ${diasPlan} día${diasPlan === 1 ? "" : "s"} de plan.`}
+          <a href="/dashboard/config" className="mt-2 block underline">Ir a pagar</a>
+        </div>
+      )}
       {!esBarbero && linkPublico && (
         <div className="mb-3 rounded-2xl p-3 text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
           <p className="text-xs" style={{ color: "var(--muted)" }}>Link para clientes</p>
