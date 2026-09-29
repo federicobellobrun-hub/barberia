@@ -6,6 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 
+function subdominio() {
+  if (typeof window === "undefined") return "";
+  const host = window.location.hostname.replace(/^www\./, "");
+  if (!host.endsWith(".reservoapps.com")) return "";
+  const sub = host.replace(/\.reservoapps\.com$/, "");
+  if (!sub || sub === "www") return "";
+  return sub;
+}
+
 function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
@@ -35,18 +44,37 @@ function LoginForm() {
       return;
     }
 
+    const { data: yo } = await supabase
+      .from("usuarios")
+      .select("rol, barberias(slug, nombre)")
+      .eq("auth_user_id", data.user.id)
+      .maybeSingle();
+
+    const shop = Array.isArray(yo?.barberias) ? yo?.barberias[0] : yo?.barberias;
+    const slug = shop?.slug || "";
+    const host = subdominio();
+
+    if (host && slug && host !== slug && yo?.rol !== "superadmin") {
+      await supabase.auth.signOut();
+      try {
+        localStorage.removeItem("barberia_slug");
+      } catch {
+        /* ignore */
+      }
+      setLoading(false);
+      setMsg(`Esta cuenta es de ${shop?.nombre || slug}. Entrá en ${slug}.reservoapps.com`);
+      return;
+    }
+
     try {
-      localStorage.removeItem("barberia_slug");
+      localStorage.setItem("barberia_slug", slug);
       sessionStorage.clear();
     } catch {
       /* ignore */
     }
 
-    const { data: yo } = await supabase.from("usuarios").select("rol").eq("auth_user_id", data.user.id).maybeSingle();
     setLoading(false);
-
-    const next = search.get("next");
-    if (next === "/panel") {
+    if (search.get("next") === "/panel" || yo?.rol === "superadmin") {
       router.push("/panel");
       return;
     }
@@ -56,14 +84,9 @@ function LoginForm() {
   return (
     <main className="min-h-screen" style={{ background: "#F5F0E8", color: "#1C1712" }}>
       <div className="mx-auto max-w-md px-5 pt-10">
-        <Link href="/" className="text-sm text-[#7a7268]">
-          ← Inicio
-        </Link>
-        <h1 className="mt-8 text-3xl" style={{ fontFamily: "Georgia, Times, serif" }}>
-          Ingresar
-        </h1>
+        <Link href="/" className="text-sm text-[#7a7268]">← Inicio</Link>
+        <h1 className="mt-8 text-3xl" style={{ fontFamily: "Georgia, Times, serif" }}>Ingresar</h1>
         <p className="text-sm text-[#7a7268] mb-8">Entras a la agenda del local.</p>
-
         <form onSubmit={onSubmit} className="space-y-3">
           <input type="email" required className="w-full rounded-xl px-3 py-3 bg-transparent" style={{ border: "1px solid #ddd4c8" }} placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input type="password" required className="w-full rounded-xl px-3 py-3 bg-transparent" style={{ border: "1px solid #ddd4c8" }} placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} />
