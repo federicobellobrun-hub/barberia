@@ -9,7 +9,16 @@ import BottomNav from "@/components/BottomNav";
 type Persona = { nombre: string; telefono: string };
 type Servicio = { nombre: string; precio: number };
 type Barbero = { id: string; nombre: string };
-type Mascota = { nombre: string; tamano: string };
+type Mascota = {
+  nombre: string;
+  tamano: string | null;
+  edad: string | null;
+  raza: string | null;
+  pelo: string | null;
+  estado_pelo: string | null;
+  temperamento: string | null;
+  sociable: boolean | null;
+};
 type Turno = {
   id: string;
   barbero_id: string | null;
@@ -147,7 +156,7 @@ export default function DashboardPage() {
       const hasta = new Date(y, m + 1, 0, 23, 59, 59);
       let q = supabase
         .from("turnos")
-        .select("id, barbero_id, fecha_hora, estado, precio_total, cliente_nombre, clientes(nombre, telefono), servicios(nombre, precio), barberos(id, nombre), mascotas(nombre, tamano)")
+        .select("id, barbero_id, fecha_hora, estado, precio_total, cliente_nombre, clientes(nombre, telefono), servicios(nombre, precio), barberos(id, nombre), mascotas(nombre, tamano, edad, raza, pelo, estado_pelo, temperamento, sociable)")
         .eq("barberia_id", me.barberia_id)
         .gte("fecha_hora", desde.toISOString())
         .lte("fecha_hora", hasta.toISOString())
@@ -321,7 +330,13 @@ export default function DashboardPage() {
                   <span className="text-[11px]">{t.estado}</span>
                 </div>
                 <p className="text-sm"><b>Servicio:</b> {s?.nombre || "—"}</p>
-                {pet && <p className="text-sm"><b>Mascota:</b> {pet.nombre} · {pet.tamano}</p>}
+                {pet && (
+                  <div className="mt-1 text-sm">
+                    <p><b>Mascota:</b> {pet.nombre} · {pet.tamano || "—"}{pet.raza ? ` · ${pet.raza}` : ""}{pet.edad ? ` · ${pet.edad}` : ""}</p>
+                    <p>Pelo {pet.pelo || "—"} · {pet.estado_pelo === "nudos" ? "con nudos" : "en buen estado"}</p>
+                    <p>{pet.temperamento ? `Temperamento: ${pet.temperamento}` : "Sin temperamento"} · {pet.sociable === false ? "no se lleva con otros" : "se lleva con otros"}</p>
+                  </div>
+                )}
                 <p className="text-sm"><b>Profesional:</b> {b?.nombre || "—"}</p>
                 <p className="text-sm"><b>Nombre:</b> {t.cliente_nombre || c?.nombre || "Cliente"}</p>
                 {t.precio_total != null && <p className="text-sm"><b>Total:</b> ${t.precio_total}</p>}
