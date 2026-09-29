@@ -14,15 +14,16 @@ type Shop = {
 };
 type Servicio = { id: string; nombre: string; precio: number; duracion_minutos: number };
 type Mascota = { id: string; nombre: string; tamano: string; pelo: string; estado_pelo: string };
-
-const HORAS = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00"];
+type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
+type Excepcion = { fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean };
+type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean };
 
 function normHora(h: string) {
   return String(h || "").replace(".", ":").slice(0, 5);
 }
 function toMin(hhmm: string) {
   const [h, m] = normHora(hhmm).split(":").map(Number);
-  return h * 60 + m;
+  return h * 60 + (m || 0);
 }
 function fromMin(n: number) {
   return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
@@ -32,6 +33,14 @@ function rango(inicio: string, minutos: number) {
   const end = toMin(inicio) + Math.max(minutos, 30);
   for (let t = toMin(inicio); t < end; t += 30) out.push(fromMin(t));
   return out;
+}
+function slotsEntre(inicio: string, fin: string) {
+  const out: string[] = [];
+  for (let t = toMin(inicio); t < toMin(fin); t += 30) out.push(fromMin(t));
+  return out;
+}
+function dowUy(fecha: string) {
+  return new Date(`${fecha}T12:00:00-03:00`).getDay();
 }
 
 export default function ReservaCanina({ shop }: { shop: Shop }) {
@@ -46,6 +55,9 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
     .slice(0, cupoGrande);
 
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [excepciones, setExcepciones] = useState<Excepcion[]>([]);
+  const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
   const [tel, setTel] = useState("");
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [nombreDueño, setNombreDueño] = useState("");
@@ -58,6 +70,8 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
   const [servicioId, setServicioId] = useState("");
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
+  const [slotsDia, setSlotsDia] = useState<string[]>([]);
+  const [cerrado, setCerrado] = useState(false);
   const [ocupados, setOcupados] = useState<string[]>([]);
   const [iniciosGrande, setIniciosGrande] = useState<string[]>([]);
   const [msg, setMsg] = useState("");
@@ -68,6 +82,12 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
     const load = async () => {
       const { data: s } = await supabase.from("servicios").select("id, nombre, precio, duracion_minutos").eq("barberia_id", shop.id).eq("activo", true);
       setServicios((s as Servicio[]) || []);
+      const { data: hs } = await supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin, activo").eq("barberia_id", shop.id);
+      setHorarios((hs as Horario[]) || []);
+      const { data: ex } = await supabase.from("horario_excepcion").select("fecha, hora_inicio, hora_fin, cerrado").eq("barberia_id", shop.id);
+      setExcepciones((ex as Excepcion[]) || []);
+      const { data: bl } = await supabase.from("bloqueos").select("fecha_inicio, fecha_fin, todo_el_dia").eq("barberia_id", shop.id);
+      setBloqueos((bl as Bloqueo[]) || []);
     };
     void load();
   }, [shop.id, supabase]);
@@ -94,6 +114,39 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
   useEffect(() => {
     if (!fecha) return;
     const load = async () => {
+      const dia = dowUy(fecha);
+      const ex = excepciones.find((e) => e.fecha?.slice(0, 10) === fecha);
+      const bloqueado = bloqueos.some((b) => fecha >= String(b.fecha_inicio).slice(0, 10) && fecha <= String(b.fecha_fin).slice(0, 10) && b.todo_el_dia !== false);
+      let inicio = "09:00";
+      let fin = "18:00";
+      let abierto = true;
+      const fila = horarios.find((h) => h.dia_semana === dia);
+      if (fila) {
+        abierto = Boolean(fila.activo);
+        inicio = normHora(fila.hora_inicio || "09:00");
+        fin = normHora(fila.hora_fin || "18:00");
+      } else if (horarios.length > 0) {
+        abierto = false;
+      }
+      if (ex) {
+        if (ex.cerrado) abierto = false;
+        else {
+          abierto = true;
+          if (ex.hora_inicio) inicio = normHora(ex.hora_inicio);
+          if (ex.hora_fin) fin = normHora(ex.hora_fin);
+        }
+      }
+      if (bloqueado) abierto = false;
+      if (!abierto) {
+        setCerrado(true);
+        setSlotsDia([]);
+        setOcupados([]);
+        setHora("");
+        return;
+      }
+      setCerrado(false);
+      setSlotsDia(slotsEntre(inicio, fin));
+
       const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
       const { data } = await supabase
@@ -117,16 +170,16 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
       setHora("");
     };
     void load();
-  }, [fecha, shop.id, supabase, duracionGrande]);
+  }, [fecha, shop.id, supabase, duracionGrande, horarios, excepciones, bloqueos]);
 
   const servicio = servicios.find((s) => s.id === servicioId);
-  const horasOk = HORAS.filter((h) => {
+  const horasOk = slotsDia.filter((h) => {
     if (ocupados.includes(h)) return false;
     if (perro.tamano !== "grande") return true;
     if (!horasGrandeCfg.includes(h)) return false;
     if (iniciosGrande.includes(h)) return false;
     if (iniciosGrande.length >= cupoGrande) return false;
-    return rango(h, duracionGrande).every((x) => !ocupados.includes(x) || x === h);
+    return rango(h, duracionGrande).every((x) => !ocupados.includes(x));
   });
 
   const confirmar = async () => {
@@ -247,12 +300,13 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
           Grande: {cupoGrande} por día · {horasGrandeCfg.join(" y ")} · {duracionGrande} min
         </p>
       )}
+      {cerrado && <p className="text-sm">Cerrado ese día.</p>}
       <div className="flex flex-wrap gap-2">
         {horasOk.map((h) => (
           <button key={h} onClick={() => setHora(h)} className="rounded-full px-3 py-1.5 text-sm" style={{ background: hora === h ? "#1A1612" : "var(--card)", color: hora === h ? "#F6F1E8" : "inherit" }}>{h}</button>
         ))}
       </div>
-      {fecha && horasOk.length === 0 && <p className="text-sm">No hay horario para este perro ese día.</p>}
+      {fecha && !cerrado && horasOk.length === 0 && <p className="text-sm">No hay horario para este perro ese día.</p>}
       <p className="text-xs" style={{ color: "var(--muted)" }}>
         El precio lo confirma el local al ver al perro. Si lo declarado no coincide (tamaño o estado del pelo), puede variar.
       </p>
