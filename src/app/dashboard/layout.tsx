@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { temaPack, aplicarTema } from "@/lib/rubro";
+import BottomNav from "@/components/BottomNav";
 
 const PERMITIDO = ["/dashboard", "/dashboard/nuevo", "/dashboard/mas"];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const path = usePathname();
+  const path = usePathname() || "/dashboard";
   const router = useRouter();
   const [ok, setOk] = useState(false);
 
@@ -30,7 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .eq("auth_user_id", data.user.id)
         .maybeSingle();
 
-      if (yo?.rol === "barbero" && !PERMITIDO.includes(path || "")) {
+      if (yo?.rol === "barbero" && !PERMITIDO.includes(path)) {
         router.replace("/dashboard");
         return;
       }
@@ -74,6 +75,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     });
   }, [path, router]);
 
+  const enMas =
+    path.startsWith("/dashboard/mas") ||
+    path.startsWith("/dashboard/config") ||
+    path.startsWith("/dashboard/horarios") ||
+    path.startsWith("/dashboard/bloqueos") ||
+    path.startsWith("/dashboard/barberos") ||
+    path.startsWith("/dashboard/galeria") ||
+    path.startsWith("/dashboard/resenas") ||
+    path.startsWith("/dashboard/caja") ||
+    path.startsWith("/dashboard/fijos") ||
+    path.startsWith("/dashboard/espera") ||
+    path.startsWith("/dashboard/productos");
+
   if (!ok) return <main className="min-h-screen p-6">Cargando…</main>;
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <BottomNav
+        items={[
+          { href: "/dashboard", label: "Agenda", active: path === "/dashboard" },
+          { href: "/dashboard/clientes", label: "Clientes", active: path.startsWith("/dashboard/clientes") },
+          { href: "/dashboard/catalogo", label: "Catálogo", active: path.startsWith("/dashboard/catalogo") },
+          { href: "/dashboard/mas", label: "Más", active: enMas },
+        ]}
+      />
+    </>
+  );
 }
