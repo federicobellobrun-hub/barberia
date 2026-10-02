@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import ReservaCanina from "@/components/ReservaCanina";
+import BottomNav from "@/components/BottomNav";
 
 type Servicio = {
   id: string;
@@ -88,6 +89,19 @@ function slotsOcupados(fechaHora: string, duracion: number) {
 }
 function dowUy(fecha: string) {
   return new Date(`${fecha}T12:00:00-03:00`).getDay();
+}
+
+function BarraPublica() {
+  const slug = slugActual();
+  return (
+    <BottomNav
+      items={[
+        { href: slug ? `/b/${slug}` : "/", label: "Inicio" },
+        { href: slug ? `/reservar?b=${slug}` : "/reservar", label: "Reservar", active: true },
+        { href: slug ? `/tienda?b=${slug}` : "/tienda", label: "Tienda" },
+      ]}
+    />
+  );
 }
 
 export default function ReservarPage() {
@@ -347,7 +361,7 @@ export default function ReservarPage() {
 
   if (ok && shop && shop.rubro !== "canina" && shop.rubro !== "veterinaria") {
     return (
-      <main className="mx-auto max-w-md px-4 py-10 text-center">
+      <main className="mx-auto max-w-md px-4 py-10 pb-24 text-center">
         <BrandHeader />
         <p className="mt-8 text-xl" style={{ fontFamily: "Georgia, Times, serif" }}>{ok}</p>
         {pideSenia && pago === "transferencia" && shop?.datos_cuenta && (
@@ -369,6 +383,7 @@ export default function ReservarPage() {
         >
           Volver
         </button>
+        <BarraPublica />
       </main>
     );
   }
@@ -388,6 +403,7 @@ export default function ReservarPage() {
             canina_un_grande_por_dia: shop.canina_un_grande_por_dia ?? false,
           }}
         />
+        <BarraPublica />
       </main>
     );
   }
@@ -499,6 +515,7 @@ export default function ReservarPage() {
           </button>
         </div>
       )}
+      <BarraPublica />
     </main>
   );
 }
