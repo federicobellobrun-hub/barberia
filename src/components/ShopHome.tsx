@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
+import BottomNav from "@/components/BottomNav";
 import { temaPack, aplicarTema } from "@/lib/rubro";
 
 type Shop = {
@@ -93,16 +94,18 @@ export default function ShopHome() {
   const [horario, setHorario] = useState("Horario a confirmar");
   const [trabajos, setTrabajos] = useState<string[]>([]);
   const [pack, setPack] = useState(temaPack("auto", "barberia"));
+  const [slug, setSlug] = useState("");
 
   useEffect(() => {
     const load = async () => {
-      const slug = slugActual();
-      if (!slug) return;
-      localStorage.setItem("barberia_slug", slug);
+      const actual = slugActual();
+      setSlug(actual);
+      if (!actual) return;
+      localStorage.setItem("barberia_slug", actual);
       const { data } = await supabase
         .from("barberias")
         .select("id, nombre, portada_url, direccion, maps_url, horario_texto, rubro, estilo")
-        .eq("slug", slug)
+        .eq("slug", actual)
         .maybeSingle();
       if (!data) return;
       setShop(data as Shop);
@@ -170,6 +173,17 @@ export default function ShopHome() {
           </section>
         )}
       </main>
+      <BottomNav
+        items={[
+          { href: slug ? `/b/${slug}` : "/", label: "Inicio", active: true },
+          { href: slug ? `/reservar?b=${slug}` : "/reservar", label: "Reservar" },
+          { href: slug ? `/tienda?b=${slug}` : "/tienda", label: "Tienda" },
+        ]}
+        bg={pack.bg}
+        line={pack.line}
+        text={pack.text}
+        muted={pack.muted}
+      />
     </div>
   );
 }
