@@ -87,6 +87,14 @@ function slotsOcupados(fechaHora: string, duracion: number) {
   }
   return out;
 }
+function cabe(inicio: string, duracion: number, busy: string[], abiertos: string[]) {
+  const fin = toMin(inicio) + Math.max(duracion || 30, 30);
+  for (let t = toMin(inicio); t < fin; t += 30) {
+    const h = fromMin(t);
+    if (!abiertos.includes(h) || busy.includes(h)) return false;
+  }
+  return true;
+}
 function dowUy(fecha: string) {
   return new Date(`${fecha}T12:00:00-03:00`).getDay();
 }
@@ -267,7 +275,7 @@ export default function ReservarPage() {
   const lista = usarCat && categoria ? servicios.filter((x) => normCat(x.categoria) === categoria) : servicios;
   const pideSenia = Boolean(servicio?.senia && Number(servicio.senia) > 0);
   const manual = (shop?.modo_whatsapp || "") !== "automatico";
-  const horasLibres = slotsDia.filter((h) => !ocupados.includes(h));
+  const horasLibres = slotsDia.filter((h) => cabe(h, servicio?.duracion_minutos || 30, ocupados, slotsDia));
 
   const celdas = useMemo(() => {
     const first = new Date(mes.getFullYear(), mes.getMonth(), 1);
@@ -302,6 +310,9 @@ export default function ReservarPage() {
     if (lock.current || enviando) return;
     if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) return setError("Completá los datos");
     if (pideSenia && !pago) return setError("Elegí cómo pagás la seña");
+    if (!cabe(hora, servicio.duracion_minutos || 30, ocupados, slotsDia)) {
+      return setError("Ese horario se superpone con otro turno");
+    }
     lock.current = true;
     setEnviando(true);
     const pendiente = manual || pideSenia;
