@@ -5,8 +5,26 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
-type Shop = { id: string; nombre: string; slug: string; plan: string | null; activo: boolean | null };
+type Shop = {
+  id: string;
+  nombre: string;
+  slug: string;
+  plan: string | null;
+  activo: boolean | null;
+  modo_whatsapp: string | null;
+  wa_mes: string | null;
+  wa_enviados: number | null;
+};
 type Barbero = { id: string; nombre: string; barberia_id: string };
+
+function mesActual() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Montevideo" }).slice(0, 7);
+}
+
+function mensajesDelMes(shop: Shop) {
+  if (!shop.wa_mes || shop.wa_mes.slice(0, 7) !== mesActual()) return 0;
+  return Number(shop.wa_enviados || 0);
+}
 
 export default function LocalesPage() {
   const router = useRouter();
@@ -29,7 +47,10 @@ export default function LocalesPage() {
         return;
       }
       const [{ data: s, error: e1 }, { data: b, error: e2 }] = await Promise.all([
-        supabase.from("barberias").select("id, nombre, slug, plan, activo").order("nombre"),
+        supabase
+          .from("barberias")
+          .select("id, nombre, slug, plan, activo, modo_whatsapp, wa_mes, wa_enviados")
+          .order("nombre"),
         supabase.from("barberos").select("id, nombre, barberia_id").order("nombre"),
       ]);
       if (e1) setError(e1.message);
@@ -59,25 +80,27 @@ export default function LocalesPage() {
         Locales y equipo
       </h1>
       <p className="mb-5 text-sm" style={{ color: "var(--muted)" }}>
-        Cuántos profesionales cargó cada barbería.
+        Profesionales y mensajes de WhatsApp de este mes.
       </p>
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
       {loading && <p>Cargando...</p>}
       {shops.map((s) => {
         const team = porLocal[s.id] || [];
+        const mensajes = mensajesDelMes(s);
         return (
           <article key={s.id} className="mb-3 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-medium">{s.nombre}</p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  {s.slug} · {s.plan || "—"} {s.activo === false ? "· inactiva" : ""}
+                  {s.slug} · {s.plan || "—"} · {s.modo_whatsapp || "manual"} {s.activo === false ? "· inactiva" : ""}
                 </p>
               </div>
               <span className="rounded-full px-3 py-1 text-xs" style={{ background: team.length > 1 ? "#1A1612" : "#EFE8DC", color: team.length > 1 ? "#F6F1E8" : "#1A1612" }}>
                 {team.length} {team.length === 1 ? "barbero" : "barberos"}
               </span>
             </div>
+            <p className="mt-2 text-sm">WhatsApp este mes: {mensajes}</p>
             {team.length === 0 ? (
               <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
                 Todavía no agregaron profesionales.
