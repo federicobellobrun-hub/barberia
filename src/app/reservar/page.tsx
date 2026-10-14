@@ -30,6 +30,7 @@ type Shop = {
   canina_un_grande_por_dia?: boolean | null;
 };
 type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
+type HorarioBarbero = Horario & { barbero_id: string };
 type Excepcion = { fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean; barbero_id: string | null };
 type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean | null };
 
@@ -112,6 +113,12 @@ function slotsDeRango(inicio: string, fin: string) {
   for (let t = a; t < b; t += 30) out.push(fromMin(t));
   return out;
 }
+function rangoDuracion(inicio: string, duracion: number) {
+  const out: string[] = [];
+  const fin = toMin(inicio) + Math.max(duracion || 30, 30);
+  for (let t = toMin(inicio); t < fin; t += 30) out.push(fromMin(t));
+  return out;
+}
 
 function BarraPublica() {
   const slug = slugActual();
@@ -134,9 +141,11 @@ export default function ReservarPage() {
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [horariosBarbero, setHorariosBarbero] = useState<Horario[]>([]);
+  const [horariosTodos, setHorariosTodos] = useState<HorarioBarbero[]>([]);
   const [excepciones, setExcepciones] = useState<Excepcion[]>([]);
   const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
   const [ocupados, setOcupados] = useState<string[]>([]);
+  const [libresCualquiera, setLibresCualquiera] = useState<string[] | null>(null);
   const [cerrado, setCerrado] = useState(false);
   const [slotsDia, setSlotsDia] = useState<string[]>([]);
   const [categoria, setCategoria] = useState<string | null>(null);
@@ -179,7 +188,17 @@ export default function ReservarPage() {
         .eq("activo", true);
       setServicios((serv as Servicio[]) || []);
       const { data: b } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", s.id);
-      setBarberos((b as Barbero[]) || []);
+      const listaBarberos = (b as Barbero[]) || [];
+      setBarberos(listaBarberos);
+      if (listaBarberos.length) {
+        const { data: hb } = await supabase
+          .from("horario_barbero")
+          .select("barbero_id, dia_semana, hora_inicio, hora_fin, activo")
+          .in("barbero_id", listaBarberos.map((x) => x.id));
+        setHorariosTodos((hb as HorarioBarbero[]) || []);
+      } else {
+        setHorariosTodos([]);
+      }
       const { data: hs } = await supabase
         .from("horario_semanal")
         .select("dia_semana, hora_inicio, hora_fin, activo")
@@ -258,6 +277,7 @@ export default function ReservarPage() {
         setCerrado(true);
         setSlotsDia([]);
         setOcupados([]);
+        setLibresCualquiera(null);
         setHora("");
         return;
       }
@@ -267,30 +287,64 @@ export default function ReservarPage() {
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
       let q = supabase
         .from("turnos")
-        .select("fecha_hora, duracion_minutos")
+        .select("fecha_hora, duracion_minutos, barbero_id")
         .eq("barberia_id", shop.id)
         .gte("fecha_hora", desde)
         .lte("fecha_hora", hasta)
         .in("estado", ["pendiente", "confirmado"]);
       if (barbero) q = q.eq("barbero_id", barbero);
       const { data } = await q;
-      const busy = new Set<string>();
-      (data || []).forEach((t) => {
-        slotsOcupados(t.fecha_hora, Number(t.duracion_minutos) || 30).forEach((h) => busy.add(h));
-      });
+      const bloqueoHoras = new Set<string>();
       bloqueos.forEach((b) => {
         if (b.todo_el_dia !== false) return;
         const iniDia = String(b.fecha_inicio).slice(0, 10);
         const finDia = String(b.fecha_fin).slice(0, 10);
         if (fecha < iniDia || fecha > finDia) return;
-        slotsDeRango(horaDe(b.fecha_inicio), horaDe(b.fecha_fin)).forEach((h) => busy.add(h));
+        slotsDeRango(horaDe(b.fecha_inicio), horaDe(b.fecha_fin)).forEach((h) => bloqueoHoras.add(h));
       });
-      setOcupados(Array.from(busy));
-      setSlotsDia(slotsEntre(inicio, fin));
+      const abiertos = slotsEntre(inicio, fin);
+      const cualquiera = !barbero && barberos.length > 1;
+      if (!cualquiera) {
+        const busy = new Set<string>(bloqueoHoras);
+        (data || []).forEach((t) => {
+          slotsOcupados(t.fecha_hora, Number(t.duracion_minutos) || 30).forEach((h) => busy.add(h));
+        });
+        setOcupados(Array.from(busy));
+        setLibresCualquiera(null);
+        setSlotsDia(abiertos);
+        setHora("");
+        return;
+      }
+      const porBarbero = new Map<string, Set<string>>();
+      barberos.forEach((b) => porBarbero.set(b.id, new Set()));
+      const sinBarbero = new Set<string>(bloqueoHoras);
+      (data || []).forEach((t) => {
+        const slots = slotsOcupados(t.fecha_hora, Number(t.duracion_minutos) || 30);
+        if (t.barbero_id && porBarbero.has(t.barbero_id)) {
+          slots.forEach((h) => porBarbero.get(t.barbero_id)!.add(h));
+        } else {
+          slots.forEach((h) => sinBarbero.add(h));
+        }
+      });
+      const trabaja = (id: string) => {
+        const filas = horariosTodos.filter((h) => h.barbero_id === id);
+        if (!filas.length) return true;
+        const fila = filas.find((h) => h.dia_semana === dia);
+        return Boolean(fila?.activo);
+      };
+      const dur = servicio?.duracion_minutos || 30;
+      const libres = abiertos.filter((h) => {
+        const need = rangoDuracion(h, dur);
+        if (need.some((x) => !abiertos.includes(x) || sinBarbero.has(x))) return false;
+        return barberos.some((b) => trabaja(b.id) && need.every((x) => !porBarbero.get(b.id)!.has(x)));
+      });
+      setOcupados([]);
+      setLibresCualquiera(libres);
+      setSlotsDia(abiertos);
       setHora("");
     };
     void loadHoras();
-  }, [shop, fecha, barbero, horarios, horariosBarbero, excepciones, bloqueos, supabase]);
+  }, [shop, fecha, barbero, barberos, servicio, horarios, horariosBarbero, horariosTodos, excepciones, bloqueos, supabase]);
 
   const categorias = useMemo(() => {
     const map = new Map<string, { n: number; foto: string | null }>();
@@ -307,7 +361,7 @@ export default function ReservarPage() {
   const lista = usarCat && categoria ? servicios.filter((x) => normCat(x.categoria) === categoria) : servicios;
   const pideSenia = Boolean(servicio?.senia && Number(servicio.senia) > 0);
   const manual = (shop?.modo_whatsapp || "") !== "automatico";
-  const horasLibres = slotsDia.filter((h) => cabe(h, servicio?.duracion_minutos || 30, ocupados, slotsDia));
+  const horasLibres = libresCualquiera ?? slotsDia.filter((h) => cabe(h, servicio?.duracion_minutos || 30, ocupados, slotsDia));
 
   const celdas = useMemo(() => {
     const first = new Date(mes.getFullYear(), mes.getMonth(), 1);
@@ -342,7 +396,7 @@ export default function ReservarPage() {
     if (lock.current || enviando) return;
     if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) return setError("Completá los datos");
     if (pideSenia && !pago) return setError("Elegí cómo pagás la seña");
-    if (!cabe(hora, servicio.duracion_minutos || 30, ocupados, slotsDia)) {
+    if (!cabe(hora, servicio.duracion_minutos || 30, ocupados, slotsDia) && !horasLibres.includes(hora)) {
       return setError("Ese horario se superpone con otro turno");
     }
     lock.current = true;
@@ -353,6 +407,33 @@ export default function ReservarPage() {
     const hasta = new Date(desde.getTime() + 60 * 1000);
     try {
       const cid = await clienteId();
+      let barberoId = barbero || null;
+      if (!barberoId && barberos.length > 1) {
+        const dia = dowUy(fecha);
+        const { data: ocupadosDia } = await supabase
+          .from("turnos")
+          .select("fecha_hora, duracion_minutos, barbero_id")
+          .eq("barberia_id", shop.id)
+          .gte("fecha_hora", new Date(`${fecha}T00:00:00-03:00`).toISOString())
+          .lte("fecha_hora", new Date(`${fecha}T23:59:59-03:00`).toISOString())
+          .in("estado", ["pendiente", "confirmado"]);
+        const por = new Map<string, Set<string>>();
+        barberos.forEach((b) => por.set(b.id, new Set()));
+        const sin = new Set<string>();
+        (ocupadosDia || []).forEach((t) => {
+          const slots = slotsOcupados(t.fecha_hora, Number(t.duracion_minutos) || 30);
+          if (t.barbero_id && por.has(t.barbero_id)) slots.forEach((h) => por.get(t.barbero_id)!.add(h));
+          else slots.forEach((h) => sin.add(h));
+        });
+        const need = rangoDuracion(hora, servicio.duracion_minutos || 30);
+        const libre = barberos.find((b) => {
+          const filas = horariosTodos.filter((h) => h.barbero_id === b.id);
+          const trabaja = !filas.length || Boolean(filas.find((h) => h.dia_semana === dia && h.activo));
+          return trabaja && need.every((h) => !sin.has(h) && !por.get(b.id)!.has(h));
+        });
+        if (!libre) throw new Error("Ese horario se superpone con otro turno");
+        barberoId = libre.id;
+      }
       const { data: existentes } = await supabase
         .from("turnos")
         .select("id")
@@ -371,7 +452,7 @@ export default function ReservarPage() {
             barberia_id: shop.id,
             cliente_id: cid,
             servicio_id: servicio.id,
-            barbero_id: barbero || null,
+            barbero_id: barberoId,
             fecha_hora: desde.toISOString(),
             duracion_minutos: servicio.duracion_minutos,
             estado: pendiente ? "pendiente" : "confirmado",
