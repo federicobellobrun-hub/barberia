@@ -31,6 +31,7 @@ type Shop = {
 };
 type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
 type Excepcion = { fecha: string; hora_inicio: string | null; hora_fin: string | null; cerrado: boolean; barbero_id: string | null };
+type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean | null };
 
 function slugActual() {
   if (typeof window === "undefined") return "";
@@ -121,6 +122,7 @@ export default function ReservarPage() {
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [horariosBarbero, setHorariosBarbero] = useState<Horario[]>([]);
   const [excepciones, setExcepciones] = useState<Excepcion[]>([]);
+  const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
   const [ocupados, setOcupados] = useState<string[]>([]);
   const [cerrado, setCerrado] = useState(false);
   const [slotsDia, setSlotsDia] = useState<string[]>([]);
@@ -175,6 +177,11 @@ export default function ReservarPage() {
         .select("fecha, hora_inicio, hora_fin, cerrado, barbero_id")
         .eq("barberia_id", s.id);
       setExcepciones((ex as Excepcion[]) || []);
+      const { data: bl } = await supabase
+        .from("bloqueos")
+        .select("fecha_inicio, fecha_fin, todo_el_dia")
+        .eq("barberia_id", s.id);
+      setBloqueos((bl as Bloqueo[]) || []);
     };
     void load();
   }, [supabase]);
@@ -205,6 +212,9 @@ export default function ReservarPage() {
       if (shop.rubro === "canina" || shop.rubro === "veterinaria") return;
       const dia = dowUy(fecha);
       const ex = excepciones.find((e) => e.fecha?.slice(0, 10) === fecha && (!e.barbero_id || e.barbero_id === barbero || !barbero));
+      const bloqueado = bloqueos.some(
+        (b) => fecha >= String(b.fecha_inicio).slice(0, 10) && fecha <= String(b.fecha_fin).slice(0, 10) && b.todo_el_dia !== false
+      );
       let inicio = "09:00";
       let fin = "20:30";
       let abierto = true;
@@ -228,6 +238,8 @@ export default function ReservarPage() {
           if (ex.hora_fin) fin = ex.hora_fin.slice(0, 5);
         }
       }
+
+      if (bloqueado) abierto = false;
 
       if (!abierto) {
         setCerrado(true);
@@ -258,7 +270,7 @@ export default function ReservarPage() {
       setHora("");
     };
     void loadHoras();
-  }, [shop, fecha, barbero, horarios, horariosBarbero, excepciones, supabase]);
+  }, [shop, fecha, barbero, horarios, horariosBarbero, excepciones, bloqueos, supabase]);
 
   const categorias = useMemo(() => {
     const map = new Map<string, { n: number; foto: string | null }>();
