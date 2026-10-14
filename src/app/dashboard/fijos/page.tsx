@@ -9,6 +9,9 @@ import BrandHeader from "@/components/BrandHeader";
 type Cliente = { id: string; nombre: string; telefono: string };
 type Mascota = { id: string; cliente_id: string; nombre: string; tamano: string | null };
 type Servicio = { id: string; nombre: string; duracion_minutos: number };
+type Horario = { dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
+type Excepcion = { fecha: string; cerrado: boolean };
+type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean | null };
 
 function normHora(h: string) {
   return String(h || "").replace(".", ":").slice(0, 5);
@@ -27,6 +30,15 @@ function pisaTurno(inicio: string, mins: number, otros: { fecha_hora: string; du
     return a < d && b > c;
   });
 }
+function dowUy(fecha: string) {
+  return new Date(`${fecha}T12:00:00-03:00`).getDay();
+}
+function horaDe(iso: string) {
+  return new Date(iso)
+    .toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Montevideo" })
+    .replace(".", ":")
+    .slice(0, 5);
+}
 
 export default function FijosPage() {
   const router = useRouter();
@@ -38,6 +50,9 @@ export default function FijosPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [mascotas, setMascotas] = useState<Mascota[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [excepciones, setExcepciones] = useState<Excepcion[]>([]);
+  const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
   const [clienteId, setClienteId] = useState("");
   const [mascotaId, setMascotaId] = useState("");
   const [nuevo, setNuevo] = useState(false);
@@ -68,6 +83,12 @@ export default function FijosPage() {
       setMascotas((m as Mascota[]) || []);
       const { data: s } = await supabase.from("servicios").select("id, nombre, duracion_minutos").eq("barberia_id", u.barberia_id).eq("activo", true);
       setServicios((s as Servicio[]) || []);
+      const { data: hs } = await supabase.from("horario_semanal").select("dia_semana, hora_inicio, hora_fin, activo").eq("barberia_id", u.barberia_id);
+      setHorarios((hs as Horario[]) || []);
+      const { data: ex } = await supabase.from("horario_excepcion").select("fecha, cerrado").eq("barberia_id", u.barberia_id);
+      setExcepciones((ex as Excepcion[]) || []);
+      const { data: bl } = await supabase.from("bloqueos").select("fecha_inicio, fecha_fin, todo_el_dia").eq("barberia_id", u.barberia_id);
+      setBloqueos((bl as Bloqueo[]) || []);
     };
     void load();
   }, [router]);
@@ -112,6 +133,26 @@ export default function FijosPage() {
       const desde = new Date(`${ymd}T00:00:00-03:00`).toISOString();
       const hasta = new Date(`${ymd}T23:59:59-03:00`).toISOString();
       const mins = esGrande ? duracionGrande : servicio?.duracion_minutos || 60;
+      const dia = dowUy(ymd);
+      const ex = excepciones.find((e) => e.fecha?.slice(0, 10) === ymd);
+      const diaBloqueado = bloqueos.some(
+        (b) => ymd >= String(b.fecha_inicio).slice(0, 10) && ymd <= String(b.fecha_fin).slice(0, 10) && b.todo_el_dia !== false
+      );
+      const horaBloqueada = bloqueos.some((b) => {
+        if (b.todo_el_dia !== false) return false;
+        if (ymd < String(b.fecha_inicio).slice(0, 10) || ymd > String(b.fecha_fin).slice(0, 10)) return false;
+        const a = toMin(horaDe(b.fecha_inicio));
+        const c = toMin(horaDe(b.fecha_fin));
+        const start = toMin(hora);
+        return start < c && start + mins > a;
+      });
+      const fila = horarios.find((h) => h.dia_semana === dia);
+      let abierto = fila ? Boolean(fila.activo) : horarios.length === 0;
+      if (ex) abierto = !ex.cerrado;
+      if (diaBloqueado || horaBloqueada || !abierto) {
+        saltados.push(ymd);
+        continue;
+      }
       const { data: ya } = await supabase
         .from("turnos")
         .select("id, fecha_hora, duracion_minutos, mascotas(tamano)")
@@ -145,7 +186,7 @@ export default function FijosPage() {
     if (!filas.length) return setMsg("Ningún día estaba libre en esa hora.");
     const { error } = await supabase.from("turnos").insert(filas);
     if (error) return setMsg(error.message);
-    setMsg(`Listo: ${filas.length} turnos.${saltados.length ? ` Saltados por horario ocupado: ${saltados.join(", ")}` : ""}`);
+    setMsg(`Listo: ${filas.length} turnos.${saltados.length ? ` Saltados: ${saltados.join(", ")}` : ""}`);
   };
 
   return (
