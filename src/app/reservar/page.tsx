@@ -99,6 +99,19 @@ function cabe(inicio: string, duracion: number, busy: string[], abiertos: string
 function dowUy(fecha: string) {
   return new Date(`${fecha}T12:00:00-03:00`).getDay();
 }
+function horaDe(iso: string) {
+  return new Date(iso)
+    .toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Montevideo" })
+    .replace(".", ":")
+    .slice(0, 5);
+}
+function slotsDeRango(inicio: string, fin: string) {
+  const out: string[] = [];
+  const a = toMin(inicio);
+  const b = toMin(fin);
+  for (let t = a; t < b; t += 30) out.push(fromMin(t));
+  return out;
+}
 
 function BarraPublica() {
   const slug = slugActual();
@@ -264,6 +277,13 @@ export default function ReservarPage() {
       const busy = new Set<string>();
       (data || []).forEach((t) => {
         slotsOcupados(t.fecha_hora, Number(t.duracion_minutos) || 30).forEach((h) => busy.add(h));
+      });
+      bloqueos.forEach((b) => {
+        if (b.todo_el_dia !== false) return;
+        const iniDia = String(b.fecha_inicio).slice(0, 10);
+        const finDia = String(b.fecha_fin).slice(0, 10);
+        if (fecha < iniDia || fecha > finDia) return;
+        slotsDeRango(horaDe(b.fecha_inicio), horaDe(b.fecha_fin)).forEach((h) => busy.add(h));
       });
       setOcupados(Array.from(busy));
       setSlotsDia(slotsEntre(inicio, fin));
