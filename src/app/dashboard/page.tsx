@@ -23,6 +23,7 @@ type Turno = {
   id: string;
   barbero_id: string | null;
   fecha_hora: string;
+  duracion_minutos?: number | null;
   estado: string;
   precio_total?: number | null;
   cliente_nombre?: string | null;
@@ -159,7 +160,7 @@ export default function DashboardPage() {
       const hasta = new Date(y, m + 1, 0, 23, 59, 59);
       let q = supabase
         .from("turnos")
-        .select("id, barbero_id, fecha_hora, estado, precio_total, cliente_nombre, clientes(nombre, telefono), servicios(nombre, precio), barberos(id, nombre), mascotas(nombre, tamano, edad, raza, pelo, estado_pelo, temperamento, sociable)")
+        .select("id, barbero_id, fecha_hora, duracion_minutos, estado, precio_total, cliente_nombre, clientes(nombre, telefono), servicios(nombre, precio), barberos(id, nombre), mascotas(nombre, tamano, edad, raza, pelo, estado_pelo, temperamento, sociable)")
         .eq("barberia_id", me.barberia_id)
         .gte("fecha_hora", desde.toISOString())
         .lte("fecha_hora", hasta.toISOString())
@@ -244,6 +245,18 @@ export default function DashboardPage() {
   const moverTurno = async (t: Turno) => {
     if (!moverFecha || !moverHora) return setError("Elegí día y hora");
     const fecha_hora = new Date(`${moverFecha}T${moverHora}:00-03:00`).toISOString();
+    const mins = Number(t.duracion_minutos) || 30;
+    const start = new Date(fecha_hora).getTime();
+    const end = start + mins * 60000;
+    const pisa = turnosMes.some((x) => {
+      if (x.id === t.id || !vivo(x.estado)) return false;
+      if (ymd(new Date(x.fecha_hora)) !== moverFecha) return false;
+      if (t.barbero_id && x.barbero_id && x.barbero_id !== t.barbero_id) return false;
+      const a = new Date(x.fecha_hora).getTime();
+      const b = a + (Number(x.duracion_minutos) || 30) * 60000;
+      return start < b && end > a;
+    });
+    if (pisa) return setError("Ese horario se superpone con otro turno");
     const { error: e } = await supabase.from("turnos").update({ fecha_hora }).eq("id", t.id);
     if (e) return setError(e.message);
     setTurnosMes((prev) => prev.map((x) => (x.id === t.id ? { ...x, fecha_hora } : x)));
