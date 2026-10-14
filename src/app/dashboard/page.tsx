@@ -154,8 +154,9 @@ export default function DashboardPage() {
         .maybeSingle();
       if (shop?.slug) setLinkPublico(`https://${shop.slug}.reservoapps.com`);
       setModoWa(shop?.modo_whatsapp || "manual");
-      const vence = shop?.plan_hasta || shop?.trial_hasta;
-      setDiasPlan(vence ? Math.ceil((new Date(vence).getTime() - Date.now()) / 86400000) : null);
+      const fechas = [shop?.plan_hasta, shop?.trial_hasta].filter(Boolean).map((f) => new Date(f as string).getTime());
+      const vence = fechas.length ? Math.max(...fechas) : null;
+      setDiasPlan(vence ? Math.ceil((vence - Date.now()) / 86400000) : null);
       const { data: bars } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", me.barberia_id).order("nombre");
       setBarberos((bars as Barbero[]) || []);
       const desde = new Date(y, m, 1);
@@ -179,114 +180,76 @@ export default function DashboardPage() {
   const diasConTurno = useMemo(() => {
     const set = new Set<string>();
     turnosMes.forEach((t) => {
-      if (!vivo(t.estado)) return;
-      if (filtroBarbero !== "todos" && t.barbero_id !== filtroBarbero) return;
-      set.add(ymd(new Date(t.fecha_hora)));
+      if (vivo(t.estado)) set.add(ymd(new Date(t.fecha_hora)));
     });
     return set;
-  }, [turnosMes, filtroBarbero]);
+  }, [turnosMes]);
 
-  const delDia = useMemo(
-    () =>
-      turnosMes.filter((t) => {
-        const okDia = ymd(new Date(t.fecha_hora)) === fecha;
-        const okBar = filtroBarbero === "todos" || t.barbero_id === filtroBarbero;
-        const okEstado = verCancelados || vivo(t.estado);
-        return okDia && okBar && okEstado;
-      }),
-    [turnosMes, fecha, filtroBarbero, verCancelados]
-  );
+  const turnosDia = useMemo(() => {
+    return turnosMes.filter((t) => {
+      if (ymd(new Date(t.fecha_hora)) !== fecha) return false;
+      if (!verCancelados && !vivo(t.estado)) return false;
+      if (filtroBarbero !== "todos" && t.barbero_id !== filtroBarbero) return false;
+      return true;
+    });
+  }, [turnosMes, fecha, verCancelados, filtroBarbero]);
 
-  const celdas = useMemo(() => {
-    const first = new Date(y, m, 1).getDay();
-    const last = new Date(y, m + 1, 0).getDate();
-    const items: Array<{ d: number | null; key: string }> = [];
-    for (let i = 0; i < first; i++) items.push({ d: null, key: `e-${i}` });
-    for (let d = 1; d <= last; d++) items.push({ d, key: `d-${d}` });
-    return items;
+  const diasMes = useMemo(() => {
+    const first = new Date(y, m, 1);
+    const start = first.getDay();
+    const total = new Date(y, m + 1, 0).getDate();
+    const cells: (number | null)[] = Array(start).fill(null);
+    for (let d = 1; d <= total; d++) cells.push(d);
+    while (cells.length % 7) cells.push(null);
+    return cells;
   }, [y, m]);
 
   const cambiarEstado = async (id: string, estado: string) => {
     const { error: e } = await supabase.from("turnos").update({ estado }).eq("id", id);
-    if (e) setError(e.message);
-    else setTurnosMes((prev) => prev.map((t) => (t.id === id ? { ...t, estado } : t)));
-  };
-
-  const cancelarTurno = async (t: Turno) => {
-    await cambiarEstado(t.id, "cancelado");
-    if (modoWa === "automatico") {
-      await fetch("/api/whatsapp/cambio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ turnoId: t.id, tipo: "cancelado" }),
-      });
-    }
-  };
-
-  const eliminarTurno = async (id: string) => {
-    if (!confirm("¿Eliminar este turno de la agenda?")) return;
-    const { error: e } = await supabase.from("turnos").delete().eq("id", id);
-    if (e) setError(e.message);
-    else setTurnosMes((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  const confirmarSenia = async (t: Turno) => {
-    await cambiarEstado(t.id, "confirmado");
-    const c = one(t.clientes);
-    const s = one(t.servicios);
-    const quien = t.cliente_nombre || c?.nombre || "";
-    const texto = `Hola ${quien}, te confirmamos el turno${s?.nombre ? ` de ${s.nombre}` : ""} el ${fechaCorta(t.fecha_hora)} a las ${horaUy(t.fecha_hora)}. Cualquier cambio escribinos.`;
-    if (modoWa !== "automatico" && c?.telefono) window.open(waLink(c.telefono, texto), "_blank");
-    await fetch("/api/whatsapp/reserva", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ turnoId: t.id, soloCliente: true }),
-    });
+    if (e) return setError(e.message);
+    setTurnosMes((prev) => prev.map((t) => (t.id === id ? { ...t, estado } : t)));
   };
 
   const moverTurno = async (t: Turno) => {
     if (!moverFecha || !moverHora) return setError("Elegí día y hora");
-    if (!shopId) return setError("Sin local");
     const fecha_hora = new Date(`${moverFecha}T${moverHora}:00-03:00`).toISOString();
-    const mins = Number(t.duracion_minutos) || 30;
-    const start = new Date(fecha_hora).getTime();
-    const end = start + mins * 60000;
-    const desde = new Date(`${moverFecha}T00:00:00-03:00`).toISOString();
-    const hasta = new Date(`${moverFecha}T23:59:59-03:00`).toISOString();
+    const inicio = new Date(`${moverFecha}T00:00:00-03:00`).toISOString();
+    const fin = new Date(`${moverFecha}T23:59:59-03:00`).toISOString();
     const { data: bloqueos } = await supabase
       .from("bloqueos")
       .select("fecha_inicio, fecha_fin, todo_el_dia")
-      .eq("barberia_id", shopId);
+      .eq("barberia_id", shopId)
+      .lte("fecha_inicio", fin)
+      .gte("fecha_fin", inicio);
     const diaBloqueado = (bloqueos || []).some(
-      (b) =>
-        moverFecha >= String(b.fecha_inicio).slice(0, 10) &&
-        moverFecha <= String(b.fecha_fin).slice(0, 10) &&
-        b.todo_el_dia !== false
+      (b) => b.todo_el_dia !== false && String(b.fecha_inicio).slice(0, 10) <= moverFecha && String(b.fecha_fin).slice(0, 10) >= moverFecha
     );
     if (diaBloqueado) return setError("Ese día está bloqueado");
     let q = supabase
       .from("turnos")
       .select("id, fecha_hora, duracion_minutos, barbero_id")
       .eq("barberia_id", shopId)
-      .gte("fecha_hora", desde)
-      .lte("fecha_hora", hasta)
-      .in("estado", ["pendiente", "confirmado"]);
+      .gte("fecha_hora", inicio)
+      .lte("fecha_hora", fin)
+      .neq("id", t.id)
+      .neq("estado", "cancelado");
     if (t.barbero_id) q = q.eq("barbero_id", t.barbero_id);
     const { data: delDestino, error: qe } = await q;
     if (qe) return setError(qe.message);
-    const pisa = (delDestino || []).some((x) => {
-      if (x.id === t.id) return false;
-      const a = new Date(x.fecha_hora).getTime();
-      const b = a + (Number(x.duracion_minutos) || 30) * 60000;
-      return start < b && end > a;
+    const ini = new Date(fecha_hora).getTime();
+    const finT = ini + (t.duracion_minutos || 30) * 60000;
+    const choca = (delDestino || []).some((o) => {
+      const a = new Date(o.fecha_hora).getTime();
+      const b = a + (o.duracion_minutos || 30) * 60000;
+      return ini < b && a < finT;
     });
-    if (pisa) return setError("Ese horario se superpone con otro turno");
+    if (choca) return setError("Ese horario se superpone con otro turno");
     const { error: e } = await supabase.from("turnos").update({ fecha_hora }).eq("id", t.id);
     if (e) return setError(e.message);
+    setAbierto(null);
     setTurnosMes((prev) => prev.map((x) => (x.id === t.id ? { ...x, fecha_hora } : x)));
-    setFecha(moverFecha);
     const c = one(t.clientes);
-    const quien = t.cliente_nombre || c?.nombre || "";
+    const quien = t.cliente_nombre || c?.nombre || "cliente";
     const texto = `Hola ${quien}, te reagendamos el turno al ${fechaCorta(fecha_hora)} a las ${horaUy(fecha_hora)}.`;
     if (modoWa !== "automatico" && c?.telefono) window.open(waLink(c.telefono, texto), "_blank");
     await fetch("/api/whatsapp/cambio", {
@@ -315,144 +278,91 @@ export default function DashboardPage() {
           <p className="break-all">{linkPublico}</p>
           <button
             className="mt-2 text-xs underline"
-            onClick={async () => {
-              await navigator.clipboard.writeText(linkPublico);
+            onClick={() => {
+              void navigator.clipboard.writeText(linkPublico);
               setCopiado(true);
               setTimeout(() => setCopiado(false), 1500);
             }}
           >
-            {copiado ? "Copiado" : "Copiar link"}
+            {copiado ? "Copiado" : "Copiar"}
           </button>
         </div>
       )}
-      {!esBarbero && barberos.length > 1 && (
-        <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-          <button onClick={() => setFiltroBarbero("todos")} className="shrink-0 rounded-full px-3 py-1.5 text-sm" style={{ background: filtroBarbero === "todos" ? "#1A1612" : "var(--card)", color: filtroBarbero === "todos" ? "#F6F1E8" : "inherit" }}>Todos</button>
+      <div className="mb-3 flex items-center justify-between">
+        <button onClick={() => setM(m === 0 ? (setY(y - 1), 11) : m - 1)} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>‹</button>
+        <p className="capitalize">{mesLabel(y, m)}</p>
+        <button onClick={() => setM(m === 11 ? (setY(y + 1), 0) : m + 1)} className="h-9 w-9 rounded-full" style={{ border: "1px solid var(--line)" }}>›</button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-xs mb-2" style={{ color: "var(--muted)" }}>
+        {DOW.map((d) => <div key={d}>{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1 mb-4">
+        {diasMes.map((d, i) => {
+          if (!d) return <div key={i} />;
+          const iso = `${y}-${pad(m + 1)}-${pad(d)}`;
+          const sel = iso === fecha;
+          const con = diasConTurno.has(iso);
+          return (
+            <button
+              key={iso}
+              onClick={() => setFecha(iso)}
+              className="h-9 rounded-full text-sm"
+              style={{ background: sel ? "var(--text)" : "transparent", color: sel ? "var(--bg)" : "var(--text)" }}
+            >
+              {d}
+              {con && !sel && <span className="block mx-auto mt-[-2px] h-1 w-1 rounded-full" style={{ background: "var(--muted)" }} />}
+            </button>
+          );
+        })}
+      </div>
+      {barberos.length > 1 && (
+        <div className="mb-3 flex gap-2 overflow-x-auto">
+          <button onClick={() => setFiltroBarbero("todos")} className="rounded-full px-3 py-1 text-xs" style={{ border: "1px solid var(--line)", background: filtroBarbero === "todos" ? "var(--text)" : "transparent", color: filtroBarbero === "todos" ? "var(--bg)" : "var(--text)" }}>Todos</button>
           {barberos.map((b) => (
-            <button key={b.id} onClick={() => setFiltroBarbero(b.id)} className="shrink-0 rounded-full px-3 py-1.5 text-sm" style={{ background: filtroBarbero === b.id ? "#1A1612" : "var(--card)", color: filtroBarbero === b.id ? "#F6F1E8" : "inherit" }}>{b.nombre}</button>
+            <button key={b.id} onClick={() => setFiltroBarbero(b.id)} className="rounded-full px-3 py-1 text-xs" style={{ border: "1px solid var(--line)", background: filtroBarbero === b.id ? "var(--text)" : "transparent", color: filtroBarbero === b.id ? "var(--bg)" : "var(--text)" }}>{b.nombre}</button>
           ))}
         </div>
       )}
-      <section className="mb-4 rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="capitalize">{mesLabel(y, m)}</p>
-          <div className="flex gap-2">
-            <button onClick={() => { const d = new Date(y, m - 1, 1); setY(d.getFullYear()); setM(d.getMonth()); }} className="h-8 w-8 rounded-full" style={{ border: "1px solid var(--line)" }}>‹</button>
-            <button onClick={() => { const d = new Date(y, m + 1, 1); setY(d.getFullYear()); setM(d.getMonth()); }} className="h-8 w-8 rounded-full" style={{ border: "1px solid var(--line)" }}>›</button>
-          </div>
-        </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-[11px]" style={{ color: "var(--muted)" }}>
-          {DOW.map((d) => <span key={d}>{d}</span>)}
-        </div>
-        <div className="mt-2 grid grid-cols-7 gap-1">
-          {celdas.map((c) => {
-            if (!c.d) return <span key={c.key} />;
-            const iso = `${y}-${pad(m + 1)}-${pad(c.d)}`;
-            const sel = iso === fecha;
-            const con = diasConTurno.has(iso);
-            return (
-              <button key={c.key} onClick={() => setFecha(iso)} className="mx-auto flex h-9 w-9 items-center justify-center rounded-full text-sm" style={{ background: sel ? "#2563eb" : con ? "#dbeafe" : "transparent", color: sel ? "#fff" : iso === hoy ? "#dc2626" : "inherit" }}>
-                {c.d}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-      <button type="button" onClick={() => setVerCancelados((v) => !v)} className="mb-3 text-xs underline">
+      <button onClick={() => setVerCancelados((v) => !v)} className="mb-3 text-xs underline" style={{ color: "var(--muted)" }}>
         {verCancelados ? "Ocultar cancelados" : "Ver cancelados"}
       </button>
-      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
-      {loading && <p className="text-sm">Cargando agenda...</p>}
-      {!loading && delDia.length === 0 && <p className="text-sm">No hay turnos el {fechaCorta(`${fecha}T12:00:00-03:00`)}.</p>}
-      {delDia.map((t) => {
+      {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+      {loading && <p style={{ color: "var(--muted)" }}>Cargando...</p>}
+      {!loading && turnosDia.length === 0 && <p style={{ color: "var(--muted)" }}>No hay turnos este día.</p>}
+      {turnosDia.map((t) => {
         const c = one(t.clientes);
         const s = one(t.servicios);
         const b = one(t.barberos);
         const pet = one(t.mascotas);
+        const quien = t.cliente_nombre || c?.nombre || "Cliente";
         const open = abierto === t.id;
         return (
-          <article key={t.id} className="mb-3 overflow-hidden rounded-xl" style={{ border: "1px solid #d7d1c6", background: "#fff" }}>
-            <div className="flex">
-              <div className="w-2 shrink-0" style={{ background: t.estado === "pendiente" ? "#b45309" : t.estado === "cancelado" ? "#999" : "#111" }} />
-              <div className="flex-1 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold">{horaUy(t.fecha_hora)} - {fechaCorta(t.fecha_hora)}</p>
-                  <span className="text-[11px]">{t.estado}</span>
+          <div key={t.id} className="mb-3 rounded-2xl p-3" style={{ background: "var(--card)", border: "1px solid var(--line)", opacity: vivo(t.estado) ? 1 : 0.55 }}>
+            <button className="w-full text-left" onClick={() => { setAbierto(open ? null : t.id); setMoverFecha(ymd(new Date(t.fecha_hora))); setMoverHora(horaInput(t.fecha_hora)); }}>
+              <p className="font-medium">{horaUy(t.fecha_hora)} · {quien}</p>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>{s?.nombre || "Servicio"}{b ? ` · ${b.nombre}` : ""} · {t.estado}</p>
+              {pet && <p className="text-xs" style={{ color: "var(--muted)" }}>{pet.nombre} · {pet.tamano || ""} {pet.raza || ""}</p>}
+            </button>
+            {open && (
+              <div className="mt-3 space-y-2">
+                <div className="flex gap-2">
+                  <button onClick={() => void cambiarEstado(t.id, "confirmado")} className="rounded-full px-3 py-1 text-xs" style={{ border: "1px solid var(--line)" }}>Confirmar</button>
+                  <button onClick={() => void cambiarEstado(t.id, "realizado")} className="rounded-full px-3 py-1 text-xs" style={{ border: "1px solid var(--line)" }}>Hecho</button>
+                  <button onClick={() => void cambiarEstado(t.id, "cancelado")} className="rounded-full px-3 py-1 text-xs" style={{ border: "1px solid var(--line)" }}>Cancelar</button>
+                  <button onClick={() => void cambiarEstado(t.id, "no_vino")} className="rounded-full px-3 py-1 text-xs" style={{ border: "1px solid var(--line)" }}>No vino</button>
                 </div>
-                <p className="text-sm"><b>Servicio:</b> {s?.nombre || "—"}</p>
-                {pet && (
-                  <div className="mt-1 text-sm">
-                    <p><b>Mascota:</b> {pet.nombre} · {pet.tamano || "—"}{pet.raza ? ` · ${pet.raza}` : ""}{pet.edad ? ` · ${pet.edad}` : ""}</p>
-                    <p>Pelo {pet.pelo || "—"} · {pet.estado_pelo === "nudos" ? "con nudos" : "en buen estado"}</p>
-                    <p>{pet.temperamento ? `Temperamento: ${pet.temperamento}` : "Sin temperamento"} · {pet.sociable === false ? "no se lleva con otros" : "se lleva con otros"}</p>
-                  </div>
-                )}
-                <p className="text-sm"><b>Profesional:</b> {b?.nombre || "—"}</p>
-                <p className="text-sm"><b>Nombre:</b> {t.cliente_nombre || c?.nombre || "Cliente"}</p>
-                {t.precio_total != null && <p className="text-sm"><b>Total:</b> ${t.precio_total}</p>}
-                <button
-                  onClick={() => {
-                    if (open) setAbierto(null);
-                    else {
-                      setAbierto(t.id);
-                      setMoverFecha(ymd(new Date(t.fecha_hora)));
-                      setMoverHora(horaInput(t.fecha_hora));
-                    }
-                  }}
-                  className="mt-1 text-sm"
-                >
-                  {open ? "(− info)" : "(+ info)"}
-                </button>
-                {open && (
-                  <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
-                    {c?.telefono && <p className="w-full text-xs">{c.telefono}</p>}
-                    {t.estado === "pendiente" && (
-                      <button onClick={() => void confirmarSenia(t)} className="rounded-full px-3 py-1.5 text-xs" style={{ background: "#111", color: "#fff" }}>
-                        {modoWa === "automatico" ? "Confirmar" : "Confirmar y WhatsApp"}
-                      </button>
-                    )}
-                    <button onClick={() => void cambiarEstado(t.id, "realizado")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Realizado</button>
-                    <button onClick={() => void cambiarEstado(t.id, "no_vino")} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>No vino</button>
-                    {t.estado !== "cancelado" && (
-                      <button onClick={() => void cancelarTurno(t)} className="rounded-full px-3 py-1.5 text-xs" style={{ border: "1px solid #ddd" }}>Cancelar</button>
-                    )}
-                    <button onClick={() => void eliminarTurno(t.id)} className="rounded-full px-3 py-1.5 text-xs text-red-600" style={{ border: "1px solid #f1c0c0" }}>Eliminar</button>
-                    <div className="mt-3 w-full space-y-2 rounded-xl p-3" style={{ border: "1px solid var(--line)", background: "var(--card)" }}>
-                      <p className="text-xs font-medium">Reagendar</p>
-                      <label className="block text-[11px]" style={{ color: "var(--muted)" }}>Nuevo día</label>
-                      <input type="date" value={moverFecha} onChange={(e) => setMoverFecha(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm" style={{ border: "1px solid var(--line)" }} />
-                      <label className="block text-[11px]" style={{ color: "var(--muted)" }}>Nueva hora</label>
-                      <select value={moverHora} onChange={(e) => setMoverHora(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm" style={{ border: "1px solid var(--line)" }}>
-                        <option value="">Elegí hora</option>
-                        {slots().map((h) => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                      <button type="button" onClick={() => void moverTurno(t)} disabled={!moverFecha || !moverHora} className="w-full rounded-full py-2 text-sm" style={{ background: "#111", color: "#fff", opacity: !moverFecha || !moverHora ? 0.4 : 1 }}>
-                        {modoWa === "automatico" ? "Guardar nuevo horario" : "Guardar nuevo horario y WhatsApp"}
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <div className="flex gap-2">
+                  <input type="date" value={moverFecha} onChange={(e) => setMoverFecha(e.target.value)} className="rounded-xl px-2 py-1 text-sm" style={{ background: "var(--bg)", border: "1px solid var(--line)" }} />
+                  <select value={moverHora} onChange={(e) => setMoverHora(e.target.value)} className="rounded-xl px-2 py-1 text-sm" style={{ background: "var(--bg)", border: "1px solid var(--line)" }}>
+                    {slots().map((h) => <option key={h}>{h}</option>)}
+                  </select>
+                  <button onClick={() => void moverTurno(t)} className="rounded-xl px-3 text-sm" style={{ background: "var(--text)", color: "var(--bg)" }}>Mover</button>
+                </div>
               </div>
-            </div>
-          </article>
+            )}
+          </div>
         );
       })}
-      <BottomNav
-        items={
-          esBarbero
-            ? [
-                { href: "/dashboard", label: "Agenda", active: true },
-                { href: "/dashboard/nuevo", label: "Nuevo" },
-                { href: "/dashboard/mas", label: "Más" },
-              ]
-            : [
-                { href: "/dashboard", label: "Agenda", active: true },
-                { href: "/dashboard/clientes", label: "Clientes" },
-                { href: "/dashboard/catalogo", label: "Catálogo" },
-                { href: "/dashboard/mas", label: "Más" },
-              ]
-        }
-      />
     </main>
   );
 }
