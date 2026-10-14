@@ -13,6 +13,20 @@ type Servicio = { id: string; nombre: string; duracion_minutos: number };
 function normHora(h: string) {
   return String(h || "").replace(".", ":").slice(0, 5);
 }
+function toMin(hhmm: string) {
+  const [h, m] = normHora(hhmm).split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+function pisaTurno(inicio: string, mins: number, otros: { fecha_hora: string; duracion_minutos?: number | null }[]) {
+  const a = toMin(inicio);
+  const b = a + Math.max(mins, 30);
+  return otros.some((t) => {
+    const hh = new Date(t.fecha_hora).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Montevideo" }).replace(".", ":").slice(0, 5);
+    const c = toMin(hh);
+    const d = c + Math.max(Number(t.duracion_minutos) || 30, 30);
+    return a < d && b > c;
+  });
+}
 
 export default function FijosPage() {
   const router = useRouter();
@@ -97,22 +111,25 @@ export default function FijosPage() {
       const ymd = d.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
       const desde = new Date(`${ymd}T00:00:00-03:00`).toISOString();
       const hasta = new Date(`${ymd}T23:59:59-03:00`).toISOString();
-      if (esGrande) {
-        const { data: ya } = await supabase
-          .from("turnos")
-          .select("id, mascotas(tamano)")
-          .eq("barberia_id", shopId)
-          .gte("fecha_hora", desde)
-          .lte("fecha_hora", hasta)
-          .in("estado", ["pendiente", "confirmado", "realizado"]);
-        const grandes = (ya || []).filter((t: { mascotas?: { tamano: string } | { tamano: string }[] | null }) => {
-          const pet = Array.isArray(t.mascotas) ? t.mascotas[0] : t.mascotas;
-          return pet?.tamano === "grande";
-        }).length;
-        if (grandes >= cupo) {
-          saltados.push(ymd);
-          continue;
-        }
+      const mins = esGrande ? duracionGrande : servicio?.duracion_minutos || 60;
+      const { data: ya } = await supabase
+        .from("turnos")
+        .select("id, fecha_hora, duracion_minutos, mascotas(tamano)")
+        .eq("barberia_id", shopId)
+        .gte("fecha_hora", desde)
+        .lte("fecha_hora", hasta)
+        .in("estado", ["pendiente", "confirmado", "realizado"]);
+      const grandes = (ya || []).filter((t: { mascotas?: { tamano: string } | { tamano: string }[] | null }) => {
+        const pet = Array.isArray(t.mascotas) ? t.mascotas[0] : t.mascotas;
+        return pet?.tamano === "grande";
+      }).length;
+      if (esGrande && grandes >= cupo) {
+        saltados.push(ymd);
+        continue;
+      }
+      if (pisaTurno(hora, mins, (ya || []) as { fecha_hora: string; duracion_minutos?: number | null }[])) {
+        saltados.push(ymd);
+        continue;
       }
       filas.push({
         barberia_id: shopId,
@@ -120,15 +137,15 @@ export default function FijosPage() {
         servicio_id: servicioId,
         mascota_id: mid,
         fecha_hora: new Date(`${ymd}T${normHora(hora)}:00-03:00`).toISOString(),
-        duracion_minutos: esGrande ? duracionGrande : servicio?.duracion_minutos || 60,
+        duracion_minutos: mins,
         estado: auto ? "confirmado" : "pendiente",
         cliente_nombre: cliente?.nombre || "",
       });
     }
-    if (!filas.length) return setMsg("Ningún día tenía cupo de perro grande.");
+    if (!filas.length) return setMsg("Ningún día estaba libre en esa hora.");
     const { error } = await supabase.from("turnos").insert(filas);
     if (error) return setMsg(error.message);
-    setMsg(`Listo: ${filas.length} turnos.${saltados.length ? ` Sin cupo: ${saltados.join(", ")}` : ""}`);
+    setMsg(`Listo: ${filas.length} turnos.${saltados.length ? ` Saltados por horario ocupado: ${saltados.join(", ")}` : ""}`);
   };
 
   return (
