@@ -39,6 +39,9 @@ function slotsEntre(inicio: string, fin: string) {
   for (let t = toMin(inicio); t < toMin(fin); t += 30) out.push(fromMin(t));
   return out;
 }
+function cabe(inicio: string, minutos: number, busy: string[], abiertos: string[]) {
+  return rango(inicio, minutos).every((h) => abiertos.includes(h) && !busy.includes(h));
+}
 function dowUy(fecha: string) {
   return new Date(`${fecha}T12:00:00-03:00`).getDay();
 }
@@ -173,13 +176,14 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
   }, [fecha, shop.id, supabase, duracionGrande, horarios, excepciones, bloqueos]);
 
   const servicio = servicios.find((s) => s.id === servicioId);
+  const minutosTurno = perro.tamano === "grande" ? duracionGrande : servicio?.duracion_minutos || 60;
   const horasOk = slotsDia.filter((h) => {
-    if (ocupados.includes(h)) return false;
+    if (!cabe(h, minutosTurno, ocupados, slotsDia)) return false;
     if (perro.tamano !== "grande") return true;
     if (!horasGrandeCfg.includes(h)) return false;
     if (iniciosGrande.includes(h)) return false;
     if (iniciosGrande.length >= cupoGrande) return false;
-    return rango(h, duracionGrande).every((x) => !ocupados.includes(x));
+    return true;
   });
 
   const confirmar = async () => {
@@ -187,6 +191,14 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
     if (enviando) return;
     if (!tel || !nombreDueño || !perro.nombre || !servicio || !fecha || !hora) {
       setMsg("Faltan datos");
+      return;
+    }
+    if (!cabe(hora, minutosTurno, ocupados, slotsDia)) {
+      setMsg("Ese horario se superpone con otro turno");
+      return;
+    }
+    if (perro.tamano === "grande" && (!horasGrandeCfg.includes(hora) || iniciosGrande.length >= cupoGrande)) {
+      setMsg("No hay cupo para perro grande a esa hora");
       return;
     }
     setEnviando(true);
