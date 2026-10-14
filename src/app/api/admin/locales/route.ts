@@ -60,6 +60,7 @@ export async function POST(req: Request) {
     if (accion === "activar") {
       const hasta = new Date();
       hasta.setDate(hasta.getDate() + 30);
+      const ymd = hasta.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
       const modo = modoDe(body);
       const { error } = await sb
         .from("barberias")
@@ -67,11 +68,12 @@ export async function POST(req: Request) {
           activo: true,
           plan: body.plan || "manual",
           modo_whatsapp: modo,
+          plan_hasta: ymd,
           trial_hasta: hasta.toISOString(),
         })
         .eq("id", body.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-      return NextResponse.json({ ok: true, hasta: hasta.toISOString() });
+      return NextResponse.json({ ok: true, hasta: ymd });
     }
 
     if (accion === "rubro") {
@@ -119,25 +121,27 @@ export async function POST(req: Request) {
       .select("id, slug, modo_whatsapp, plan")
       .single();
     if (e1) return NextResponse.json({ error: e1.message }, { status: 400 });
-    const { data: auth, error: e2 } = await sb.auth.admin.createUser({ email, password, email_confirm: true });
-    if (e2) return NextResponse.json({ error: e2.message }, { status: 400 });
+
+    const { data: auth, error: e2 } = await sb.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+    if (e2 || !auth.user) {
+      await sb.from("barberias").delete().eq("id", shop.id);
+      return NextResponse.json({ error: e2?.message || "No se creó el usuario" }, { status: 400 });
+    }
     const { error: e3 } = await sb.from("usuarios").insert({
       auth_user_id: auth.user.id,
       barberia_id: shop.id,
-      email,
       nombre,
+      email,
       rol: "owner",
+      activo: true,
     });
     if (e3) return NextResponse.json({ error: e3.message }, { status: 400 });
-    return NextResponse.json({
-      ok: true,
-      slug: shop.slug,
-      email,
-      modo: shop.modo_whatsapp,
-      plan: shop.plan,
-      link: `https://${shop.slug}.reservoapps.com`,
-    });
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Error" }, { status: 500 });
+    return NextResponse.json({ ok: true, shop });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Error" }, { status: 500 });
   }
 }
