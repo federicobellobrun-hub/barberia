@@ -113,6 +113,7 @@ export default function DashboardPage() {
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [filtroBarbero, setFiltroBarbero] = useState("todos");
   const [verCancelados, setVerCancelados] = useState(false);
+  const [shopId, setShopId] = useState("");
   const [esBarbero, setEsBarbero] = useState(false);
   const [linkPublico, setLinkPublico] = useState("");
   const [modoWa, setModoWa] = useState("manual");
@@ -145,6 +146,7 @@ export default function DashboardPage() {
       }
       const soloBarbero = me.rol === "barbero";
       setEsBarbero(soloBarbero);
+      setShopId(me.barberia_id);
       const { data: shop } = await supabase
         .from("barberias")
         .select("slug, modo_whatsapp, plan, plan_hasta, trial_hasta")
@@ -244,14 +246,36 @@ export default function DashboardPage() {
 
   const moverTurno = async (t: Turno) => {
     if (!moverFecha || !moverHora) return setError("Elegí día y hora");
+    if (!shopId) return setError("Sin local");
     const fecha_hora = new Date(`${moverFecha}T${moverHora}:00-03:00`).toISOString();
     const mins = Number(t.duracion_minutos) || 30;
     const start = new Date(fecha_hora).getTime();
     const end = start + mins * 60000;
-    const pisa = turnosMes.some((x) => {
-      if (x.id === t.id || !vivo(x.estado)) return false;
-      if (ymd(new Date(x.fecha_hora)) !== moverFecha) return false;
-      if (t.barbero_id && x.barbero_id && x.barbero_id !== t.barbero_id) return false;
+    const desde = new Date(`${moverFecha}T00:00:00-03:00`).toISOString();
+    const hasta = new Date(`${moverFecha}T23:59:59-03:00`).toISOString();
+    const { data: bloqueos } = await supabase
+      .from("bloqueos")
+      .select("fecha_inicio, fecha_fin, todo_el_dia")
+      .eq("barberia_id", shopId);
+    const diaBloqueado = (bloqueos || []).some(
+      (b) =>
+        moverFecha >= String(b.fecha_inicio).slice(0, 10) &&
+        moverFecha <= String(b.fecha_fin).slice(0, 10) &&
+        b.todo_el_dia !== false
+    );
+    if (diaBloqueado) return setError("Ese día está bloqueado");
+    let q = supabase
+      .from("turnos")
+      .select("id, fecha_hora, duracion_minutos, barbero_id")
+      .eq("barberia_id", shopId)
+      .gte("fecha_hora", desde)
+      .lte("fecha_hora", hasta)
+      .in("estado", ["pendiente", "confirmado"]);
+    if (t.barbero_id) q = q.eq("barbero_id", t.barbero_id);
+    const { data: delDestino, error: qe } = await q;
+    if (qe) return setError(qe.message);
+    const pisa = (delDestino || []).some((x) => {
+      if (x.id === t.id) return false;
       const a = new Date(x.fecha_hora).getTime();
       const b = a + (Number(x.duracion_minutos) || 30) * 60000;
       return start < b && end > a;
