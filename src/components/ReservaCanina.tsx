@@ -45,6 +45,19 @@ function cabe(inicio: string, minutos: number, busy: string[], abiertos: string[
 function dowUy(fecha: string) {
   return new Date(`${fecha}T12:00:00-03:00`).getDay();
 }
+function horaDe(iso: string) {
+  return new Date(iso)
+    .toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Montevideo" })
+    .replace(".", ":")
+    .slice(0, 5);
+}
+function slotsDeRango(inicio: string, fin: string) {
+  const out: string[] = [];
+  const a = toMin(inicio);
+  const b = toMin(fin);
+  for (let t = a; t < b; t += 30) out.push(fromMin(t));
+  return out;
+}
 
 export default function ReservaCanina({ shop }: { shop: Shop }) {
   const supabase = createClient();
@@ -167,6 +180,13 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
         const mins = pet?.tamano === "grande" ? duracionGrande : Number(t.duracion_minutos || 60);
         rango(h, mins).forEach((x) => busy.add(x));
         if (pet?.tamano === "grande") grandes.push(h);
+      });
+      bloqueos.forEach((b) => {
+        if (b.todo_el_dia !== false) return;
+        const iniDia = String(b.fecha_inicio).slice(0, 10);
+        const finDia = String(b.fecha_fin).slice(0, 10);
+        if (fecha < iniDia || fecha > finDia) return;
+        slotsDeRango(horaDe(b.fecha_inicio), horaDe(b.fecha_fin)).forEach((h) => busy.add(h));
       });
       setOcupados(Array.from(busy));
       setIniciosGrande(grandes);
