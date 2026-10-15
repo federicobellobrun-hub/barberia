@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import BottomNav from "@/components/BottomNav";
-import { aplicarTema, temaPack } from "@/lib/tema";
+import { aplicarTema, temaPack } from "@/lib/rubro";
 
 type Shop = {
   id: string;
