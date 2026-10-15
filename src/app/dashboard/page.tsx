@@ -262,14 +262,21 @@ export default function DashboardPage() {
   return (
     <main className="mx-auto min-h-screen max-w-md px-4 pb-24 pt-4">
       <BrandHeader left={<span className="font-medium">Agenda</span>} />
-      {!esBarbero && diasPlan !== null && diasPlan <= 7 && (
-        <div className="mb-3 rounded-2xl p-3 text-sm" style={{ background: diasPlan < 0 ? "#3b1d1d" : "#3a2e14", color: "#F6F1E8" }}>
-          {diasPlan < 0
-            ? "El plan está vencido. Renovalo en Configuración para seguir usando la agenda."
-            : diasPlan === 0
-              ? "El plan vence hoy. Renovalo en Configuración."
-              : `Te quedan ${diasPlan} día${diasPlan === 1 ? "" : "s"} de plan.`}
-          <a href="/dashboard/config" className="mt-2 block underline">Ir a pagar</a>
+      {!esBarbero && diasPlan !== null && diasPlan <= 10 && (
+        <div className="mb-3 rounded-2xl p-4 text-sm" style={{ background: diasPlan < 0 ? "#5a1d1d" : diasPlan <= 3 ? "#6a3a10" : "#3a2e14", color: "#F6F1E8", border: "1px solid rgba(246,241,232,0.25)" }}>
+          <p className="font-medium">
+            {diasPlan < 0
+              ? "Plan vencido"
+              : diasPlan === 0
+                ? "El plan vence hoy"
+                : `Te quedan ${diasPlan} día${diasPlan === 1 ? "" : "s"} de plan`}
+          </p>
+          <p className="mt-1" style={{ opacity: 0.85 }}>
+            {diasPlan < 0
+              ? "Renovalo para seguir recibiendo reservas y usando la agenda."
+              : "Renovalo antes de que se corte."}
+          </p>
+          <a href="/dashboard/config" className="mt-3 inline-block rounded-full px-4 py-2 text-sm" style={{ background: "#F6F1E8", color: "#161310" }}>Ir a pagar</a>
         </div>
       )}
       {!esBarbero && linkPublico && (
