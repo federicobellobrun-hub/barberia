@@ -44,6 +44,7 @@ export default function MasPage() {
     { href: "/dashboard/caja", t: "Caja", d: "Cobros del mes", icon: "M4 7h16v12H4zM8 7V5h8v2M8 13h8" },
     { href: "/dashboard/espera", t: "Lista de espera", d: "Si no hay turno", icon: "M5 6h14M5 12h10M5 18h7" },
     { href: "/dashboard/config", t: "Configuración", d: "Logo, WhatsApp, plan", icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 12l2-1.2.4-2.3 2.3-.4L10 6l2 1.2L14.3 6l1.3 2.1 2.3.4.4 2.3L20 12l-1.2 2 1.2 2-2.1 1.3-.4 2.3-2.3.4L14 22l-2-1.2L9.7 22l-1.3-2.1-2.3-.4-.4-2.3L4 16l1.2-2z" },
+    { href: "/dashboard/ayuda", t: "Cómo usar", d: "Guía rápida", icon: "M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM12 11v6M12 7.5h.01" },
   ];
 
   return (
