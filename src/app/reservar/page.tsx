@@ -178,8 +178,9 @@ export default function ReservarPage() {
         .from("barberias")
         .select("id, nombre, mercado_pago_url, datos_cuenta, modo_whatsapp, rubro, canina_cupo_grande, canina_horas_grande, canina_duracion_grande, canina_un_grande_por_dia")
         .eq("slug", slug)
+        .eq("activo", true)
         .maybeSingle();
-      if (!s) return;
+      if (!s) { setError("Este local no existe"); return; }
       setShop(s as Shop);
       const { data: serv } = await supabase
         .from("servicios")
