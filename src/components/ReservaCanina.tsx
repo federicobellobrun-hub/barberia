@@ -138,48 +138,34 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
       let abierto = true;
       const fila = horarios.find((h) => h.dia_semana === dia);
       if (fila) {
-        abierto = Boolean(fila.activo);
-        inicio = normHora(fila.hora_inicio || "09:00");
-        fin = normHora(fila.hora_fin || "18:00");
-      } else if (horarios.length > 0) {
-        abierto = false;
+        abierto = fila.activo !== false;
+        inicio = normHora(fila.hora_inicio || inicio);
+        fin = normHora(fila.hora_fin || fin);
       }
       if (ex) {
         if (ex.cerrado) abierto = false;
-        else {
-          abierto = true;
-          if (ex.hora_inicio) inicio = normHora(ex.hora_inicio);
-          if (ex.hora_fin) fin = normHora(ex.hora_fin);
-        }
+        if (ex.hora_inicio) inicio = normHora(ex.hora_inicio);
+        if (ex.hora_fin) fin = normHora(ex.hora_fin);
       }
       if (bloqueado) abierto = false;
-      if (!abierto) {
-        setCerrado(true);
-        setSlotsDia([]);
-        setOcupados([]);
-        setHora("");
-        return;
-      }
-      setCerrado(false);
-      setSlotsDia(slotsEntre(inicio, fin));
-
+      setCerrado(!abierto);
+      setSlotsDia(abierto ? slotsEntre(inicio, fin) : []);
       const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
-      const { data } = await supabase
+      const { data: turnos } = await supabase
         .from("turnos")
         .select("fecha_hora, duracion_minutos, mascotas(tamano)")
         .eq("barberia_id", shop.id)
         .gte("fecha_hora", desde)
         .lte("fecha_hora", hasta)
-        .in("estado", ["pendiente", "confirmado", "realizado"]);
+        .neq("estado", "cancelado");
       const busy = new Set<string>();
       const grandes: string[] = [];
-      (data || []).forEach((t: { fecha_hora: string; duracion_minutos?: number | null; mascotas?: { tamano: string } | { tamano: string }[] | null }) => {
-        const h = normHora(new Date(t.fecha_hora).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Montevideo" }));
+      (turnos || []).forEach((t) => {
+        const ini = horaDe(t.fecha_hora);
+        rango(ini, t.duracion_minutos || 30).forEach((h) => busy.add(h));
         const pet = Array.isArray(t.mascotas) ? t.mascotas[0] : t.mascotas;
-        const mins = pet?.tamano === "grande" ? duracionGrande : Number(t.duracion_minutos || 60);
-        rango(h, mins).forEach((x) => busy.add(x));
-        if (pet?.tamano === "grande") grandes.push(h);
+        if (pet?.tamano === "grande") grandes.push(ini);
       });
       bloqueos.forEach((b) => {
         if (b.todo_el_dia !== false) return;
@@ -188,14 +174,13 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
         if (fecha < iniDia || fecha > finDia) return;
         slotsDeRango(horaDe(b.fecha_inicio), horaDe(b.fecha_fin)).forEach((h) => busy.add(h));
       });
-      setOcupados(Array.from(busy));
+      setOcupados([...busy]);
       setIniciosGrande(grandes);
-      setHora("");
     };
     void load();
-  }, [fecha, shop.id, supabase, duracionGrande, horarios, excepciones, bloqueos]);
+  }, [fecha, shop.id, supabase, horarios, excepciones, bloqueos]);
 
-  const servicio = servicios.find((s) => s.id === servicioId);
+  const servicio = servicios.find((s) => s.id === servicioId) || null;
   const minutosTurno = perro.tamano === "grande" ? duracionGrande : servicio?.duracion_minutos || 60;
   const horasOk = slotsDia.filter((h) => {
     if (!cabe(h, minutosTurno, ocupados, slotsDia)) return false;
@@ -225,19 +210,34 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
     try {
       let cid = clienteId;
       if (!cid) {
-        const { data: c, error } = await supabase.from("clientes").insert({ barberia_id: shop.id, nombre: nombreDueño, telefono: tel }).select("id").single();
-        if (error || !c) throw new Error(error?.message || "No se pudo crear el cliente");
-        cid = c.id;
+        const { data: ya } = await supabase.from("clientes").select("id").eq("barberia_id", shop.id).eq("telefono", tel).maybeSingle();
+        if (ya) {
+          cid = ya.id;
+          await supabase.from("clientes").update({ nombre: nombreDueño }).eq("id", ya.id);
+        } else {
+          const { data: c, error } = await supabase.from("clientes").insert({ barberia_id: shop.id, nombre: nombreDueño, telefono: tel }).select("id").single();
+          if (error || !c) throw new Error(error?.message || "No se pudo crear el cliente");
+          cid = c.id;
+        }
       }
       let mid = mascotaId;
       if (!mid) {
-        const { data: m, error } = await supabase.from("mascotas").insert({
-          barberia_id: shop.id, cliente_id: cid, nombre: perro.nombre, edad: perro.edad, raza: perro.raza,
-          tamano: perro.tamano, pelo: perro.pelo, estado_pelo: perro.estado_pelo, temperamento: perro.temperamento,
-          sociable: perro.sociable === "si",
-        }).select("id").single();
-        if (error || !m) throw new Error(error?.message || "No se pudo guardar el perro");
-        mid = m.id;
+        const { data: yaM } = await supabase.from("mascotas").select("id").eq("cliente_id", cid).eq("nombre", perro.nombre).maybeSingle();
+        if (yaM) {
+          mid = yaM.id;
+          await supabase.from("mascotas").update({
+            edad: perro.edad, raza: perro.raza, tamano: perro.tamano, pelo: perro.pelo,
+            estado_pelo: perro.estado_pelo, temperamento: perro.temperamento, sociable: perro.sociable === "si",
+          }).eq("id", yaM.id);
+        } else {
+          const { data: m, error } = await supabase.from("mascotas").insert({
+            barberia_id: shop.id, cliente_id: cid, nombre: perro.nombre, edad: perro.edad, raza: perro.raza,
+            tamano: perro.tamano, pelo: perro.pelo, estado_pelo: perro.estado_pelo, temperamento: perro.temperamento,
+            sociable: perro.sociable === "si",
+          }).select("id").single();
+          if (error || !m) throw new Error(error?.message || "No se pudo guardar el perro");
+          mid = m.id;
+        }
       } else {
         await supabase.from("mascotas").update({
           tamano: perro.tamano, pelo: perro.pelo, estado_pelo: perro.estado_pelo, temperamento: perro.temperamento,
@@ -294,58 +294,58 @@ export default function ReservaCanina({ shop }: { shop: Shop }) {
       {mascotas.length > 0 && (
         <select className="w-full rounded-xl px-3 py-2" value={mascotaId} onChange={(e) => setMascotaId(e.target.value)}>
           {mascotas.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-          <option value="">+ Otro perro</option>
         </select>
       )}
-      {(!mascotaId || mascotas.length === 0) && (
-        <div className="rounded-2xl p-3" style={{ border: "1px solid var(--line)" }}>
-          <input className="mb-2 w-full rounded-xl px-3 py-2" placeholder="Nombre del perro" value={perro.nombre} onChange={(e) => setPerro({ ...perro, nombre: e.target.value })} />
-          <input className="mb-2 w-full rounded-xl px-3 py-2" placeholder="Edad" value={perro.edad} onChange={(e) => setPerro({ ...perro, edad: e.target.value })} />
-          <input className="mb-2 w-full rounded-xl px-3 py-2" placeholder="Raza" value={perro.raza} onChange={(e) => setPerro({ ...perro, raza: e.target.value })} />
-          <select className="mb-2 w-full rounded-xl px-3 py-2" value={perro.tamano} onChange={(e) => setPerro({ ...perro, tamano: e.target.value })}>
-            <option value="chico">Chico</option>
-            <option value="mediano">Mediano</option>
-            <option value="grande">Grande</option>
-          </select>
-          <select className="mb-2 w-full rounded-xl px-3 py-2" value={perro.pelo} onChange={(e) => setPerro({ ...perro, pelo: e.target.value })}>
-            <option value="corto">Pelo corto</option>
-            <option value="largo">Pelo largo</option>
-          </select>
-          <select className="mb-2 w-full rounded-xl px-3 py-2" value={perro.estado_pelo} onChange={(e) => setPerro({ ...perro, estado_pelo: e.target.value })}>
-            <option value="bueno">Pelo en buen estado</option>
-            <option value="nudos">Con nudos</option>
-          </select>
-          <input className="mb-2 w-full rounded-xl px-3 py-2" placeholder="Temperamento" value={perro.temperamento} onChange={(e) => setPerro({ ...perro, temperamento: e.target.value })} />
-          <select className="w-full rounded-xl px-3 py-2" value={perro.sociable} onChange={(e) => setPerro({ ...perro, sociable: e.target.value })}>
-            <option value="si">Se lleva con otros perros</option>
-            <option value="no">No se lleva con otros</option>
-          </select>
-        </div>
-      )}
+      <label className="block text-sm">Nombre del perro
+        <input className="mt-1 w-full rounded-xl px-3 py-2" placeholder="Nombre del perro" value={perro.nombre} onChange={(e) => setPerro({ ...perro, nombre: e.target.value })} />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <input className="rounded-xl px-3 py-2" placeholder="Edad" value={perro.edad} onChange={(e) => setPerro({ ...perro, edad: e.target.value })} />
+        <input className="rounded-xl px-3 py-2" placeholder="Raza" value={perro.raza} onChange={(e) => setPerro({ ...perro, raza: e.target.value })} />
+      </div>
+      <select className="w-full rounded-xl px-3 py-2" value={perro.tamano} onChange={(e) => setPerro({ ...perro, tamano: e.target.value })}>
+        <option value="chico">Chico</option>
+        <option value="mediano">Mediano</option>
+        <option value="grande">Grande</option>
+      </select>
+      <select className="w-full rounded-xl px-3 py-2" value={perro.pelo} onChange={(e) => setPerro({ ...perro, pelo: e.target.value })}>
+        <option value="corto">Pelo corto</option>
+        <option value="largo">Pelo largo</option>
+      </select>
+      <select className="w-full rounded-xl px-3 py-2" value={perro.estado_pelo} onChange={(e) => setPerro({ ...perro, estado_pelo: e.target.value })}>
+        <option value="bueno">Pelo en buen estado</option>
+        <option value="nudos">Con nudos</option>
+      </select>
+      <input className="w-full rounded-xl px-3 py-2" placeholder="Temperamento" value={perro.temperamento} onChange={(e) => setPerro({ ...perro, temperamento: e.target.value })} />
+      <select className="w-full rounded-xl px-3 py-2" value={perro.sociable} onChange={(e) => setPerro({ ...perro, sociable: e.target.value })}>
+        <option value="si">Se lleva con otros perros</option>
+        <option value="no">No se lleva con otros</option>
+      </select>
       <select className="w-full rounded-xl px-3 py-2" value={servicioId} onChange={(e) => setServicioId(e.target.value)}>
         <option value="">Servicio</option>
         {servicios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
       </select>
-      <input className="w-full rounded-xl px-3 py-2" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-      {perro.tamano === "grande" && (
-        <p className="text-xs" style={{ color: "var(--muted)" }}>
+      <input type="date" className="w-full rounded-xl px-3 py-2" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+      {cerrado && <p className="text-sm" style={{ color: "var(--muted)" }}>Cerrado ese día.</p>}
+      {!cerrado && fecha && perro.tamano === "grande" && (
+        <p className="text-sm" style={{ color: "var(--muted)" }}>
           Grande: {cupoGrande} por día · {horasGrandeCfg.join(" y ")} · {duracionGrande} min
         </p>
       )}
-      {cerrado && <p className="text-sm">Cerrado ese día.</p>}
-      <div className="flex flex-wrap gap-2">
-        {horasOk.map((h) => (
-          <button key={h} onClick={() => setHora(h)} className="rounded-full px-3 py-1.5 text-sm" style={{ background: hora === h ? "#1A1612" : "var(--card)", color: hora === h ? "#F6F1E8" : "inherit" }}>{h}</button>
-        ))}
-      </div>
-      {fecha && !cerrado && horasOk.length === 0 && <p className="text-sm">No hay horario para este perro ese día.</p>}
-      <p className="text-xs" style={{ color: "var(--muted)" }}>
+      {!cerrado && (
+        <div className="grid grid-cols-4 gap-2">
+          {horasOk.map((h) => (
+            <button key={h} type="button" onClick={() => setHora(h)} className="rounded-xl py-2 text-sm" style={{ background: hora === h ? "var(--text)" : "var(--card)", color: hora === h ? "var(--bg)" : "var(--text)", border: "1px solid var(--line)" }}>{h}</button>
+          ))}
+        </div>
+      )}
+      <p className="text-sm" style={{ color: "var(--muted)" }}>
         El precio lo confirma el local al ver al perro. Si lo declarado no coincide (tamaño o estado del pelo), puede variar.
       </p>
-      <button onClick={() => void confirmar()} disabled={enviando} className="w-full rounded-full py-3 text-sm" style={{ background: "#1A1612", color: "#F6F1E8", opacity: enviando ? 0.5 : 1 }}>
-        {enviando ? "Enviando..." : automatico ? "Confirmar reserva" : "Pedir reserva"}
+      {msg && <p className="text-sm text-red-500">{msg}</p>}
+      <button type="button" disabled={enviando} onClick={() => void confirmar()} className="w-full rounded-2xl py-3" style={{ background: "var(--text)", color: "var(--bg)" }}>
+        {enviando ? "Reservando..." : "Confirmar reserva"}
       </button>
-      {msg && <p className="text-sm">{msg}</p>}
     </div>
   );
 }
