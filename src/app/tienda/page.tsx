@@ -50,7 +50,7 @@ function TiendaPage() {
     if (slug && slug !== "reservoapps.com") localStorage.setItem("barberia_slug", slug);
     const load = async () => {
       const supabase = createClient();
-      const { data: shop, error: shopErr } = await supabase.from("barberias").select("id, whatsapp_pedidos, rubro, estilo, color_fondo, color_boton").eq("slug", slug).maybeSingle();
+      const { data: shop, error: shopErr } = await supabase.from("barberias").select("id, whatsapp_pedidos, rubro, estilo, color_fondo, color_boton").eq("slug", slug).eq("activo", true).maybeSingle();
       if (shopErr || !shop) return setError("No se encontró el local");
       setWhatsapp(shop.whatsapp_pedidos || "");
       setRubro(shop.rubro || "barberia");
