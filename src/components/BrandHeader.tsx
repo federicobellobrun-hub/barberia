@@ -88,8 +88,9 @@ export default function BrandHeader({ left }: { left?: React.ReactNode }) {
       if (typeof window !== "undefined" && slug !== "reservoapps.com") {
         localStorage.setItem("barberia_slug", slug);
       }
-      const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug, rubro").eq("slug", slug).maybeSingle();
+      const { data: b } = await supabase.from("barberias").select("nombre, logo_url, slug, rubro").eq("slug", slug).eq("activo", true).maybeSingle();
       if (b?.nombre) setNombre(b.nombre);
+      else if (enPublico && slugHost) setNombre("");
       else setNombre(slug === "reservoapps.com" ? "Reservo" : slug);
       setLogo(b?.logo_url || null);
       setRubro(b?.rubro || "barberia");
