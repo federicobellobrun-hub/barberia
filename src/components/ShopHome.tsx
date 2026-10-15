@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
 import BottomNav from "@/components/BottomNav";
-import { temaPack, aplicarTema } from "@/lib/rubro";
+import { aplicarTema, temaPack } from "@/lib/tema";
 
 type Shop = {
   id: string;
@@ -95,19 +95,22 @@ export default function ShopHome() {
   const [trabajos, setTrabajos] = useState<string[]>([]);
   const [pack, setPack] = useState(temaPack("auto", "barberia"));
   const [slug, setSlug] = useState("");
+  const [falta, setFalta] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       const actual = slugActual();
       setSlug(actual);
-      if (!actual) return;
+      if (!actual) { setFalta(true); return; }
       localStorage.setItem("barberia_slug", actual);
       const { data } = await supabase
         .from("barberias")
-        .select("id, nombre, portada_url, direccion, maps_url, horario_texto, rubro, estilo")
+        .select("id, nombre, portada_url, direccion, maps_url, horario_texto, rubro, estilo, activo")
         .eq("slug", actual)
+        .eq("activo", true)
         .maybeSingle();
-      if (!data) return;
+      if (!data) { setFalta(true); return; }
+      setFalta(false);
       setShop(data as Shop);
       const t = temaPack(data.estilo, data.rubro);
       setPack(t);
@@ -128,6 +131,16 @@ export default function ShopHome() {
     };
     void load();
   }, [supabase]);
+
+  if (falta) {
+    return (
+      <div className="min-h-screen px-6 pt-24 text-center" style={{ background: "var(--bg)", color: "var(--text)" }}>
+        <p className="text-2xl" style={{ fontFamily: "Georgia, Times, serif" }}>Este local no existe</p>
+        <p className="mt-3 text-sm" style={{ color: "var(--muted)" }}>El enlace fue dado de baja.</p>
+        <a href="https://reservoapps.com" className="mt-6 inline-block underline">Ir a Reservo Apps</a>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full" style={{ background: "var(--bg)", color: "var(--text)" }}>
