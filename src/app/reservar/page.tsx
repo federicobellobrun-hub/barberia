@@ -86,7 +86,7 @@ function rangoDuracion(hora: string, dur: number) {
   const start = h * 60 + m;
   const out: string[] = [];
   for (let t = start; t < start + dur; t += 30) {
-    out.push(horaSlot(new Date(Date.UTC(2026, 0, 1, Math.floor(t / 60), t % 60)).toISOString()));
+    out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
   }
   return out;
 }
@@ -563,6 +563,7 @@ export default function ReservarPage() {
           )}
 
           {(barberos.length <= 1 || barbero) && (
+          <>
           <div className="mt-6">
             <p className="mb-3 text-sm" style={{ color: "var(--muted)" }}>Seleccionar día</p>
             <div className="flex items-center justify-between px-2">
@@ -598,6 +599,7 @@ export default function ReservarPage() {
               </div>
             </div>
           )}
+          </>
           )}
 
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="mt-5 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
