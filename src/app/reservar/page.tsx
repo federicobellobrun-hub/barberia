@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
-import BarraPublica from "@/components/BarraPublica";
+import BottomNav from "@/components/BottomNav";
 import ReservaCanina from "@/components/ReservaCanina";
 
 type Servicio = {
@@ -478,7 +478,13 @@ export default function ReservarPage() {
         >
           Volver
         </button>
-        <BarraPublica />
+      <BottomNav
+        items={[
+          { href: slugActual() ? `/b/${slugActual()}` : "/", label: "Inicio" },
+          { href: slugActual() ? `/reservar?b=${slugActual()}` : "/reservar", label: "Reservar", active: true },
+          { href: slugActual() ? `/tienda?b=${slugActual()}` : "/tienda", label: "Tienda" },
+        ]}
+      />
       </main>
     );
   }
@@ -498,7 +504,13 @@ export default function ReservarPage() {
             canina_un_grande_por_dia: shop.canina_un_grande_por_dia ?? false,
           }}
         />
-        <BarraPublica />
+      <BottomNav
+        items={[
+          { href: slugActual() ? `/b/${slugActual()}` : "/", label: "Inicio" },
+          { href: slugActual() ? `/reservar?b=${slugActual()}` : "/reservar", label: "Reservar", active: true },
+          { href: slugActual() ? `/tienda?b=${slugActual()}` : "/tienda", label: "Tienda" },
+        ]}
+      />
       </main>
     );
   }
@@ -618,7 +630,13 @@ export default function ReservarPage() {
           </button>
         </div>
       )}
-      <BarraPublica />
+      <BottomNav
+        items={[
+          { href: slugActual() ? `/b/${slugActual()}` : "/", label: "Inicio" },
+          { href: slugActual() ? `/reservar?b=${slugActual()}` : "/reservar", label: "Reservar", active: true },
+          { href: slugActual() ? `/tienda?b=${slugActual()}` : "/tienda", label: "Tienda" },
+        ]}
+      />
     </main>
   );
 }
