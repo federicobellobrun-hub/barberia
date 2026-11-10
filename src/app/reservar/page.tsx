@@ -571,7 +571,10 @@ export default function ReservarPage() {
           )}
 
           {barberos.length > 1 && !barbero && (
-            <p className="mt-4 text-sm" style={{ color: "var(--muted)" }}>Elegí un barbero para ver los horarios disponibles.</p>
+            <div className="mt-4 rounded-xl px-4 py-3 text-sm" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+              <p className="font-medium">Primero elegí un barbero</p>
+              <p className="mt-1" style={{ color: "var(--muted)" }}>Los horarios se muestran recién después de elegir. Así ves solo los turnos de esa persona.</p>
+            </div>
           )}
 
           {(barberos.length <= 1 || barbero) && (
