@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import BrandHeader from "@/components/BrandHeader";
+import BarraPublica from "@/components/BarraPublica";
 import ReservaCanina from "@/components/ReservaCanina";
-import BottomNav from "@/components/BottomNav";
 
 type Servicio = {
   id: string;
@@ -13,17 +13,17 @@ type Servicio = {
   duracion_minutos: number;
   categoria: string | null;
   imagen_url: string | null;
-  senia: number | null;
   descripcion: string | null;
+  senia: number | null;
 };
 type Barbero = { id: string; nombre: string };
 type Shop = {
   id: string;
   nombre: string;
+  rubro: string | null;
   mercado_pago_url: string | null;
   datos_cuenta: string | null;
   modo_whatsapp: string | null;
-  rubro: string | null;
   canina_cupo_grande?: number | null;
   canina_horas_grande?: string | null;
   canina_duracion_grande?: number | null;
@@ -35,106 +35,103 @@ type Excepcion = { fecha: string; hora_inicio: string | null; hora_fin: string |
 type Bloqueo = { fecha_inicio: string; fecha_fin: string; todo_el_dia: boolean | null };
 
 function slugActual() {
-  if (typeof window === "undefined") return "";
+  if (typeof window === "undefined") return null;
   const host = window.location.hostname.replace(/^www\./, "");
   if (host.endsWith(".reservoapps.com")) {
     const sub = host.replace(/\.reservoapps\.com$/, "");
     if (sub && sub !== "www") return sub;
   }
-  return new URLSearchParams(window.location.search).get("b") || localStorage.getItem("barberia_slug") || "";
+  const q = new URLSearchParams(window.location.search).get("b");
+  if (q) return q;
+  const path = window.location.pathname;
+  if (path.startsWith("/b/")) return path.split("/")[2] || null;
+  return null;
+}
+
+function hoyStr() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
 }
 
 function ymd(d: Date) {
   return d.toLocaleDateString("en-CA", { timeZone: "America/Montevideo" });
 }
-function hoyStr() {
-  return ymd(new Date());
+
+function dowUy(fecha: string) {
+  return new Date(`${fecha}T12:00:00-03:00`).getDay();
 }
-function normCat(v: string | null) {
-  if (!v) return "";
-  const t = v.trim().toLowerCase();
-  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
-}
+
 function horaSlot(fechaHora: string) {
-  return new Date(fechaHora)
-    .toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: "America/Montevideo",
-    })
-    .replace(".", ":")
-    .slice(0, 5);
+  return new Date(fechaHora).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Montevideo",
+  }).slice(0, 5);
 }
-function toMin(hhmm: string) {
-  const [h, m] = hhmm.slice(0, 5).split(":").map(Number);
-  return h * 60 + m;
-}
-function fromMin(n: number) {
-  const h = Math.floor(n / 60);
-  const m = n % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-function slotsEntre(inicio: string, fin: string) {
+
+function slotsEntre(ini: string, fin: string) {
+  const [ih, im] = ini.split(":").map(Number);
+  const [fh, fm] = fin.split(":").map(Number);
+  const start = ih * 60 + im;
+  const end = fh * 60 + fm;
   const out: string[] = [];
-  for (let t = toMin(inicio); t < toMin(fin); t += 30) out.push(fromMin(t));
+  for (let m = start; m < end; m += 30) {
+    out.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  }
   return out;
 }
-function slotsOcupados(fechaHora: string, duracion: number) {
-  const start = new Date(fechaHora).getTime();
-  const end = start + Math.max(duracion || 30, 30) * 60000;
+
+function rangoDuracion(hora: string, dur: number) {
+  const [h, m] = hora.split(":").map(Number);
+  const start = h * 60 + m;
   const out: string[] = [];
-  for (let t = start; t < end; t += 30 * 60000) {
+  for (let t = start; t < start + dur; t += 30) {
+    out.push(horaSlot(new Date(Date.UTC(2026, 0, 1, Math.floor(t / 60), t % 60)).toISOString()));
+  }
+  return out;
+}
+
+function slotsOcupados(fechaHora: string, dur: number) {
+  const start = new Date(fechaHora).getTime();
+  const out: string[] = [];
+  for (let t = start; t < start + dur * 60000; t += 30 * 60000) {
     out.push(horaSlot(new Date(t).toISOString()));
   }
   return out;
 }
-function cabe(inicio: string, duracion: number, busy: string[], abiertos: string[]) {
-  const fin = toMin(inicio) + Math.max(duracion || 30, 30);
-  for (let t = toMin(inicio); t < fin; t += 30) {
-    const h = fromMin(t);
-    if (!abiertos.includes(h) || busy.includes(h)) return false;
-  }
-  return true;
+
+function cabe(hora: string, dur: number, ocupados: string[], abiertos: string[]) {
+  const need = rangoDuracion(hora, dur);
+  return need.every((h) => abiertos.includes(h) && !ocupados.includes(h));
 }
-function dowUy(fecha: string) {
-  return new Date(`${fecha}T12:00:00-03:00`).getDay();
-}
+
 function horaDe(iso: string) {
-  return new Date(iso)
-    .toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Montevideo" })
-    .replace(".", ":")
-    .slice(0, 5);
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Montevideo",
+  }).slice(0, 5);
 }
-function slotsDeRango(inicio: string, fin: string) {
+
+function slotsDeRango(ini: string, fin: string) {
+  const [ih, im] = ini.split(":").map(Number);
+  const [fh, fm] = fin.split(":").map(Number);
+  const start = ih * 60 + im;
+  const end = fh * 60 + fm;
   const out: string[] = [];
-  const a = toMin(inicio);
-  const b = toMin(fin);
-  for (let t = a; t < b; t += 30) out.push(fromMin(t));
-  return out;
-}
-function rangoDuracion(inicio: string, duracion: number) {
-  const out: string[] = [];
-  const fin = toMin(inicio) + Math.max(duracion || 30, 30);
-  for (let t = toMin(inicio); t < fin; t += 30) out.push(fromMin(t));
+  for (let m = start; m < end; m += 30) {
+    out.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  }
   return out;
 }
 
-function BarraPublica() {
-  const slug = slugActual();
-  return (
-    <BottomNav
-      items={[
-        { href: slug ? `/b/${slug}` : "/", label: "Inicio" },
-        { href: slug ? `/reservar?b=${slug}` : "/reservar", label: "Reservar", active: true },
-        { href: slug ? `/tienda?b=${slug}` : "/tienda", label: "Tienda" },
-      ]}
-    />
-  );
+function normCat(c: string | null) {
+  return (c || "").trim();
 }
 
 export default function ReservarPage() {
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = createClient();
   const lock = useRef(false);
   const [shop, setShop] = useState<Shop | null>(null);
   const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -146,48 +143,34 @@ export default function ReservarPage() {
   const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
   const [ocupados, setOcupados] = useState<string[]>([]);
   const [libresCualquiera, setLibresCualquiera] = useState<string[] | null>(null);
-  const [cerrado, setCerrado] = useState(false);
   const [slotsDia, setSlotsDia] = useState<string[]>([]);
+  const [cerrado, setCerrado] = useState(false);
   const [categoria, setCategoria] = useState<string | null>(null);
   const [servicio, setServicio] = useState<Servicio | null>(null);
   const [barbero, setBarbero] = useState("");
   const [mes, setMes] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), 1);
   });
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
-  const [pago, setPago] = useState<"mp" | "transferencia" | "">("");
-  const [ok, setOk] = useState("");
-  const [error, setError] = useState("");
+  const [pago, setPago] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+  const [falta, setFalta] = useState(false);
 
   useEffect(() => {
-    const slug = slugActual();
-    const previo = slug ? sessionStorage.getItem(`reserva_ok_${slug}`) : null;
-    if (previo) {
-      setOk(previo);
-      return;
-    }
     const load = async () => {
-      if (!slug) return;
-      localStorage.setItem("barberia_slug", slug);
-      const { data: s } = await supabase
-        .from("barberias")
-        .select("id, nombre, mercado_pago_url, datos_cuenta, modo_whatsapp, rubro, canina_cupo_grande, canina_horas_grande, canina_duracion_grande, canina_un_grande_por_dia")
-        .eq("slug", slug)
-        .eq("activo", true)
-        .maybeSingle();
-      if (!s) { setError("Este local no existe"); return; }
+      const slug = slugActual();
+      if (!slug) return setFalta(true);
+      const { data: s } = await supabase.from("barberias").select("id, nombre, rubro, mercado_pago_url, datos_cuenta, modo_whatsapp, canina_cupo_grande, canina_horas_grande, canina_duracion_grande, canina_un_grande_por_dia").eq("slug", slug).eq("activo", true).maybeSingle();
+      if (!s) return setFalta(true);
       setShop(s as Shop);
-      const { data: serv } = await supabase
-        .from("servicios")
-        .select("id, nombre, precio, duracion_minutos, categoria, imagen_url, senia, descripcion")
-        .eq("barberia_id", s.id)
-        .eq("activo", true);
-      setServicios((serv as Servicio[]) || []);
+      const { data: sv } = await supabase.from("servicios").select("id, nombre, precio, duracion_minutos, categoria, imagen_url, descripcion, senia").eq("barberia_id", s.id).eq("activo", true).order("nombre");
+      setServicios((sv as Servicio[]) || []);
       const { data: b } = await supabase.from("barberos").select("id, nombre").eq("barberia_id", s.id);
       const listaBarberos = (b as Barbero[]) || [];
       setBarberos(listaBarberos);
@@ -197,14 +180,12 @@ export default function ReservarPage() {
           .select("barbero_id, dia_semana, hora_inicio, hora_fin, activo")
           .in("barbero_id", listaBarberos.map((x) => x.id));
         setHorariosTodos((hb as HorarioBarbero[]) || []);
-      } else {
-        setHorariosTodos([]);
       }
-      const { data: hs } = await supabase
+      const { data: h } = await supabase
         .from("horario_semanal")
         .select("dia_semana, hora_inicio, hora_fin, activo")
         .eq("barberia_id", s.id);
-      setHorarios((hs as Horario[]) || []);
+      setHorarios((h as Horario[]) || []);
       const { data: ex } = await supabase
         .from("horario_excepcion")
         .select("fecha, hora_inicio, hora_fin, cerrado, barbero_id")
@@ -220,7 +201,7 @@ export default function ReservarPage() {
   }, [supabase]);
 
   useEffect(() => {
-    const loadBarberoHoras = async () => {
+    const load = async () => {
       if (!barbero) {
         setHorariosBarbero([]);
         return;
@@ -231,70 +212,50 @@ export default function ReservarPage() {
         .eq("barbero_id", barbero);
       setHorariosBarbero((data as Horario[]) || []);
     };
-    void loadBarberoHoras();
+    void load();
   }, [barbero, supabase]);
 
   useEffect(() => {
     const loadHoras = async () => {
-      if (!shop || !fecha) {
-        setOcupados([]);
-        setSlotsDia([]);
-        setCerrado(false);
-        return;
-      }
-      if (shop.rubro === "canina" || shop.rubro === "veterinaria") return;
+      if (!shop || !fecha) return;
       const dia = dowUy(fecha);
       const ex = excepciones.find((e) => e.fecha?.slice(0, 10) === fecha && (!e.barbero_id || e.barbero_id === barbero || !barbero));
-      const bloqueado = bloqueos.some(
-        (b) => fecha >= String(b.fecha_inicio).slice(0, 10) && fecha <= String(b.fecha_fin).slice(0, 10) && b.todo_el_dia !== false
-      );
-      let inicio = "09:00";
-      let fin = "20:30";
-      let abierto = true;
-
-      const filaBar = horariosBarbero.find((h) => h.dia_semana === dia);
-      const filaLoc = horarios.find((h) => h.dia_semana === dia);
-      const fila = barbero && filaBar ? filaBar : filaLoc;
-      if (fila) {
-        abierto = Boolean(fila.activo);
-        inicio = (fila.hora_inicio || "09:00").slice(0, 5);
-        fin = (fila.hora_fin || "20:00").slice(0, 5);
-      } else if (horarios.length > 0) {
-        abierto = false;
-      }
-
-      if (ex) {
-        if (ex.cerrado) abierto = false;
-        else {
-          abierto = true;
-          if (ex.hora_inicio) inicio = ex.hora_inicio.slice(0, 5);
-          if (ex.hora_fin) fin = ex.hora_fin.slice(0, 5);
-        }
-      }
-
-      if (bloqueado) abierto = false;
-
-      if (!abierto) {
+      if (ex?.cerrado) {
         setCerrado(true);
         setSlotsDia([]);
         setOcupados([]);
         setLibresCualquiera(null);
-        setHora("");
         return;
       }
       setCerrado(false);
-
+      const filaBar = horariosBarbero.find((h) => h.dia_semana === dia);
+      const filaLoc = horarios.find((h) => h.dia_semana === dia);
+      const fila = barbero && filaBar ? filaBar : filaLoc;
+      let inicio = "09:00";
+      let fin = "20:00";
+      if (fila && fila.activo) {
+        inicio = (fila.hora_inicio || "09:00").slice(0, 5);
+        fin = (fila.hora_fin || "20:00").slice(0, 5);
+      } else if (horarios.length > 0) {
+        setCerrado(true);
+        setSlotsDia([]);
+        setOcupados([]);
+        setLibresCualquiera(null);
+        return;
+      }
+      if (ex && !ex.cerrado) {
+        if (ex.hora_inicio) inicio = ex.hora_inicio.slice(0, 5);
+        if (ex.hora_fin) fin = ex.hora_fin.slice(0, 5);
+      }
       const desde = new Date(`${fecha}T00:00:00-03:00`).toISOString();
       const hasta = new Date(`${fecha}T23:59:59-03:00`).toISOString();
-      let q = supabase
+      const { data } = await supabase
         .from("turnos")
         .select("fecha_hora, duracion_minutos, barbero_id")
         .eq("barberia_id", shop.id)
         .gte("fecha_hora", desde)
         .lte("fecha_hora", hasta)
         .in("estado", ["pendiente", "confirmado"]);
-      if (barbero) q = q.eq("barbero_id", barbero);
-      const { data } = await q;
       const bloqueoHoras = new Set<string>();
       bloqueos.forEach((b) => {
         if (b.todo_el_dia !== false) return;
@@ -396,6 +357,7 @@ export default function ReservarPage() {
     setError("");
     if (lock.current || enviando) return;
     if (!shop || !servicio || !fecha || !hora || !nombre || !telefono) return setError("Completá los datos");
+    if (barberos.length > 1 && !barbero) return setError("Elegí un barbero");
     if (pideSenia && !pago) return setError("Elegí cómo pagás la seña");
     if (!cabe(hora, servicio.duracion_minutos || 30, ocupados, slotsDia) && !horasLibres.includes(hora)) {
       return setError("Ese horario se superpone con otro turno");
@@ -483,6 +445,14 @@ export default function ReservarPage() {
       setEnviando(false);
     }
   };
+
+  if (falta) {
+    return (
+      <main className="mx-auto max-w-md px-4 py-16 text-center">
+        <p>Este local no existe.</p>
+      </main>
+    );
+  }
 
   if (ok && shop && shop.rubro !== "canina" && shop.rubro !== "veterinaria") {
     return (
@@ -583,11 +553,16 @@ export default function ReservarPage() {
 
           {barberos.length > 1 && (
             <select value={barbero} onChange={(e) => setBarbero(e.target.value)} className="mt-4 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-              <option value="">Cualquiera</option>
+              <option value="">Elegí un barbero</option>
               {barberos.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>
           )}
 
+          {barberos.length > 1 && !barbero && (
+            <p className="mt-4 text-sm" style={{ color: "var(--muted)" }}>Elegí un barbero para ver los horarios disponibles.</p>
+          )}
+
+          {(barberos.length <= 1 || barbero) && (
           <div className="mt-6">
             <p className="mb-3 text-sm" style={{ color: "var(--muted)" }}>Seleccionar día</p>
             <div className="flex items-center justify-between px-2">
@@ -622,6 +597,7 @@ export default function ReservarPage() {
                 ))}
               </div>
             </div>
+          )}
           )}
 
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="mt-5 w-full rounded-xl px-3 py-3" style={{ background: "var(--card)", border: "1px solid var(--line)" }} />
